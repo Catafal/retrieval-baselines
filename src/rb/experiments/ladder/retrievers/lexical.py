@@ -195,9 +195,9 @@ class LexicalRetriever:
         all_scores = np.concatenate(touched_scores)
         # A document can be touched by more than one query term (once per
         # postings list it appears in); collapse duplicates by summing, which is
-        # exactly BM25's outer sum over query terms. np.unique + np.add.at is the
-        # vectorised equivalent of a dict accumulator, without a Python-level
-        # loop over every touched (doc, term) pair.
+        # exactly BM25's outer sum over query terms. np.unique + bincount below
+        # is the vectorised equivalent of a dict accumulator, without a
+        # Python-level loop over every touched (doc, term) pair.
         unique_rows, inverse = np.unique(all_rows, return_inverse=True)
         # bincount rather than np.add.at: both sum by group index, but add.at is
         # unbuffered because it has to support aliasing this code never uses, and
@@ -254,7 +254,14 @@ class _ReferenceLexicalRetriever:
     Its only job is to exist as ground truth for
     tests/test_lexical_equivalence.py, which asserts the fast inverted-index
     path in LexicalRetriever returns identical scores. Do not optimise this
-    class — its value is being obviously, boringly correct.
+    class — its value is being obviously, boringly correct. Deleting it, or
+    rewriting it to share code with the fast path, would remove the only
+    thing in this repository that proves the fast path is right: "the algebra
+    checks out" does not catch an indexing bug (off-by-one in a slice, wrong
+    axis, a term counted twice), and reasoning about the vectorised code is
+    exactly the kind of check that missed those before three reviewers' 15
+    deliberately injected defects were all caught by running this class and
+    diffing its output against the fast path's.
     """
 
     idf: bool = True
@@ -302,6 +309,12 @@ class _ReferenceLexicalRetriever:
                 if s > 0:
                     scores[d] = s
             ranked = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[:top_k]
+            # Tie-break epsilon (1e-9 * rank position), subtracted only to satisfy
+            # the Retriever contract's "strictly decreasing" requirement for the
+            # rare case of an exact tie; far too small to alter any comparison of
+            # actual score magnitude. The fast path must reproduce this exactly
+            # (same constant, same per-rank scaling) for the two implementations
+            # to agree past the sort — see tests/test_lexical_equivalence.py.
             run[qid] = {d: raw - i * 1e-9 for i, (d, raw) in enumerate(ranked)}
         return run
 

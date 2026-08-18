@@ -86,20 +86,20 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
     corpus, queries, qrels, sampled = _load_subsampled(dataset)
     seed = 20260818 if sampled else None
 
+    # The significance block below recomputes nDCG@10 from each rung's
+    # per_query.jsonl, which stores only the top_k the run wrote. Below ten,
+    # that reconstruction scores against fewer than ten documents and returns
+    # something that looks like nDCG@10 and is not. No caller does this today;
+    # the guard is here so none can start without noticing.
+    if top_k < 10:
+        raise ValueError(f"top_k={top_k} cannot support ndcg_cut_10; need at least 10")
+
     # Built ONCE per dataset, shared read-only across all eight configs below.
     # The index (postings, doc lengths, document frequencies, average length) is
     # config-independent — only the scoring formula changes between configs —
     # so rebuilding it inside each of the eight run_rung() calls would repeat
     # the one genuinely expensive step (a full tokenisation pass over the
     # corpus) eight times for no reason. See LexicalIndex's docstring.
-    # The significance block recomputes nDCG@10 from each rung's per_query.jsonl,
-    # which stores only the top_k the run wrote. Below ten, that reconstruction
-    # scores against fewer than ten documents and returns something that looks
-    # like nDCG@10 and is not. No caller does this today; the guard is here so
-    # none can start without noticing.
-    if top_k < 10:
-        raise ValueError(f"top_k={top_k} cannot support ndcg_cut_10; need at least 10")
-
     t_index = time.perf_counter()
     shared_index = build_index(corpus)
     index_seconds = time.perf_counter() - t_index

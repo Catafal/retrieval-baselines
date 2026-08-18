@@ -45,6 +45,18 @@ trigger by accident while trying to reproduce the cheap part. As of this commit 
 been run — there is no `results/002/*/dense` or `.../hybrid`, and none of this repo's docs
 should be read as claiming otherwise.
 
+The lexical rungs (`LexicalRetriever`) score against a sparse inverted index
+(`lexical.build_index`) rather than scanning the corpus per query — the naive scan does not
+finish on HotpotQA (projected 18.6 hours and 18.3 GB, on a 26 GB machine) because it rebuilds
+its term-frequency bookkeeping from scratch, once per query, once per one of the eight
+factorial configs. The index is built once per dataset and shared read-only across all eight
+configs. Measured on HotpotQA (5.2M documents): index build ~93–100s, ~51 minutes wall clock for
+all eight configs including that build, ~13.3 GB peak memory (the transient cost of the Python
+lists that stage postings before `scipy.sparse.csc_matrix` compacts them; the built matrix
+itself is ~2.1 GB). That measurement is harness-only — the lexical factorial has not been run
+for real against `results/002/`, which still does not exist, and nothing in this repo should be
+read as claiming HotpotQA has been scored.
+
 Corpora come from [BEIR](https://github.com/beir-cellar/beir). They are downloaded, never
 redistributed. What this repo commits is the SHA-256 of every zip consumed
 (`manifests/datasets.json`) and every number produced (`results/`).

@@ -6,7 +6,7 @@ implementation, on every corpus below.
 
 TOLERANCE. The two implementations sum the same term contributions in a
 different order — the reference sums sequentially per document; the fast path
-concatenates per-term numpy arrays and reduces with np.add.at, so a document
+concatenates per-term numpy arrays and reduces with np.bincount, so a document
 touched by two query terms accumulates them in whichever order np.unique put
 its row in. IEEE 754 float64 addition is not associative, so a summation-order
 difference can move the last one or two bits of a float64 mantissa (~1e-15
