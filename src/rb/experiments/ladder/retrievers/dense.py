@@ -132,7 +132,7 @@ class SentenceTransformerEncoder:
 
     def encode_documents(self, texts: list[str]) -> np.ndarray:
         return np.asarray(
-            self._model.encode(texts, batch_size=32, show_progress_bar=False, convert_to_numpy=True)
+            self._model.encode(texts, batch_size=self.batch_size, show_progress_bar=False, convert_to_numpy=True)
         )
 
     def encode_queries(self, texts: list[str]) -> np.ndarray:
@@ -141,5 +141,5 @@ class SentenceTransformerEncoder:
         # where that convention would be applied, kept visible rather than buried
         # inside a single shared encode().
         return np.asarray(
-            self._model.encode(texts, batch_size=32, show_progress_bar=False, convert_to_numpy=True)
+            self._model.encode(texts, batch_size=self.batch_size, show_progress_bar=False, convert_to_numpy=True)
         )

@@ -25,14 +25,16 @@ import json
 import time
 from pathlib import Path
 
-from rb import datasets
+from rb import controls, datasets
 from rb.retriever import run_rung
 from rb.run import select_queries
 from rb.experiments.ladder.retrievers.coordination import CoordinationRetriever
-from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, shapley_from_ndcg
+from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, full_bm25, shapley_from_ndcg
 
 ROOT = Path(__file__).resolve().parents[4]
 RESULTS = ROOT / "results" / "002"
+# 001's BM25 numbers are the external anchor the closure control checks against.
+ANCHOR_DIR = ROOT / "results" / "001"
 
 
 def _load_subsampled(dataset: str):
@@ -70,11 +72,31 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
         ndcg_by_config[cfg] = summary["ranked"]["ndcg_cut_10"]
         summaries[cfg.name] = summary
 
+    # The closure control, run BEFORE anything is written. The all-on corner is full
+    # BM25 by construction, so it has to agree with the externally anchored BM25 that
+    # 001 already checked against the published BEIR figures. Without this gate the
+    # factorial happily produces eight plausible numbers and a Shapley attribution
+    # even when the scorer is wrong, which is the exact failure that retracted the
+    # previous entry: a number that looks entirely reasonable and is not right.
+    anchor = json.loads((ANCHOR_DIR / dataset / "bm25_control.json").read_text())
+    closure = controls.bm25_closure(
+        ndcg_by_config[full_bm25()],
+        anchor["published_bm25_ndcg_cut_10"],
+        anchor_ndcg=anchor["ndcg_cut_10"],
+    )
+    if not closure["passed"]:
+        raise RuntimeError(
+            f"BM25 closure control failed on {dataset}: {closure}. The all-on corner of "
+            "the factorial is meant to BE full BM25, so disagreeing with the anchor means "
+            "the lexical scorer is wrong. Nothing is written."
+        )
+
     shapley = shapley_from_ndcg(ndcg_by_config)
     factorial_summary = {
         "dataset": dataset,
         "configs": {cfg.name: ndcg for cfg, ndcg in ndcg_by_config.items()},
         "shapley_ndcg_cut_10": shapley,
+        "controls": {"bm25_closure": closure},
     }
     out_dir = RESULTS / dataset
     out_dir.mkdir(parents=True, exist_ok=True)

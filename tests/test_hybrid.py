@@ -1,3 +1,5 @@
+import pytest
+
 """Hybrid rung: reciprocal rank fusion behaviour, checked at the seam (retrieve()'s
 output), not against the internal RRF accumulator."""
 
@@ -64,3 +66,40 @@ def test_rrf_no_weight_search_component_contributions_are_symmetric():
     run_ab = HybridRetriever(r1, r2, candidate_k=2).retrieve({"a": "", "b": ""}, {"q": ""}, top_k=2)["q"]
     run_ba = HybridRetriever(r2, r1, candidate_k=2).retrieve({"a": "", "b": ""}, {"q": ""}, top_k=2)["q"]
     assert run_ab == run_ba
+
+
+def test_rrf_weights_are_one_based_against_independently_computed_values():
+    """
+    Pin the actual RRF weights, not just the ordering.
+
+    Ordering cannot catch a start-index error: 1/(k+pos) stays monotonically
+    decreasing whether pos starts at 0 or 1, so the ranking is identical and every
+    order-only assertion passes against a wrong implementation. A mutation test
+    confirmed exactly that. The expected values below are written as literal
+    fractions rather than recomputed with the implementation's own loop, so this
+    test fails if the start index, k, or the formula moves.
+    """
+    from rb.experiments.ladder.retrievers.hybrid import HybridRetriever
+
+    h = HybridRetriever(lexical=_Named("lex"), dense=_Named("dense"), k=60)
+    # Two components, each already in this repo's decreasing rank-position encoding.
+    fused = h.fuse({"a": 3.0, "b": 2.0, "c": 1.0}, {"c": 2.0, "a": 1.0})
+
+    assert fused["a"] == pytest.approx(1 / 61 + 1 / 62)   # rank 1 and rank 2
+    assert fused["b"] == pytest.approx(1 / 62)            # rank 2, one component
+    assert fused["c"] == pytest.approx(1 / 63 + 1 / 61)   # rank 3 and rank 1
+
+
+def test_rrf_k_is_sixty_and_not_searched():
+    """k is pre-registered. If someone tunes it, this fails rather than drifting."""
+    from rb.experiments.ladder.retrievers.hybrid import RRF_K, HybridRetriever
+
+    assert RRF_K == 60
+    assert HybridRetriever(lexical=_Named("lex"), dense=_Named("dense")).k == 60
+
+
+class _Named:
+    """Minimal stand-in: HybridRetriever only reads `.name` at construction."""
+
+    def __init__(self, name: str):
+        self.name = name

@@ -1,3 +1,4 @@
+import zlib
 """
 The Retriever contract, checked once against every implementation on the same
 tiny in-memory corpus — not against internals, against the seam every rung shares
@@ -41,7 +42,10 @@ class StubEncoder:
         dim = 16
         out = np.zeros((len(texts), dim))
         for i, t in enumerate(texts):
-            seed = abs(hash(t)) % (2**32)
+            # crc32, not hash(): built-in hash() on str is salted per process
+            # (PYTHONHASHSEED), so a stub built on it produces different vectors
+            # every run — in the one file whose subject is determinism.
+            seed = zlib.crc32(t.encode())
             out[i] = np.random.default_rng(seed).normal(size=dim)
         return out
 

@@ -30,15 +30,31 @@ class HybridRetriever:
 
         run: dict[str, dict[str, float]] = {}
         for qid in sorted(queries):
-            rrf: dict[str, float] = {}
-            for component in (lex_run.get(qid, {}), dense_run.get(qid, {})):
-                # Component scores are already the strictly-decreasing rank-position
-                # encoding every rung in this repo uses, so rank is recovered by
-                # re-sorting rather than by trusting the raw score's magnitude —
-                # RRF only ever needs rank position, never the score itself.
-                ranked = sorted(component.items(), key=lambda kv: (-kv[1], kv[0]))
-                for pos, (d, _) in enumerate(ranked, start=1):
-                    rrf[d] = rrf.get(d, 0.0) + 1.0 / (self.k + pos)
+            rrf = self.fuse(lex_run.get(qid, {}), dense_run.get(qid, {}))
             ordered = sorted(rrf.items(), key=lambda kv: (-kv[1], kv[0]))[:top_k]
             run[qid] = {d: float(len(ordered) - i) for i, (d, _) in enumerate(ordered)}
         return run
+
+    def fuse(self, *components: dict[str, float]) -> dict[str, float]:
+        """
+        Raw RRF weights for one query, before the rank-position re-encoding.
+
+        Split out of `retrieve` so it can be tested directly. It has to be: the
+        re-encoding in `retrieve` throws magnitude away and keeps only order, and
+        RRF's order is invariant to a constant shift in the starting rank — so
+        `1/(k+pos)` with pos starting at 0 instead of 1 produces different weights
+        and an identical ranking. A mutation test confirmed that flipping
+        `start=1` to `start=0` left the whole suite passing, because nothing could
+        observe the weights. This method is the seam that makes that observable.
+        """
+        rrf: dict[str, float] = {}
+        for component in components:
+            # Component scores are already the strictly-decreasing rank-position
+            # encoding every rung in this repo uses, so rank is recovered by
+            # re-sorting rather than by trusting the raw score's magnitude —
+            # RRF only ever needs rank position, never the score itself.
+            ranked = sorted(component.items(), key=lambda kv: (-kv[1], kv[0]))
+            # 1-based: the top document of a component contributes 1/(k+1), not 1/k.
+            for pos, (d, _) in enumerate(ranked, start=1):
+                rrf[d] = rrf.get(d, 0.0) + 1.0 / (self.k + pos)
+        return rrf

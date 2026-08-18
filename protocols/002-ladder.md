@@ -116,12 +116,29 @@ Every one fails loudly and halts the run, same convention as 001.
 - **Gold-presence** and **empty-query** (`rb.controls`), inherited unchanged, run for every
   rung via `run_rung`.
 - **BM25 closure** (`rb.controls.bm25_closure`). The lexical all-on corner
-  (`lexical.full_bm25()`) must agree with 001's externally anchored BM25
-  (`results/001/<dataset>/bm25_control.json`) within **0.02 absolute** nDCG@10 — tighter than
-  001's 0.10 anchor-to-BEIR tolerance, because both numbers here come from this repository and
-  only library/rounding differences should separate them. This is the single most important
-  control in this experiment: if it fails, nothing from experiment 002 ships until the lexical
-  implementation is fixed.
+  (`lexical.full_bm25()`) must agree with the **published** BM25 figure for the dataset
+  (Thakur et al. 2021, Table 2, carried in `results/001/<dataset>/bm25_control.json` as
+  `published_bm25_ndcg_cut_10`) within **0.10 absolute** nDCG@10, the same tolerance and the
+  same external reference 001 used. It runs before any factorial artifact is written, and it
+  raises. This is the single most important control in this experiment: if it fails, nothing
+  from 002 ships until the lexical implementation is fixed.
+
+  This is not what an earlier draft of this protocol said, and the correction is recorded
+  rather than quietly applied. That draft gated against 001's in-repo `bm25s` anchor at 0.02,
+  reasoning that two numbers from the same repository should differ only by rounding. Measured
+  on SciFact before tagging, that reasoning was wrong:
+
+  | | nDCG@10 | tokenisation |
+  |---|---|---|
+  | this repo's full BM25 | 0.6605 | no stopword removal, no stemming |
+  | 001's `bm25s` anchor | 0.6863 | stopwords + Snowball stemming |
+  | published (Anserini) | 0.6650 | — |
+
+  The two in-repo numbers differ by 0.0258 because they tokenise differently, which is a real
+  difference in what is measured rather than noise, and the 0.02 gate would therefore have
+  failed a correct implementation. Ours sits 0.0045 from the published figure, closer to it
+  than `bm25s` is. So the gate is against the external reference, and the in-repo anchor is
+  reported alongside it as information rather than used to pass or fail the run.
 - **Embedding shuffle** (`rb.controls.embedding_shuffle`). Permuting the document embedding
   matrix (`DenseRetriever(..., shuffle_seed=<seed>)`) before scoring must collapse nDCG@10 to
   at most **0.15** (the stated chance ceiling). If it does not, the vector index or its id
