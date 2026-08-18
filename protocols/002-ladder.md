@@ -76,6 +76,11 @@ a ladder hands shared credit for interacting mechanisms to whichever one went fi
   run, and this document commits to *that being pinned*, not to a specific hash chosen without
   having run anything.)
 - Exact cosine over full-precision (float32) vectors. No approximate index.
+- The `sentence-transformers` version itself must be pinned in `requirements.txt` **before**
+  the dense rung is scored. It is deliberately unpinned in the change that introduces this
+  protocol, because pinning a version nobody has run is a guess dressed as rigour. Every other
+  dependency here is pinned, so this is a gap, and it is the first thing to close when the
+  dense rung is actually run: the model revision is only half of what determines an embedding.
 - Batch size 32, mean pooling, max sequence length 512 (documents beyond this are truncated;
   truncation is a property of the measurement and is recorded, not hidden).
 - Query and document encoding use whatever asymmetric convention the pinned model specifies;
