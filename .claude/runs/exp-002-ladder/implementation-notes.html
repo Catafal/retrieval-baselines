@@ -91,15 +91,19 @@
 
   <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
 
-  <div class="open"><span class="tag t-open">Open</span> <strong>Closure-control tolerance
-    value.</strong>
+  <div class="open"><span class="tag t-open">Resolved below ↓</span> <strong>Closure-control
+    tolerance value — the call made here was wrong.</strong>
     001's external-anchor tolerance (0.10 absolute) is deliberately loose because it compares
     this repo's tokenisation against Anserini's. The closure control compares this repo's own
     lexical all-on corner against this repo's own bm25s-based anchor (already run in 001) — both
     are "us", so I set a tighter default of 0.02 absolute in <code>controls.bm25_closure()</code>
     and documented it in <code>protocols/002-ladder.md</code>. This number has not been checked
     against a real measured pair (no run happened), so it may need loosening once the actual
-    all-on-corner number exists.</div>
+    all-on-corner number exists.
+    <br><br>
+    <strong>It did need loosening, for a different reason than "the number might be off":
+    the reasoning itself was wrong.</strong> See "Review findings applied" below — the 0.02
+    gate would have failed a correct implementation, not just an imprecise one.</div>
 
   <div class="open"><span class="tag t-open">Open</span> <strong>Embedding-shuffle chance
     ceiling.</strong>
@@ -107,13 +111,83 @@
     This is a guess at what a shuffled dense run looks like on SciFact/Quora-scale corpora and
     is untested against real embeddings (none were run). It is exercised in
     <code>tests/test_dense.py</code> against a small synthetic corpus where alignment is exact,
-    which proves the mechanism (shuffle collapses the metric) but not the specific threshold.</div>
+    which proves the mechanism (shuffle collapses the metric) but not the specific threshold.
+    Still open as of the review pass below — nothing in review touched this number.</div>
+
+  <h2>Review findings applied <span class="meta">(second pass, after three reviewers — see the
+    "002: apply review findings" commit for the full writeup)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Critical</span> <strong>The closure control was
+    built, unit-tested, and never called.</strong>
+    <code>run_lexical_factorial()</code> computed all eight configurations and a Shapley
+    attribution with nothing checking that the all-on corner actually agreed with an external
+    BM25 reference — <code>controls.bm25_closure()</code> existed and had passing unit tests,
+    but no caller in <code>run.py</code> invoked it. This is the exact shape of failure 001's
+    predecessor entry was retracted for: a plausible-looking number that nobody checked. Fixed
+    by calling the closure control in <code>run_lexical_factorial()</code>, before the factorial
+    summary is written, and raising if it fails (see <code>run.py</code>'s comment at the call
+    site).</div>
+
+  <div class="decision"><span class="tag t-dec">Critical</span> <strong>Wiring the control
+    exposed that the control itself was wrong.</strong>
+    Measured against real SciFact numbers before tagging: this repo's own full BM25 scores
+    0.6605 (no stopword removal, no stemming); 001's in-repo <code>bm25s</code> anchor scores
+    0.6863 (stopwords + Snowball stemming); the published Anserini figure is 0.6650. The 0.02
+    tolerance decided above assumed the two in-repo numbers should differ only by rounding —
+    they differ by 0.0258 because they tokenise differently, a real measurement difference, not
+    noise, and the 0.02 gate would have failed a correct implementation. This repo's BM25 sits
+    0.0045 from the published figure, closer than <code>bm25s</code> is. The gate now compares
+    against the published figure at 001's own 0.10 tolerance — the same external reference, the
+    same reasoning 001 already used — and the in-repo anchor is still reported for information,
+    just no longer used to pass or fail. <code>protocols/002-ladder.md</code> §7 records this
+    correction in place rather than silently rewriting the earlier claim.</div>
+
+  <div class="decision"><span class="tag t-dec">High</span> <strong>A mutation proved the RRF
+    numeric test could not fail.</strong>
+    Flipping <code>fuse()</code>'s rank start from 1 to 0 left all 43 tests passing. Cause:
+    <code>HybridRetriever.retrieve()</code> re-encodes fused RRF weights to rank position before
+    returning them, discarding the magnitudes that a start-index bug would change, and the one
+    test that checked a formula re-implemented it inline against <code>retrieve()</code>'s
+    output rather than reading the fusion weights directly — so it was really checking its own
+    copy of the formula, not the implementation's. Fixed by extracting <code>fuse()</code> as a
+    directly-testable seam (see <code>hybrid.py</code>) and pinning its output against literal
+    fractions computed by hand in <code>test_rrf_weights_are_one_based_against_independently_computed_values</code>.
+    The same mutation now fails that test.</div>
+
+  <div class="decision"><span class="tag t-dec">Medium</span> <strong><code>batch_size</code> was
+    reported in the manifest but never reached the encoder.</strong>
+    <code>SentenceTransformerEncoder.encode_documents</code>/<code>encode_queries</code> called
+    <code>self._model.encode(..., batch_size=32, ...)</code> — a literal, ignoring the
+    constructor's <code>batch_size</code> argument — while <code>DenseRetriever.manifest()</code>
+    reported whatever value was passed to <em>its</em> constructor as if it governed the run. A
+    manifest exists so a stranger can tell an environment difference from a finding; one that
+    states a setting that was never actually used is worse than no manifest at all. Fixed by
+    threading <code>self.batch_size</code> through both encode calls.</div>
+
+  <div class="decision"><span class="tag t-dec">Minor</span> <strong>The contract-test stub
+    encoder seeded vectors from <code>hash()</code>.</strong>
+    Python's built-in <code>hash()</code> on <code>str</code> is salted per process
+    (<code>PYTHONHASHSEED</code>) unless disabled, so a stub built on it produces different
+    embedding vectors on every test run — in <code>test_retriever_contract.py</code>, the one
+    file whose entire subject is determinism ("deterministic across two invocations"). Fixed by
+    seeding from <code>zlib.crc32</code> instead, which is stable across processes.</div>
+
+  <div class="tradeoff"><span class="tag t-trade">Kept, not fixed</span> <strong>
+    <code>environment()</code> stays near-duplicated between 001's frozen runner and the shared
+    one.</strong>
+    001's <code>rb.run.environment()</code> and the new <code>rb.retriever.environment()</code>
+    both assemble python/platform/git-commit/dataset-checksum fields, five lines apart in
+    substance. Reviewers flagged the duplication; it was left in place rather than refactored,
+    because 001's runner backs a published promise and touching it to share five lines is a
+    worse trade than the duplication itself. Recorded in <code>rb.retriever.environment()</code>'s
+    docstring so the choice reads as deliberate rather than missed.</div>
 
   <h2>Build / verification</h2>
   <ul>
-    <li><code>PYTHONPATH=src .venv/bin/pytest -q tests</code>: <strong>43 passed</strong>,
+    <li><code>PYTHONPATH=src .venv/bin/pytest -q tests</code>: <strong>46 passed</strong>,
       0 failed, 0 skipped (the coordination-regression test's skip guard did not trigger —
-      SciFact was already downloaded and results/001 already committed).</li>
+      SciFact was already downloaded and results/001 already committed). Was 43 before the
+      review pass added the RRF weight-pinning test and the <code>k</code>-is-fixed test.</li>
     <li><code>tests/test_coordination_regression.py</code> is the migration's acceptance
       test: it runs the refit CoordinationRetriever on the real SciFact corpus and asserts
       its ranked metrics equal <code>results/001/scifact/summary.json</code>'s exactly
@@ -128,7 +202,7 @@
       the test suite (lazy-imported, exercised only via a stub in tests). No other new
       dependencies, no migrations.</li>
     <li>No corpus was embedded, no dense/hybrid rung was scored, no results/002/ artifact was
-      produced — per scope.</li>
+      produced — per scope, and still true after the review pass.</li>
   </ul>
 
   <h2>Progress</h2>
@@ -144,6 +218,9 @@
     <tr><td>8</td><td>Controls: closure + embedding shuffle + tests</td><td class="done">✓ done</td></tr>
     <tr><td>9</td><td>Makefile targets + protocols/002-ladder.md</td><td class="done">✓ done</td></tr>
     <tr><td>10</td><td>Full test suite green, commit</td><td class="done">✓ done — 43/43 passing</td></tr>
+    <tr><td>11</td><td>Review pass: wire the closure control, fix its tolerance/reference, fix the
+      RRF mutation gap, thread batch_size, fix the hash() stub</td><td class="done">✓ done —
+      46/46 passing</td></tr>
   </table>
 </body>
 </html>

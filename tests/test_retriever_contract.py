@@ -1,9 +1,10 @@
-import zlib
 """
 The Retriever contract, checked once against every implementation on the same
 tiny in-memory corpus — not against internals, against the seam every rung shares
 (see rb.retriever.Retriever).
 """
+
+import zlib
 
 import numpy as np
 

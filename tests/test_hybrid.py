@@ -1,7 +1,7 @@
-import pytest
-
 """Hybrid rung: reciprocal rank fusion behaviour, checked at the seam (retrieve()'s
 output), not against the internal RRF accumulator."""
+
+import pytest
 
 from rb.experiments.ladder.retrievers.hybrid import RRF_K, HybridRetriever
 

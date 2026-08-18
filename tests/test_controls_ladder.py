@@ -1,6 +1,7 @@
-import pytest
 """Experiment 002's two new controls, tested as functions against known numbers
 (the embedding-shuffle control is also exercised end to end in test_dense.py)."""
+
+import pytest
 
 from rb.controls import bm25_closure, embedding_shuffle
 
