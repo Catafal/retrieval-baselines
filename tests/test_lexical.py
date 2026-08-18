@@ -4,7 +4,7 @@ mechanism's effect has a known direction — same shape as test_grep_baseline.py
 word-boundary test: small, fast, data-free, behavioural.
 """
 
-from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, LexicalRetriever, full_bm25
+from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, LADDER, LexicalRetriever, full_bm25
 
 
 def test_idf_on_prefers_rare_term_match_over_common_term_match():
@@ -112,3 +112,13 @@ def test_all_off_corner_is_raw_term_frequency_sum():
     scores = off_corner._term_score  # exercise directly: tf/norm with norm=1, weight=1
     assert scores(tf=3, doc_len=4, avgdl=4, df_t=2, n=2) == 3.0
     assert scores(tf=1, doc_len=3, avgdl=4, df_t=2, n=2) == 1.0
+
+
+def test_ladder_runs_from_all_off_to_full_bm25_one_mechanism_at_a_time():
+    assert LADDER[0] == LexicalRetriever(idf=False, tf_saturation=False, length_norm=False)
+    assert LADDER[-1] == full_bm25()
+    for prev_cfg, next_cfg in zip(LADDER, LADDER[1:]):
+        flips = sum(
+            getattr(prev_cfg, f) != getattr(next_cfg, f) for f in ("idf", "tf_saturation", "length_norm")
+        )
+        assert flips == 1, "each ladder step must turn on exactly one additional mechanism"

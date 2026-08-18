@@ -21,15 +21,17 @@ should do by accident.
 """
 
 import argparse
+import dataclasses
 import json
 import time
 from pathlib import Path
 
-from rb import controls, datasets
+from rb import controls, datasets, metrics
 from rb.retriever import run_rung
 from rb.run import select_queries
+from rb.stats import holm_correction, paired_bootstrap
 from rb.experiments.ladder.retrievers.coordination import CoordinationRetriever
-from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, full_bm25, shapley_from_ndcg
+from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, LADDER, build_index, full_bm25, shapley_from_ndcg
 
 ROOT = Path(__file__).resolve().parents[4]
 RESULTS = ROOT / "results" / "002"
@@ -42,6 +44,26 @@ def _load_subsampled(dataset: str):
     qids, sampled = select_queries(queries)
     subsampled_queries = {q: queries[q] for q in qids}
     return corpus, subsampled_queries, qrels, sampled
+
+
+def _per_query_ndcg(out_dir: Path, qrels: dict[str, dict[str, int]]) -> dict[str, float]:
+    """
+    Recompute per-query nDCG@10 from the per_query.jsonl artifact run_rung()
+    already wrote, instead of re-running retrieval or having run_rung() write
+    out a redundant second artifact. per_query.jsonl only records rank ORDER
+    (the retrieved doc-id list), not the retriever's raw score magnitude — but
+    pytrec_eval's ranked measures depend only on order, so assigning any
+    strictly-decreasing synthetic score to that order (len(retrieved) - i)
+    reproduces exactly the per-query nDCG run_rung computed the first time.
+    """
+    run: dict[str, dict[str, float]] = {}
+    with open(out_dir / "per_query.jsonl", encoding="utf8") as f:
+        for line in f:
+            row = json.loads(line)
+            retrieved = row["retrieved"]
+            run[row["query_id"]] = {d: len(retrieved) - i for i, d in enumerate(retrieved)}
+    per_query = metrics.score_ranked(qrels, run)
+    return {q: per_query[q]["ndcg_cut_10"] for q in per_query}
 
 
 def run_coordination(dataset: str, top_k: int = 100) -> dict:
@@ -64,13 +86,30 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
     corpus, queries, qrels, sampled = _load_subsampled(dataset)
     seed = 20260818 if sampled else None
 
+    # Built ONCE per dataset, shared read-only across all eight configs below.
+    # The index (postings, doc lengths, document frequencies, average length) is
+    # config-independent — only the scoring formula changes between configs —
+    # so rebuilding it inside each of the eight run_rung() calls would repeat
+    # the one genuinely expensive step (a full tokenisation pass over the
+    # corpus) eight times for no reason. See LexicalIndex's docstring.
+    shared_index = build_index(corpus)
+
     ndcg_by_config = {}
     summaries = {}
+    out_dirs = {}
     for cfg in ALL_CONFIGS:
+        cfg_with_index = dataclasses.replace(cfg, index=shared_index)
         out_dir = RESULTS / dataset / cfg.name
-        summary = run_rung(cfg, dataset, corpus, queries, qrels, out_dir, top_k=top_k, subsampled=sampled, seed=seed)
+        summary = run_rung(
+            cfg_with_index, dataset, corpus, queries, qrels, out_dir, top_k=top_k, subsampled=sampled, seed=seed
+        )
+        # `index` is excluded from LexicalRetriever equality/hash (compare=False),
+        # so cfg and cfg_with_index are the same dict key — using the plain cfg
+        # here keeps ndcg_by_config[full_bm25()] below working without callers
+        # needing to know an index was ever attached.
         ndcg_by_config[cfg] = summary["ranked"]["ndcg_cut_10"]
         summaries[cfg.name] = summary
+        out_dirs[cfg.name] = out_dir
 
     # The closure control, run BEFORE anything is written. The all-on corner is full
     # BM25 by construction, so it has to agree with the externally anchored BM25 that
@@ -92,10 +131,36 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
         )
 
     shapley = shapley_from_ndcg(ndcg_by_config)
+
+    # Adjacent-rung significance, run BEFORE anything is written — same shape as
+    # the closure control above. The point estimates in `ndcg_by_config` cannot
+    # say whether adding the next mechanism up LADDER bought a real gain or is
+    # noise on this query subsample; only the paired per-query difference can,
+    # because it compares the two rungs on the SAME queries rather than two
+    # marginal means. `_per_query_ndcg` reads the per_query.jsonl artifact each
+    # LADDER rung's run_rung() call already wrote above — no rescoring, no
+    # second retrieval. Holm correction is then applied once across the three
+    # comparisons made on this dataset, per protocols/002-ladder.md section 5.
+    qids = sorted(queries)
+    ladder_qrels = {q: qrels[q] for q in qids}
+    ladder_ndcg = [_per_query_ndcg(out_dirs[cfg.name], ladder_qrels) for cfg in LADDER]
+
+    comparisons = []
+    for i in range(len(LADDER) - 1):
+        lo_cfg, hi_cfg = LADDER[i], LADDER[i + 1]
+        lo_scores = [ladder_ndcg[i][q] for q in qids]
+        hi_scores = [ladder_ndcg[i + 1][q] for q in qids]
+        boot = paired_bootstrap(hi_scores, lo_scores)
+        comparisons.append({"from": lo_cfg.name, "to": hi_cfg.name, **boot})
+    significant = holm_correction([c["p_value"] for c in comparisons])
+    for comparison, is_significant in zip(comparisons, significant):
+        comparison["holm_significant"] = is_significant
+
     factorial_summary = {
         "dataset": dataset,
         "configs": {cfg.name: ndcg for cfg, ndcg in ndcg_by_config.items()},
         "shapley_ndcg_cut_10": shapley,
+        "adjacent_rung_comparisons": comparisons,
         "controls": {"bm25_closure": closure},
     }
     out_dir = RESULTS / dataset

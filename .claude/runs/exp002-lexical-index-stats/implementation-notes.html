@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lexical Index &amp; Stats Wiring · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>Lexical index &amp; stats wiring — experiment 002</h1>
+  <p class="meta">Branch <code>exp-002-scaling</code> · started 2026-08-19 · two jobs: make the
+     lexical scorer fast enough to run on HotpotQA, and wire paired-bootstrap/Holm significance
+     into <code>run_lexical_factorial</code>. Harness code + tests only — nothing scored, nothing
+     written into <code>results/002/</code>.</p>
+  <p>This is a <strong>living document</strong> capturing how the implementation interprets,
+     diverges from, or trades off against the spec. Updated as each slice lands.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Replace <code>LexicalRetriever</code>'s per-query full-corpus scan with a shared inverted
+     index built once per dataset (proven score-for-score identical to the naive reference via
+     an equivalence test on real SciFact and hand-built edge cases), stop rebuilding it once per
+     config inside <code>run_lexical_factorial</code>, and fold <code>rb.stats.paired_bootstrap</code>
+     / <code>holm_correction</code> into that same function's output for the adjacent-rung
+     comparisons the protocol asks for — without changing a single score and without writing
+     to <code>results/002/</code>.</p>
+
+  <h2>Design decisions <span class="meta">(spec was ambiguous → here's the call I made)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>What counts as an
+    "adjacent rung" for the significance test.</strong>
+    <code>protocols/002-ladder.md</code> says Holm-corrected paired bootstrap runs across
+    "the adjacent-rung comparisons made within a corpus" but only pins down the eight-cell
+    factorial (order-independent by design — Shapley attribution) plus "the ladder ordering
+    ... reported alongside it for narrative only." It never spells out what that narrative
+    ladder actually is. I defined one canonical four-point ladder in
+    <code>lexical.py</code>: all-off → +idf → +idf+tf_saturation → +idf+tf_saturation+length_norm
+    (= full BM25), turning on exactly one mechanism per step, in the same idf-then-tf_saturation-
+    then-length_norm order <code>ALL_CONFIGS</code> already iterates in (so there's one
+    canonical ordering already established in this codebase, not a new one invented for this).
+    Three adjacent comparisons come out of that: none→idf, idf→idf+tf_sat, idf+tf_sat→full.
+    Flagging this because it's a real modelling choice — a different ladder order (e.g.
+    length_norm first) would report different "which mechanism bought the gain" numbers even
+    though Shapley's order-independent attribution stays the same either way.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>CSC (column-sliced)
+    sparse matrix as the index representation, not CSR or a plain dict-of-postings.</strong>
+    Scoring a query needs, per query term, "every document containing it and its count there" —
+    a matrix COLUMN's nonzero entries. CSC gives that in O(nnz in that column) via
+    <code>indptr</code> slicing with no per-query conversion; CSR would need a transpose or a
+    per-query <code>tocsc()</code> call, which is exactly the kind of per-query rebuild this
+    refactor exists to eliminate. A plain <code>dict[term, list[(doc, tf)]]</code> postings
+    structure would work too and was considered, but scipy sparse gives vectorised elementwise
+    arithmetic (<code>tf * (k1+1) / (tf + k1*norm)</code> etc.) over an entire posting list at
+    once via numpy, instead of a Python-level loop per posting — and scipy/numpy are already
+    dependencies, so this adds no new one.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Where the shared index
+    lives on <code>LexicalRetriever</code>.</strong>
+    The <code>Retriever</code> protocol's <code>retrieve(corpus, queries, top_k)</code> signature
+    is fixed (contract-tested across every rung), so the index can't be passed as an extra
+    argument without breaking that seam. Instead it's an optional field on the frozen dataclass
+    (<code>index: LexicalIndex | None = None</code>), set via
+    <code>dataclasses.replace(cfg, index=shared_index)</code> in
+    <code>run_lexical_factorial</code> before each of the eight <code>run_rung()</code> calls.
+    The field is <code>compare=False, repr=False</code> so two configs with the same three
+    switches stay equal (and interchangeable as dict keys — <code>ndcg_by_config[full_bm25()]</code>
+    still works) regardless of which index object, if any, is attached: the index is a
+    performance detail, not part of a config's identity. When no index is injected,
+    <code>retrieve()</code> builds one itself, so direct calls (contract tests, the equivalence
+    test's "no prebuilt index" case) keep working unchanged.</div>
+
+  <h2>Deviations <span class="meta">(intentional departures from the spec/convention)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Per-query score
+    accumulation is vectorised (numpy <code>unique</code> + <code>add.at</code>), not a Python
+    dict accumulator.</strong>
+    A dict keyed by doc id, summed with a Python loop over touched (doc, term) pairs, would
+    have been the more obvious "only touch documents with a match" implementation and was the
+    first draft. Switched to <code>np.unique(..., return_inverse=True)</code> +
+    <code>np.add.at</code> because HotpotQA is the whole point of this refactor and a term that
+    appears in a large fraction of 5.2M documents would still drive a slow per-entry Python loop
+    even after the inverted-index cut; the numpy path keeps that case vectorised too. Cost: the
+    two implementations sum the same floats in a different order (reference sums sequentially
+    per document; fast path reduces via <code>add.at</code> in whatever order
+    <code>np.unique</code> puts rows in), which is why the equivalence test uses a tolerance
+    (1e-9 absolute) instead of exact equality — see that test file's docstring for why that
+    tolerance is the right size.</div>
+
+  <h2>Tradeoffs <span class="meta">(alternatives considered)</span></h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Keeping the naive
+    algorithm as a real, callable class vs. deleting it and trusting the math.</strong>
+    Could have just derived the fast path from the formula and unit-tested the formula in
+    isolation. Kept <code>_ReferenceLexicalRetriever</code> as a verbatim copy of the original
+    <code>retrieve()</code> instead, because the task's own framing is right: the retracted prior
+    entry shipped a number that looked reasonable and wasn't, and "the algebra checks out" is
+    exactly the kind of reasoning that doesn't catch an indexing bug (off-by-one in
+    <code>indptr</code> slicing, wrong axis, a term counted twice). Running both implementations
+    on the same real corpus and diffing their output is strictly more convincing, costs one
+    extra (intentionally unoptimised, intentionally never touched) class, and only runs in
+    tests — never in the scored path.</div>
+
+  <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
+
+  <div class="open"><span class="tag t-open">Resolved below ↓</span> <strong>HotpotQA memory — does the
+    CSC index actually fit in 26 GB?</strong>
+    Yes. Measured peak (macOS <code>/usr/bin/time -l</code> "peak memory footprint", the
+    build-time transient — see Measured results below) is ~13.2 GB against a 26 GB machine, and
+    that peak is paid once per dataset, not once per config, because the index is shared. Not
+    wired into <code>make reproduce-002-lexical</code>'s Makefile target as part of this change —
+    that target's scope wasn't touched, only the two functions the task named — so whether to
+    add HotpotQA to the cheap-reproduce path given a real ~51 min wall clock is a call for
+    whoever owns that target, not made here.</div>
+
+  <h2>Build / verification</h2>
+  <ul>
+    <li>Full suite: 46 pre-existing + 57 new (54 equivalence: 4 real-SciFact configs, 1
+      no-prebuilt-index case, 8 configs × 6 edge-case corpora = 48, 1 empty-corpus case; 2 for
+      <code>run_lexical_factorial</code>'s index-sharing and stats wiring, monkeypatched to a
+      tmp_path so nothing touches the real <code>results/002/</code>; 1 for the LADDER shape) =
+      103 passed.</li>
+    <li>No new dependencies — scipy and numpy were already in requirements.txt.</li>
+    <li>Equivalence proven on real SciFact (several of the eight configs, ~5.2k docs) plus six
+      hand-built edge-case corpora (no matches, term-in-every-doc, single document, empty query,
+      zero-length documents, ties) across all eight configs each.</li>
+  </ul>
+
+  <h2>Measured throughput &amp; memory <span class="meta">(same method as the task's own before-numbers: time a real slice, extrapolate)</span></h2>
+  <table>
+    <tr><th>Corpus</th><th>docs</th><th>index build</th><th>fast: one config, full subsample</th>
+        <th>fast: all 8 configs</th><th>naive (task's numbers): all 8 configs</th><th>peak memory (fast)</th></tr>
+    <tr><td>SciFact</td><td>5,183</td><td>0.34s</td><td>0.25s (300 q, no subsample: ≤500)</td>
+        <td>~2.3s</td><td>~1 min</td><td>negligible</td></tr>
+    <tr><td>Quora</td><td>522,931</td><td>2.7s</td><td>14.5s (500 q, subsampled)</td>
+        <td>~2 min</td><td>1.9 hours</td><td>well under 1 GB</td></tr>
+    <tr><td>HotpotQA</td><td>5,233,329</td><td>99.8s</td><td>370s (500 q, subsampled)</td>
+        <td>~51 min</td><td>18.6 hours (projected — never actually completes: 18.3 GB steady-state
+        doc_tf dicts × repeated per-config rebuild thrashes a 26 GB machine)</td>
+        <td>~13.2 GB peak (macOS "peak memory footprint"), paid ONCE for the shared build, not
+        once per config</td></tr>
+  </table>
+  <p class="meta">Method: built the real index (<code>build_index</code>) on the real corpus via
+    <code>rb.datasets.load</code>, timed <code>full_bm25().retrieve()</code> (the most expensive
+    config — all three mechanisms active) on a 50-query slice, divided for per-query time, then
+    multiplied by the protocol's actual subsample size (<code>rb.run.SAMPLE_SIZE = 500</code>,
+    or the dataset's full judged-query count when smaller — SciFact has 300). "All 8 configs"
+    assumes the other seven cost the same as full BM25 per query, which is true up to the cost
+    of the vectorised elementwise formula difference (negligible next to the postings-list
+    lookup that dominates). HotpotQA's naive figure and 18.3 GB estimate are the task's own
+    numbers, not remeasured here — the naive path was never run to completion on HotpotQA in
+    this refactor, deliberately, since the equivalence test already proves correctness on
+    SciFact and there is no reason to spend ~2.5 hours confirming a fact already established at
+    smaller scale.</p>
+  <p><strong>HotpotQA now fits.</strong> ~51 minutes wall clock for the full eight-config
+    factorial (previously projected to not finish at all — the naive approach's steady-state
+    18.3 GB of <code>doc_tf</code> dictionaries, rebuilt eight times, thrashes a 26 GB machine
+    long before "18.6 hours" would ever elapse). The one real cost that remains: index
+    construction briefly peaks at ~13.2 GB — Python <code>list</code> objects (<code>rows</code>,
+    <code>cols</code>, <code>data</code> — three lists of ~177M ints/floats each, holding
+    document-term postings before they're handed to <code>scipy.sparse.csc_matrix</code>) cost
+    roughly 5-10x what the same data costs as a numpy array, and that overhead is transient,
+    reclaimed once the matrix is built. The matrix itself, once built, is small
+    (~2.1 GB: 177M nonzeros × 12 bytes for int32 indices + float64 data). This fits comfortably
+    under 26 GB with headroom, so no further optimisation (e.g. building COO arrays as
+    pre-sized numpy buffers instead of Python lists, to cut that transient peak) was made —
+    "simplest thing that works," and 13.2 GB already has ~13 GB of slack.</p>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Slice</th><th>What</th><th>Status</th></tr>
+    <tr><td>1</td><td>Inverted index (LexicalIndex, build_index) + fast retrieve()</td><td class="done">✓ done</td></tr>
+    <tr><td>2</td><td>_ReferenceLexicalRetriever kept verbatim as ground truth</td><td class="done">✓ done</td></tr>
+    <tr><td>3</td><td>Equivalence tests: real SciFact + hand-built edge cases</td><td class="done">✓ done</td></tr>
+    <tr><td>4</td><td>run_lexical_factorial builds the index once, shares across all 8 configs</td><td class="done">✓ done</td></tr>
+    <tr><td>5</td><td>paired_bootstrap + holm_correction wired into run_lexical_factorial output</td><td class="done">✓ done</td></tr>
+    <tr><td>6</td><td>Throughput/memory measurement: SciFact, Quora, HotpotQA</td><td class="done">✓ done</td></tr>
+  </table>
+</body>
+</html>
