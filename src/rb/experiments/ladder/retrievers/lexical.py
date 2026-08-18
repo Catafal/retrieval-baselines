@@ -122,6 +122,15 @@ def build_index(corpus: dict[str, str]) -> LexicalIndex:
     # (tf/norm etc.), so building the matrix as floats avoids an int->float cast
     # of every nonzero on every query.
     matrix = sp.csc_matrix((data, (rows, cols)), shape=(n, n_terms), dtype=np.float64)
+    # scipy picks int32 for indices/indptr. At HotpotQA's real size (5.2M documents,
+    # 177M nonzeros) that is well inside the ~2.1B ceiling, but it wraps silently
+    # rather than raising, so a larger corpus would corrupt every posting rather than
+    # fail. Assert instead of trusting it to stay true.
+    if matrix.nnz >= np.iinfo(np.int32).max:
+        raise RuntimeError(
+            f"index has {matrix.nnz:,} nonzeros, at or beyond int32 addressing; "
+            "scipy would wrap silently. Use 64-bit indices before scoring this corpus."
+        )
     # nnz per column == number of distinct documents containing that term, i.e.
     # exactly document frequency (each doc contributes at most one entry per
     # term, since `counts` is a Counter keyed by term).
@@ -190,8 +199,11 @@ class LexicalRetriever:
         # vectorised equivalent of a dict accumulator, without a Python-level
         # loop over every touched (doc, term) pair.
         unique_rows, inverse = np.unique(all_rows, return_inverse=True)
-        totals = np.zeros(len(unique_rows), dtype=np.float64)
-        np.add.at(totals, inverse, all_scores)
+        # bincount rather than np.add.at: both sum by group index, but add.at is
+        # unbuffered because it has to support aliasing this code never uses, and
+        # it is materially slower on HotpotQA-scale postings, which is the case
+        # this whole index exists for.
+        totals = np.bincount(inverse, weights=all_scores, minlength=len(unique_rows))
 
         ranked_idx = np.argsort(-totals, kind="stable")
         result: dict[str, float] = {}
@@ -226,23 +238,6 @@ class LexicalRetriever:
         if self.tf_saturation:
             tf_component = tf * (K1 + 1) / (tf + K1 * norm)
         else:
-            tf_component = tf / norm
-        return weight * tf_component
-
-    def _term_score(self, tf: int, doc_len: int, avgdl: float, df_t: int, n: int) -> float:
-        """Scalar form, used by _ReferenceLexicalRetriever and by
-        tests/test_lexical.py's direct exercise of the all-off corner's
-        formula. Kept as the single source of truth for "what is BM25's
-        formula here" — _term_scores() above must agree with it elementwise."""
-        weight = _idf(df_t, n) if self.idf else 1.0
-        norm = (1 - B + B * doc_len / avgdl) if (self.length_norm and avgdl > 0) else 1.0
-        if self.tf_saturation:
-            tf_component = tf * (K1 + 1) / (tf + K1 * norm)
-        else:
-            # Unsaturated: no diminishing returns, but still divided by the same
-            # length penalty saturation would use, so length_norm has an effect
-            # independent of whether saturation is on (see implementation-notes.html
-            # for why this is the reading chosen where the spec doesn't pin it down).
             tf_component = tf / norm
         return weight * tf_component
 

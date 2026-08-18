@@ -110,9 +110,22 @@ before any hybrid number exists. No weight search.
 
 ## 6. Cost accounting
 
-Wall clock per rung (`rb.retriever.run_rung`'s `cost.total_seconds`), plus for the dense rung:
-embedding wall clock and dollar cost, index build time (there is no index — exact search — so
-this is reported as zero with a note why), and peak memory during embedding.
+Wall clock per rung (`rb.retriever.run_rung`'s `cost.total_seconds`).
+
+The lexical rungs share one inverted index, built once per dataset and reused by all eight
+configs, so its construction cost lands in no single config's `cost.total_seconds`. It is
+recorded separately in `lexical_factorial.json` under `cost.index_build_seconds`, alongside
+`scoring_seconds` and their total. Without that field every per-config figure would understate
+what reproducing that config from cold actually costs, and the wall clock for the factorial as
+a whole would exist only in prose.
+
+An earlier draft of this section said there is no index and that build time is therefore
+reported as zero. That was true of the first implementation, which rescanned the whole corpus
+for every query, and it stopped being true when that turned out to need 18.6 hours and 18.3 GB
+on HotpotQA. The correction is recorded rather than quietly applied.
+
+For the dense rung: embedding wall clock and dollar cost, and peak memory during embedding.
+Dense search remains exact, with no approximate index, per section 5.
 
 ## 7. Controls
 

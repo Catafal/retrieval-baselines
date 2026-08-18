@@ -92,7 +92,18 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
     # so rebuilding it inside each of the eight run_rung() calls would repeat
     # the one genuinely expensive step (a full tokenisation pass over the
     # corpus) eight times for no reason. See LexicalIndex's docstring.
+    # The significance block recomputes nDCG@10 from each rung's per_query.jsonl,
+    # which stores only the top_k the run wrote. Below ten, that reconstruction
+    # scores against fewer than ten documents and returns something that looks
+    # like nDCG@10 and is not. No caller does this today; the guard is here so
+    # none can start without noticing.
+    if top_k < 10:
+        raise ValueError(f"top_k={top_k} cannot support ndcg_cut_10; need at least 10")
+
+    t_index = time.perf_counter()
     shared_index = build_index(corpus)
+    index_seconds = time.perf_counter() - t_index
+    t_scoring = time.perf_counter()
 
     ndcg_by_config = {}
     summaries = {}
@@ -130,6 +141,8 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
             "the lexical scorer is wrong. Nothing is written."
         )
 
+    scoring_seconds = time.perf_counter() - t_scoring
+
     shapley = shapley_from_ndcg(ndcg_by_config)
 
     # Adjacent-rung significance, run BEFORE anything is written — same shape as
@@ -162,6 +175,17 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
         "shapley_ndcg_cut_10": shapley,
         "adjacent_rung_comparisons": comparisons,
         "controls": {"bm25_closure": closure},
+        # The index is built once and shared, so its cost lands in no config's own
+        # `cost.total_seconds` and would otherwise appear nowhere at all. Every
+        # per-config figure would then understate what reproducing that config from
+        # cold actually costs, and the total wall clock for the factorial would exist
+        # only as prose. Both numbers are recorded here so a reader can check the
+        # cost claims against an artifact rather than against a sentence.
+        "cost": {
+            "index_build_seconds": round(index_seconds, 1),
+            "scoring_seconds": round(scoring_seconds, 1),
+            "total_seconds": round(index_seconds + scoring_seconds, 1),
+        },
     }
     out_dir = RESULTS / dataset
     out_dir.mkdir(parents=True, exist_ok=True)

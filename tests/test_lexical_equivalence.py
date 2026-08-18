@@ -19,6 +19,14 @@ Real-corpus equivalence uses SciFact specifically (~5.2k docs): small enough to
 run both the O(n) reference and the fast path in a test, the same corpus the
 BM25 closure control is anchored against, and already downloaded locally per
 manifests/datasets.json — no network access and no results/ write happen here.
+
+
+WHAT THIS SUITE CANNOT CATCH. Both paths call the same `_idf`, so a defect inside
+that shared function is invisible here by construction: the two implementations
+would agree with each other and both be wrong. This suite proves the fast path
+agrees with the reference, not that the reference is right. Anything touching
+`_idf` itself needs the closure control against the published BM25 figure, which
+is the only check in this repo that compares against a number from outside it.
 """
 
 import dataclasses
@@ -60,6 +68,12 @@ def _reference_for(cfg: LexicalRetriever) -> _ReferenceLexicalRetriever:
 
 @pytest.fixture(scope="module")
 def scifact():
+    # Same guard tests/test_coordination_regression.py already uses. Without it a
+    # fresh checkout runs datasets.load(), which downloads, so a routine `pytest`
+    # silently pulls 3 MB off the network in a file whose docstring promises it
+    # does no such thing.
+    if not (datasets.DATA_DIR / "scifact").exists():
+        pytest.skip("requires the downloaded SciFact corpus; run `make reproduce` first")
     corpus, queries, _qrels = datasets.load("scifact")
     # A slice of queries, not all 300 — the point is proving the two code paths
     # agree, not re-timing the whole dataset (that happens in the throughput
