@@ -1,0 +1,14 @@
+{
+  "hotpotqa": {
+    "bytes": 654025350,
+    "sha256": "c62459dbc91d31329584507b1fa564b3b1abcee58800967113054ee0f5a15c62"
+  },
+  "quora": {
+    "bytes": 15853968,
+    "sha256": "56aacd9dcc4d9c093b63f175afdda0e21cbc8442ecf6c717d09de7b358d77531"
+  },
+  "scifact": {
+    "bytes": 2816079,
+    "sha256": "536e14446a0ba56ed1398ab1055f39fe852686ecad24a6306c80c490fa8e0165"
+  }
+}

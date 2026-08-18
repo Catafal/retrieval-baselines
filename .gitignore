@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# Corpora are downloaded, never redistributed. Checksums are committed instead.
+data/

@@ -1,0 +1,8 @@
+pytrec_eval-terrier==0.5.9
+bm25s==0.3.10
+PyStemmer
+numpy
+scipy
+requests
+tqdm
+pytest
