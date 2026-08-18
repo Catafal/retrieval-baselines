@@ -22,6 +22,7 @@ straight onto document ids. That invariant is asserted, not assumed.
 
 import re
 import subprocess
+from collections import Counter
 import time
 from pathlib import Path
 
@@ -64,36 +65,42 @@ def materialise(corpus: dict[str, str], path: Path) -> list[str]:
 
 def search(terms: list[str], corpus_path: Path, word_bounded: bool = True) -> dict[int, tuple[int, int]]:
     """
-    One ripgrep pass for the whole query.
+    Line number -> (distinct terms matched, total match count).
 
-    Returns line_number -> (distinct terms matched, total match count). `-o` prints
-    each match on its own line as `lineno:matched-text`, which is exactly the two
-    facts the ranker needs, at the cost of one pass rather than one pass per term.
+    One ripgrep pass PER TERM rather than one pass for the whole query. The
+    single-pass version needs to know which term produced each match, which forces a
+    per-line Python set and allocates one object per match — on HotpotQA that is tens
+    of millions of allocations per query and the run never finishes. Per term, the
+    output is just line numbers, so both counts fall out of `Counter` at C speed.
+
+    Identical results either way. Only the cost differs, and cost is a reported metric,
+    so it is worth stating that the number published is this implementation's, not the
+    slowest one that produces the same answer.
     """
     if not terms:
         return {}
-    cmd = ["rg", "-i", "-F", "-o", "-n", "--no-heading", "--no-filename"]
-    if word_bounded:
-        cmd.append("-w")
-    for t in terms:
-        cmd += ["-e", t]
-    cmd.append(str(corpus_path))
 
-    hits: dict[int, tuple[set[str], int]] = {}
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-    for line in proc.stdout:
-        lineno, _, matched = line.partition(":")
-        if not _:
+    distinct: Counter[int] = Counter()
+    total: Counter[int] = Counter()
+
+    for term in terms:
+        cmd = ["rg", "-i", "-F", "-o", "-n", "--no-heading", "--no-filename"]
+        if word_bounded:
+            cmd.append("-w")
+        cmd += ["-e", term, str(corpus_path)]
+
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        # rg exits 1 when nothing matched, which is not an error here.
+        if proc.returncode not in (0, 1):
+            raise RuntimeError(f"ripgrep failed with code {proc.returncode} on term {term!r}")
+        if not proc.stdout:
             continue
-        idx = int(lineno)
-        found, total = hits.setdefault(idx, (set(), 0))
-        found.add(matched.strip().lower())
-        hits[idx] = (found, total + 1)
-    proc.wait()
-    # rg exits 1 when nothing matched, which is not an error here.
-    if proc.returncode not in (0, 1):
-        raise RuntimeError(f"ripgrep failed with code {proc.returncode}")
-    return {i: (len(f), t) for i, (f, t) in hits.items()}
+
+        lines = [int(row[: row.index(":")]) for row in proc.stdout.splitlines()]
+        total.update(lines)
+        distinct.update(set(lines))  # a document counts once per term, however often it matched
+
+    return {i: (distinct[i], total[i]) for i in distinct}
 
 
 def rank(hits: dict[int, tuple[int, int]], doc_ids: list[str], top_k: int = 100) -> list[tuple[str, float]]:
@@ -112,9 +119,16 @@ def rank(hits: dict[int, tuple[int, int]], doc_ids: list[str], top_k: int = 100)
 
 
 def run_query(query: str, corpus_path: Path, doc_ids: list[str], top_k: int = 100, word_bounded: bool = True):
-    """Returns (ranked results, unranked set size, wall-clock seconds)."""
+    """
+    Returns (ranked top-k, full hit map, wall-clock seconds, terms).
+
+    The full hit map is returned rather than just its size because set recall is
+    defined over grep's ENTIRE output. Computing it from the truncated top-k instead
+    would make "recall over the full set" silently identical to Recall@k — which is
+    exactly the bug this signature exists to prevent.
+    """
     terms = tokenize(query)
     t0 = time.perf_counter()
     hits = search(terms, corpus_path, word_bounded=word_bounded)
     elapsed = time.perf_counter() - t0
-    return rank(hits, doc_ids, top_k), len(hits), elapsed, terms
+    return rank(hits, doc_ids, top_k), hits, elapsed, terms

@@ -72,16 +72,23 @@ def run(dataset: str, word_bounded: bool = True, top_k: int = 100) -> dict:
     out_dir = RESULTS / dataset
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Document id -> ripgrep line number, so full-set recall is an O(|gold|) lookup
+    # rather than materialising a set of millions of ids per query.
+    line_of = {did: i + 1 for i, did in enumerate(doc_ids)}
+
     run_dict: dict[str, dict[str, float]] = {}
     rows, set_recalls, set_sizes, times = [], [], [], []
 
     with open(out_dir / "per_query.jsonl", "w", encoding="utf8") as f:
         for i, qid in enumerate(qids, 1):
-            results, set_size, elapsed, terms = run_query(
+            results, hits, elapsed, terms = run_query(
                 queries[qid], corpus_path, doc_ids, top_k=top_k, word_bounded=word_bounded
             )
+            set_size = len(hits)
             run_dict[qid] = dict(results)
-            sr = metrics.set_recall(qrels[qid], set(dict(results)))
+            gold = qrels[qid]
+            found = sum(1 for g in gold if line_of.get(g) in hits)
+            sr = found / len(gold) if gold else 0.0
             set_recalls.append(sr)
             set_sizes.append(set_size)
             times.append(elapsed)
@@ -99,6 +106,19 @@ def run(dataset: str, word_bounded: bool = True, top_k: int = 100) -> dict:
                 print(f"  {dataset}: {i}/{len(qids)}", flush=True)
 
     per_query = metrics.score_ranked({q: qrels[q] for q in rows}, run_dict)
+
+    # Invariant control: recall over grep's whole output cannot be lower than recall
+    # over its first 100. Equality across every query means set recall was computed
+    # from the truncated list — the bug this check was added after finding.
+    full_set_recall = metrics.mean(set_recalls)
+    recall_at_100 = metrics.mean([per_query[q]["recall_100"] for q in rows])
+    checks["set_recall_dominates_recall_100"] = {
+        "recall_full_set": round(full_set_recall, 4),
+        "recall_100": round(recall_at_100, 4),
+        "passed": full_set_recall >= recall_at_100 - 1e-9,
+    }
+    if not checks["set_recall_dominates_recall_100"]["passed"]:
+        raise RuntimeError(f"invariant control failed: {checks['set_recall_dominates_recall_100']}")
     summary = {
         "dataset": dataset,
         "queries_scored": len(rows),
@@ -112,7 +132,7 @@ def run(dataset: str, word_bounded: bool = True, top_k: int = 100) -> dict:
             m: round(metrics.mean([per_query[q][m] for q in rows]), 4) for m in sorted(metrics.MEASURES)
         },
         "set": {
-            "recall_full_set": round(metrics.mean(set_recalls), 4),
+            "recall_full_set": round(full_set_recall, 4),
             "median_set_size": sorted(set_sizes)[len(set_sizes) // 2],
             "mean_set_size": round(metrics.mean([float(s) for s in set_sizes]), 1),
             "queries_returning_nothing": sum(1 for s in set_sizes if s == 0),

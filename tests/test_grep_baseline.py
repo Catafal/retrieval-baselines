@@ -49,8 +49,8 @@ def test_empty_query_retrieves_nothing(tmp_path: Path):
     corpus = {"a": "some text here"}
     path = tmp_path / "c.txt"
     doc_ids = materialise(corpus, path)
-    results, set_size, _, terms = run_query("what is it", path, doc_ids)
-    assert terms == [] and results == [] and set_size == 0
+    results, hits, _, terms = run_query("what is it", path, doc_ids)
+    assert terms == [] and results == [] and hits == {}
 
 
 def test_word_boundary_matching(tmp_path: Path):
@@ -58,8 +58,9 @@ def test_word_boundary_matching(tmp_path: Path):
     corpus = {"a": "insulinoma is a tumour", "b": "insulin lowers glucose"}
     path = tmp_path / "c.txt"
     doc_ids = materialise(corpus, path)
-    results, _, _, _ = run_query("insulin", path, doc_ids)
+    results, hits, _, _ = run_query("insulin", path, doc_ids)
     assert [d for d, _ in results] == ["b"]
+    assert len(hits) == 1, "word-bounded matching must not return the insulinoma document"
 
 
 def test_set_recall():
