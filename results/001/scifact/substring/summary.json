@@ -24,7 +24,7 @@
     }
   },
   "ranked": {
-    "ndcg_cut_10": 0.5096,
+    "ndcg_cut_10": 0.5114,
     "recall_10": 0.6297,
     "recall_100": 0.7732
   },
@@ -58,6 +58,28 @@
         "bytes": 2816079,
         "sha256": "536e14446a0ba56ed1398ab1055f39fe852686ecad24a6306c80c490fa8e0165"
       }
+    }
+  },
+  "ranked_ci95": {
+    "ndcg_cut_10": [
+      0.4601,
+      0.5601
+    ],
+    "recall_10": [
+      0.5744,
+      0.6811
+    ],
+    "recall_100": [
+      0.7232,
+      0.819
+    ]
+  },
+  "rescored": {
+    "reason": "strictly decreasing scores so trec_eval applies the pre-registered document-id tie-break rather than its own",
+    "source": "per_query.jsonl, no retrieval rerun",
+    "bootstrap": {
+      "rounds": 2000,
+      "seed": 20260818
     }
   }
 }

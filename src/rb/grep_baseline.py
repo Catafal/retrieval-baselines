@@ -115,7 +115,13 @@ def rank(hits: dict[int, tuple[int, int]], doc_ids: list[str], top_k: int = 100)
         hits.items(),
         key=lambda kv: (-kv[1][0], -kv[1][1], doc_ids[kv[0] - 1]),
     )[:top_k]
-    return [(doc_ids[i - 1], d + t / (t + 1)) for i, (d, t) in ordered]
+    # Score STRICTLY decreasing by final rank position, so the order trec_eval scores is
+    # exactly the pre-registered order. An earlier version emitted
+    # `distinct + total/(total+1)`, which ties heavily: in one SciFact query's top 100
+    # there were 16 distinct scores across 100 documents, so trec_eval was breaking 84
+    # ties by its own internal rule rather than by document id as the protocol states.
+    # The value carries no meaning; only the ordering does.
+    return [(doc_ids[i - 1], float(len(ordered) - pos)) for pos, (i, _) in enumerate(ordered)]
 
 
 def run_query(query: str, corpus_path: Path, doc_ids: list[str], top_k: int = 100, word_bounded: bool = True):

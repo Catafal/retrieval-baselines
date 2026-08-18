@@ -66,3 +66,17 @@ def test_word_boundary_matching(tmp_path: Path):
 def test_set_recall():
     assert set_recall({"a": 1, "b": 1}, {"a", "z"}) == 0.5
     assert set_recall({}, {"a"}) == 0.0
+
+
+def test_rank_scores_are_strictly_decreasing():
+    """
+    trec_eval sorts by score, so equal scores let IT choose the order, not us.
+
+    The pre-registered tie-break is document id. That only holds if the scores handed to
+    the scorer are strictly decreasing in our own rank order.
+    """
+    doc_ids = ["a", "b", "c"]
+    hits = {1: (2, 5), 2: (2, 5), 3: (2, 5)}
+    scores = [s for _, s in rank(hits, doc_ids)]
+    assert scores == sorted(scores, reverse=True)
+    assert len(set(scores)) == len(scores)
