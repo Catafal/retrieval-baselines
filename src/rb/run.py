@@ -69,7 +69,9 @@ def run(dataset: str, word_bounded: bool = True, top_k: int = 100) -> dict:
             raise RuntimeError(f"control {name} failed: {c}. Nothing is scored on a broken harness.")
 
     qids, sampled = select_queries(queries)
-    out_dir = RESULTS / dataset
+    # The unbounded-substring sensitivity check writes to its own directory. Sharing one
+    # would let the check silently overwrite the headline artifact.
+    out_dir = RESULTS / dataset if word_bounded else RESULTS / dataset / "substring"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Document id -> ripgrep line number, so full-set recall is an O(|gold|) lookup

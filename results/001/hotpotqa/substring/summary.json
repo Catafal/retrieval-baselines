@@ -1,0 +1,63 @@
+{
+  "dataset": "hotpotqa",
+  "queries_scored": 500,
+  "queries_available": 7405,
+  "subsampled": true,
+  "seed": 20260818,
+  "corpus_documents": 5233329,
+  "word_bounded": false,
+  "controls": {
+    "gold_presence": {
+      "gold_documents": 13783,
+      "missing_from_corpus": 0,
+      "examples": [],
+      "passed": true
+    },
+    "empty_query": {
+      "retrieved": 0,
+      "passed": true
+    },
+    "set_recall_dominates_recall_100": {
+      "recall_full_set": 0.995,
+      "recall_100": 0.569,
+      "passed": true
+    }
+  },
+  "ranked": {
+    "ndcg_cut_10": 0.3623,
+    "recall_10": 0.397,
+    "recall_100": 0.569
+  },
+  "set": {
+    "recall_full_set": 0.995,
+    "median_set_size": 946723,
+    "mean_set_size": 1640392.6,
+    "queries_returning_nothing": 0
+  },
+  "cost": {
+    "mean_seconds_per_query": 8.037,
+    "total_seconds": 4018.6,
+    "usd": 0.0
+  },
+  "environment": {
+    "ripgrep": "ripgrep 15.1.0",
+    "python": "3.14.3",
+    "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "git_commit": "d2bf127a48bf539b902dd3995a899d922680ed8c",
+    "dataset_checksums": {
+      "hotpotqa": {
+        "bytes": 654025350,
+        "sha256": "c62459dbc91d31329584507b1fa564b3b1abcee58800967113054ee0f5a15c62"
+      },
+      "quora": {
+        "bytes": 15853968,
+        "sha256": "56aacd9dcc4d9c093b63f175afdda0e21cbc8442ecf6c717d09de7b358d77531"
+      },
+      "scifact": {
+        "bytes": 2816079,
+        "sha256": "536e14446a0ba56ed1398ab1055f39fe852686ecad24a6306c80c490fa8e0165"
+      }
+    }
+  }
+}
