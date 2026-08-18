@@ -9,8 +9,8 @@ code are not comparable no matter what the prose claims.
 
 | Experiment | Retriever | Status |
 |---|---|---|
-| 001 | ripgrep, literal word-bounded matching | see `protocol.md` |
-| 002 | dense embeddings | not started |
+| 001 | ripgrep, literal word-bounded matching | see `protocols/001-grep-baseline.md` |
+| 002 | lexical factorial, dense, hybrid (the ladder) | harness implemented, see `protocols/002-ladder.md`; not yet scored |
 | 003 | knowledge graph | not started |
 
 ## Reproduce
@@ -26,9 +26,10 @@ redistributed. What this repo commits is the SHA-256 of every zip consumed
 
 ## How to check this rather than trust it
 
-- `protocol.md` was committed and tagged `protocol-001` **before the first scored run**.
-  Diff it against `HEAD` to see whether the experiment that ran is the experiment that was
-  planned.
+- `protocols/001-grep-baseline.md` was committed and tagged `protocol-001` **before the first
+  scored run**. Diff it against `HEAD` to see whether the experiment that ran is the experiment
+  that was planned. (`protocol.md` at the old path still resolves, as a stub pointing here.)
+  `protocols/002-ladder.md` is the same document for experiment 002.
 - `results/001/<dataset>/per_query.jsonl` holds the retrieved document ids in rank order
   for every query. Every aggregate in the published entry recomputes from it without
   rerunning anything.

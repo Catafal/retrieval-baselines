@@ -6,3 +6,8 @@ scipy
 requests
 tqdm
 pytest
+# Experiment 002's dense rung only (rb.experiments.ladder.retrievers.dense.
+# SentenceTransformerEncoder). Imported lazily so the rest of the test suite
+# never needs this installed; only required to actually score the dense/hybrid
+# rungs, which this change does not do.
+sentence-transformers

@@ -1,6 +1,10 @@
-.venv/
+.venv
 __pycache__/
 *.pyc
 .pytest_cache/
 # Corpora are downloaded, never redistributed. Checksums are committed instead.
-data/
+data
+
+# Patterns above are written without a trailing slash on purpose: a slash matches
+# only real directories, and a parallel worktree links .venv and data/ in as symlinks
+# rather than duplicating a 2.7 GB corpus.

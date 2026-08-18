@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Experiment 002 Ladder · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>Experiment 002 — the retrieval ladder</h1>
+  <p class="meta">Branch <code>exp-002-ladder</code> · started 2026-08-18 · implementing the
+     harness for the ladder experiment (code + tests only, no scored run).</p>
+  <p>This is a <strong>living document</strong> capturing how the implementation interprets,
+     diverges from, or trades off against the spec. Updated as each slice lands.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Introduce one <code>Retriever</code> interface, refit 001's coordination matcher behind it
+     without changing its numbers, add a lexical BM25 scorer with three independent switches
+     (full factorial, Shapley attribution), a dense rung and an RRF hybrid rung, the statistics
+     to compare rungs honestly (paired bootstrap + Holm), two new controls, a repo restructure
+     that keeps <code>make reproduce</code> meaning exactly 001, and the 002 pre-registration —
+     all without running the experiment or embedding a corpus.</p>
+
+  <h2>Design decisions <span class="meta">(spec was ambiguous → here's the call I made)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Lexical ablation formula
+    when saturation is off but length-norm is on.</strong>
+    The spec names three independent switches but only gives the full BM25 formula (all three
+    on) and says the all-off corner is "raw term-frequency sum". It does not say what the
+    tf-component looks like when saturation is off and length-norm is on alone. I defined
+    <code>norm = 1 - b + b·(len/avgdl)</code> when length-norm is on, else <code>1</code>; then
+    <code>tf_component = tf/norm</code> when saturation is off, and the standard
+    <code>tf·(k1+1)/(tf + k1·norm)</code> when saturation is on. This reduces cleanly to raw tf
+    when both switches are off, and to full BM25 when both are on — the two corners the spec
+    pins down — and treats length-norm as "divide the raw count by the same length penalty BM25
+    would use" in between, which is the most natural reading of "one scoring function, three
+    switches." Flagging for review since it is a real modelling choice, not just plumbing.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Score encoding for every
+    new rung matches 001's convention.</strong>
+    001's <code>rank()</code> emits <code>len(ranked) - position</code> rather than the raw
+    match score, because raw scores tie and <code>trec_eval</code> breaks ties by its own rule
+    instead of the pre-registered document-id rule (see <code>rescore.py</code>'s docstring).
+    Lexical, dense and hybrid all reuse that same strictly-decreasing rank-position encoding, so
+    every rung's ties resolve deterministically by document id and the <code>Retriever</code>
+    contract test ("strictly decreasing scores") holds for all of them uniformly.</div>
+
+  <h2>Deviations <span class="meta">(intentional departures from the spec/convention)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Generic runner drops
+    001's "set" metric family.</strong>
+    001's summary reports both ranked metrics and "set" metrics (recall over grep's entire
+    unranked output, output size) because grep hands back an unordered pile and the pile's size
+    is itself a cost. That concept is specific to a retriever that returns an unbounded set
+    before ranking; BM25/dense/hybrid all return a bounded top-k directly, so there is no
+    analogous "full set" to measure. The shared <code>run_rung()</code> only writes ranked
+    metrics + cost + environment. 001's own <code>run.py</code> is untouched and keeps writing
+    its set metrics exactly as before.</div>
+
+  <h2>Tradeoffs <span class="meta">(alternatives considered)</span></h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Encoder as an injected
+    Protocol vs. hard-coding sentence-transformers.</strong>
+    Hard-coding a specific model call inside <code>DenseRetriever.retrieve()</code> would make
+    the ranking logic (rank/cosine/tie-break) untestable without downloading a model and
+    installing torch. Instead <code>DenseRetriever</code> takes an <code>Encoder</code> object
+    (name, revision, precision, pooling, max_length + encode_documents/encode_queries) and a
+    real <code>SentenceTransformerEncoder</code> implements it with a lazy import so importing
+    the module — and running the test suite — never requires sentence-transformers/torch to be
+    installed. Chosen because the task explicitly says "write the code and its tests; do not
+    run it on a real corpus," and this is the only way to satisfy that without a heavy,
+    untested dependency in the critical path.</div>
+
+  <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Closure-control tolerance
+    value.</strong>
+    001's external-anchor tolerance (0.10 absolute) is deliberately loose because it compares
+    this repo's tokenisation against Anserini's. The closure control compares this repo's own
+    lexical all-on corner against this repo's own bm25s-based anchor (already run in 001) — both
+    are "us", so I set a tighter default of 0.02 absolute in <code>controls.bm25_closure()</code>
+    and documented it in <code>protocols/002-ladder.md</code>. This number has not been checked
+    against a real measured pair (no run happened), so it may need loosening once the actual
+    all-on-corner number exists.</div>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Embedding-shuffle chance
+    ceiling.</strong>
+    <code>controls.embedding_shuffle()</code> defaults to a 0.15 nDCG@10 ceiling as "chance."
+    This is a guess at what a shuffled dense run looks like on SciFact/Quora-scale corpora and
+    is untested against real embeddings (none were run). It is exercised in
+    <code>tests/test_dense.py</code> against a small synthetic corpus where alignment is exact,
+    which proves the mechanism (shuffle collapses the metric) but not the specific threshold.</div>
+
+  <h2>Build / verification</h2>
+  <ul>
+    <li><code>PYTHONPATH=src .venv/bin/pytest -q tests</code>: <strong>43 passed</strong>,
+      0 failed, 0 skipped (the coordination-regression test's skip guard did not trigger —
+      SciFact was already downloaded and results/001 already committed).</li>
+    <li><code>tests/test_coordination_regression.py</code> is the migration's acceptance
+      test: it runs the refit CoordinationRetriever on the real SciFact corpus and asserts
+      its ranked metrics equal <code>results/001/scifact/summary.json</code>'s exactly
+      (<code>{"ndcg_cut_10": 0.5351, "recall_10": 0.6512, "recall_100": 0.8214}</code>) — it
+      passed on the first run after the refit.</li>
+    <li>Verified <code>git diff</code> on <code>src/rb/run.py</code>, <code>bm25_control.py</code>,
+      <code>grep_baseline.py</code>, <code>rescore.py</code> is empty, and the Makefile's
+      <code>reproduce:</code> recipe lines are byte-identical to before — only a comment and
+      a new, separate target were added.</li>
+    <li>New dependency: <code>sentence-transformers</code> added to requirements.txt for the
+      production dense encoder; not installed in this worktree's venv and not needed to run
+      the test suite (lazy-imported, exercised only via a stub in tests). No other new
+      dependencies, no migrations.</li>
+    <li>No corpus was embedded, no dense/hybrid rung was scored, no results/002/ artifact was
+      produced — per scope.</li>
+  </ul>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Slice</th><th>What</th><th>Status</th></tr>
+    <tr><td>1</td><td>Repo restructure: protocols/ move + stub, experiments/ladder package scaffold</td><td class="done">✓ done</td></tr>
+    <tr><td>2</td><td>Retriever interface + generic run_rung() (src/rb/retriever.py)</td><td class="done">✓ done</td></tr>
+    <tr><td>3</td><td>Rung 0 refit (coordination.py) + 001 regression test</td><td class="done">✓ done — regression passes exactly</td></tr>
+    <tr><td>4</td><td>Lexical 8-switch scorer + tests</td><td class="done">✓ done</td></tr>
+    <tr><td>5</td><td>Dense retriever + tests (stub encoder)</td><td class="done">✓ done</td></tr>
+    <tr><td>6</td><td>Hybrid RRF + tests</td><td class="done">✓ done</td></tr>
+    <tr><td>7</td><td>Stats: paired bootstrap, Holm, Shapley + tests</td><td class="done">✓ done</td></tr>
+    <tr><td>8</td><td>Controls: closure + embedding shuffle + tests</td><td class="done">✓ done</td></tr>
+    <tr><td>9</td><td>Makefile targets + protocols/002-ladder.md</td><td class="done">✓ done</td></tr>
+    <tr><td>10</td><td>Full test suite green, commit</td><td class="done">✓ done — 43/43 passing</td></tr>
+  </table>
+</body>
+</html>
