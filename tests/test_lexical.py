@@ -4,7 +4,9 @@ mechanism's effect has a known direction — same shape as test_grep_baseline.py
 word-boundary test: small, fast, data-free, behavioural.
 """
 
-from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, LexicalRetriever, full_bm25
+import pytest
+
+from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, LADDER, LexicalRetriever, full_bm25
 
 
 def test_idf_on_prefers_rare_term_match_over_common_term_match():
@@ -106,9 +108,31 @@ def test_all_on_corner_is_full_bm25():
 
 
 def test_all_off_corner_is_raw_term_frequency_sum():
+    """
+    Through retrieve(), not through a private method.
+
+    With every mechanism off the score must be the plain count of query-term
+    occurrences: "x x x y" holds x three times and y once, so 4; "x y y" holds
+    one x and two y, so 3. Asserting on the public output means this test also
+    covers the vectorised path, which is the one that actually runs.
+    """
     corpus = {"a": "x x x y", "b": "x y y"}
     queries = {"q": "x y"}
     off_corner = LexicalRetriever(idf=False, tf_saturation=False, length_norm=False)
-    scores = off_corner._term_score  # exercise directly: tf/norm with norm=1, weight=1
-    assert scores(tf=3, doc_len=4, avgdl=4, df_t=2, n=2) == 3.0
-    assert scores(tf=1, doc_len=3, avgdl=4, df_t=2, n=2) == 1.0
+    run = off_corner.retrieve(corpus, queries, top_k=10)["q"]
+
+    # The runner subtracts a 1e-9-per-rank epsilon to keep scores strictly
+    # decreasing for the Retriever contract, so compare with a tolerance well
+    # below the gap between the two documents.
+    assert run["a"] == pytest.approx(4.0, abs=1e-6)
+    assert run["b"] == pytest.approx(3.0, abs=1e-6)
+
+
+def test_ladder_runs_from_all_off_to_full_bm25_one_mechanism_at_a_time():
+    assert LADDER[0] == LexicalRetriever(idf=False, tf_saturation=False, length_norm=False)
+    assert LADDER[-1] == full_bm25()
+    for prev_cfg, next_cfg in zip(LADDER, LADDER[1:]):
+        flips = sum(
+            getattr(prev_cfg, f) != getattr(next_cfg, f) for f in ("idf", "tf_saturation", "length_norm")
+        )
+        assert flips == 1, "each ladder step must turn on exactly one additional mechanism"
