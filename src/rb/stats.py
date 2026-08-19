@@ -32,7 +32,7 @@ import math
 import random
 from itertools import combinations
 
-BOOTSTRAP_ROUNDS = 2000
+BOOTSTRAP_ROUNDS = 2000  # pre-registered in protocols/002-ladder.md section 5
 BOOTSTRAP_SEED = 20260818  # same seed as 001's rescore.py, for consistency
 
 
@@ -55,6 +55,14 @@ def paired_bootstrap(
     rng = random.Random(seed)
     means = sorted(sum(rng.choices(diffs, k=n)) / n for _ in range(rounds))
     observed = sum(diffs) / n
+    # 95% percentile interval: cut 2.5% off each tail of the sorted `rounds` draws.
+    # The -1 on the upper index only is deliberate, not a typo: int(0.025 * rounds)
+    # already lands on the correct 0-indexed element for the lower 2.5% cut, but
+    # int(0.975 * rounds) is one PAST the element at the 97.5th percentile in a
+    # 0-indexed list, so it needs the -1 to point at the same element the lower
+    # index's convention would. Dropping it silently widens every interval's upper
+    # bound by one draw and passed the whole suite once before this test existed:
+    # tests/test_stats.py::test_percentile_bounds_pin_exact_values_on_a_known_distribution.
     lo, hi = means[int(0.025 * rounds)], means[int(0.975 * rounds) - 1]
 
     # Two-sided p-value from the bootstrap distribution itself: twice the smaller
@@ -210,6 +218,9 @@ def shapley_bootstrap(
     phi_ci95 = {}
     for p in players:
         draws = sorted(per_player_draws[p])
+        # Same 2.5%/97.5% percentile-index convention as paired_bootstrap, including
+        # the upper-only -1 — see the comment there for why the two indices are not
+        # symmetric.
         phi_ci95[p] = [draws[int(0.025 * rounds)], draws[int(0.975 * rounds) - 1]]
 
     # Fraction of rounds a outranked b, for every pair — this is what lets the
@@ -310,6 +321,7 @@ def spearman_correlation(
         ys = [y[i] for i in idx]
         draws.append(_pearson(_fractional_ranks(xs), _fractional_ranks(ys)))
     draws.sort()
+    # Same percentile-index convention as paired_bootstrap; see there for the -1.
     lo, hi = draws[int(0.025 * rounds)], draws[int(0.975 * rounds) - 1]
 
     return {"rho": rho, "ci95": [lo, hi]}

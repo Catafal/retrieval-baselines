@@ -1,9 +1,20 @@
 # Pre-registration — Experiment 002, the retrieval ladder
 
-**Status: not yet tagged.** This document is written and committed before the first scored
-run, as 001's was. It becomes frozen when tagged `protocol-002`; any change after that tag is
-an amendment, made in its own commit with a stated reason. Tagging is a separate, human-run
-step and has not happened as of this commit.
+**Status: frozen.** This document was written and committed before the first scored run, as
+001's was, and is tagged `protocol-002`. Any change after that tag is an amendment, made in its
+own commit with a stated reason, so the diff between what was planned and what shipped is
+public.
+
+**Amendment record.** This status paragraph itself originally read "not yet tagged" and was
+left unupdated after the `protocol-002` tag was actually applied, which made a frozen document
+describe itself as unfrozen. Corrected here rather than left to mislead a reader diffing
+`HEAD` against the tag, which is the check the "How to check this" section of the README asks
+for. Nothing else in this document changed: `git diff protocol-002..HEAD -- protocols/002-ladder.md`
+is otherwise empty, including through the bootstrap-interval and cross-process-determinism work
+that added `shapley_ci95`, `shapley_pairwise_ordering` and `shapley_pairwise_ties` to the
+Shapley values section 5 already specified — those are the pre-registered Shapley attribution
+with an interval computed on top of it, not a change to what was pre-registered, so they did
+not need one.
 
 ---
 
