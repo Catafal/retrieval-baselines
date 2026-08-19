@@ -253,14 +253,6 @@ def _make_encoder() -> SentenceTransformerEncoder:
     return SentenceTransformerEncoder(ENCODER_MODEL_NAME, ENCODER_REVISION)
 
 
-def _write_summary(out_dir: Path, summary: dict) -> None:
-    """run_rung already wrote summary.json once; the two dense-specific
-    controls below are computed AFTER that call (they need the retriever and
-    the scored nDCG run_rung just produced), so the artifact is rewritten in
-    place rather than left to describe a summary that predates its own
-    controls section."""
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-
 
 def run_dense(dataset: str, top_k: int = 100) -> dict:
     """

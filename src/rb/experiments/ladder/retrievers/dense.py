@@ -100,9 +100,18 @@ class DenseRetriever:
 
         sims = q_vecs @ doc_vecs.T  # exact cosine over the full corpus, no ANN structure
 
+        # doc ids as an array once, for the vectorised tie-break below.
+        doc_id_arr = np.array(doc_ids)
+
         run: dict[str, dict[str, float]] = {}
         for i, qid in enumerate(q_ids):
-            order = sorted(range(len(doc_ids)), key=lambda j: (-sims[i, j], doc_ids[j]))[:top_k]
+            # np.lexsort, not sorted() with a Python key. The ordering is identical —
+            # score descending, ties broken by document id ascending — but the key
+            # function ran once per document per query, which is 260 million calls on
+            # Quora and 2.6 billion on HotpotQA, where it simply does not finish. A
+            # reviewer projected that before it was run for real. lexsort does the same
+            # comparison in C, and takes the LAST key as primary.
+            order = np.lexsort((doc_id_arr, -sims[i]))[:top_k]
             # Same strictly-decreasing rank-position encoding as every other rung
             # (see coordination.py / lexical.py): cosine scores can tie, and
             # trec_eval must break ties by document id.

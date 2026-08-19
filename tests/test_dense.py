@@ -251,3 +251,85 @@ def test_manifest_records_the_embedding_hash_after_retrieval(tmp_path):
              out, top_k=10, extra_manifest=r.manifest)
     written = json.loads((out / "summary.json").read_text())
     assert written["retriever_manifest"].get("embedding_sha256"), "embedding hash missing from the artifact"
+
+
+class _Magnitudes:
+    """Vectors that point the same way but differ in length, so cosine and dot
+    product disagree about the ranking."""
+
+    model_name, revision, max_length, batch_size = "stub/mag", "rev0", 8, 4
+    precision, pooling, normalized = "float32", "mean", True
+    verification = None
+
+    _V = {
+        "near": [1.0, 0.0],     # identical direction to the query, short
+        "far": [8.0, 6.0],      # longer, but pointing away (cos = 0.8)
+        "query": [1.0, 0.0],
+    }
+
+    def encode_documents(self, texts):
+        import numpy as np
+        return np.array([self._V[t] for t in texts], dtype="float32")
+
+    def encode_queries(self, texts):
+        import numpy as np
+        return np.array([self._V[t] for t in texts], dtype="float32")
+
+
+def test_ranking_is_cosine_not_dot_product():
+    """
+    The amendment says exact COSINE. Nothing tested it.
+
+    Every existing dense test passed normalize=False, so a reviewer replaced
+    _l2_normalize with a no-op — dot product instead of cosine — and the whole
+    suite passed. The pinned model happens to emit unit-norm vectors, which is why
+    it went unnoticed, but that is a property of this checkpoint and not of the code.
+
+    "far" has the larger dot product (8.0 against 1.0) and the smaller cosine
+    (0.8 against 1.0), so the two rules disagree and only one is correct here.
+    """
+    from rb.experiments.ladder.retrievers.dense import DenseRetriever
+
+    r = DenseRetriever(_Magnitudes())  # default normalize=True, as production runs it
+    run = r.retrieve({"near": "near", "far": "far"}, {"q": "query"}, top_k=2)
+    assert list(run["q"])[0] == "near", "ranked by dot product, not cosine"
+
+
+class _Asymmetric:
+    """Encodes documents and queries differently, so using the wrong one is visible."""
+
+    model_name, revision, max_length, batch_size = "stub/asym", "rev0", 8, 4
+    precision, pooling, normalized = "float32", "mean", True
+    verification = None
+
+    def encode_documents(self, texts):
+        import numpy as np
+        return np.array([[1.0, 0.0] if t == "doc-a" else [0.0, 1.0] for t in texts], dtype="float32")
+
+    def encode_queries(self, texts):
+        import numpy as np
+        # The query text is deliberately NOT "doc-a", so encode_documents would give
+        # it [0,1] while encode_queries gives it [1,0]. The two disagree on this exact
+        # input, which is what makes the swap observable. An earlier version of this
+        # stub had both encoders agree here, so it proved nothing.
+        return np.array([[1.0, 0.0] if t == "wants-a" else [0.0, 1.0] for t in texts], dtype="float32")
+
+
+def test_retrieve_uses_the_document_encoder_for_documents_and_the_query_encoder_for_queries():
+    """
+    Exercises retrieve()'s actual call sites.
+
+    The existing transposition test hand-built its own encoder object rather than
+    going through DenseRetriever.retrieve(), so a reviewer swapped the two calls
+    inside retrieve() and the suite still passed, except incidentally via an
+    unrelated cache call-count assertion. The real encoder's document and query
+    paths are byte-identical today, so the self-retrieval control cannot catch this
+    class of defect either.
+    """
+    from rb.experiments.ladder.retrievers.dense import DenseRetriever
+
+    r = DenseRetriever(_Asymmetric())
+    run = r.retrieve({"doc-a": "doc-a", "doc-b": "doc-b"}, {"q": "wants-a"}, top_k=2)
+    # Through the query encoder "wants-a" is [1,0], matching doc-a. Through the
+    # document encoder it would be [0,1], matching doc-b.
+    assert list(run["q"])[0] == "doc-a", "encoders transposed at the retrieve() call sites"
