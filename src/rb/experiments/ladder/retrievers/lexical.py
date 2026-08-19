@@ -167,7 +167,13 @@ class LexicalRetriever:
         index = self.index if self.index is not None else build_index(corpus)
         run: dict[str, dict[str, float]] = {}
         for qid in sorted(queries):
-            terms = set(_tokenize(queries[qid]))  # BM25's outer sum is over distinct query terms
+            # sorted, not a bare set: BM25's outer sum is over distinct query terms, and
+            # set iteration order depends on PYTHONHASHSEED, which varies per process.
+            # Float addition is not associative, so summing the same term contributions
+            # in a different order gives totals that differ in the last bits, which is
+            # enough to flip documents that tie. Measured before this was sorted: two
+            # processes disagreed on the ranking for 63 of 300 SciFact queries.
+            terms = sorted(set(_tokenize(queries[qid])))
             run[qid] = self._score_query(terms, index, top_k)
         return run
 
@@ -297,7 +303,7 @@ class _ReferenceLexicalRetriever:
 
         run: dict[str, dict[str, float]] = {}
         for qid in sorted(queries):
-            terms = set(_tokenize(queries[qid]))
+            terms = sorted(set(_tokenize(queries[qid])))  # sorted for the same reason as the fast path
             scores: dict[str, float] = {}
             for d in doc_ids:
                 s = 0.0
@@ -351,6 +357,20 @@ LADDER: tuple[LexicalRetriever, ...] = (
 )
 
 
+PLAYERS: tuple[str, ...] = ("idf", "tf_saturation", "length_norm")
+
+
+def active_players(cfg: LexicalRetriever) -> frozenset[str]:
+    """Which of the three switches are on for `cfg`, as the frozenset key
+    rb.stats.shapley_values (and shapley_bootstrap) expect. Factored out of
+    shapley_from_ndcg so run.py's regeneration path can build the same
+    per-query-aligned cell keys without re-deriving this mapping."""
+    return frozenset(
+        p for p, on in (("idf", cfg.idf), ("tf_saturation", cfg.tf_saturation), ("length_norm", cfg.length_norm))
+        if on
+    )
+
+
 def shapley_from_ndcg(ndcg_by_config: dict[LexicalRetriever, float]) -> dict[str, float]:
     """
     Convert the eight measured nDCG@10 values (one per ALL_CONFIGS entry) into the
@@ -363,12 +383,38 @@ def shapley_from_ndcg(ndcg_by_config: dict[LexicalRetriever, float]) -> dict[str
     """
     from rb.stats import shapley_values
 
-    players = ["idf", "tf_saturation", "length_norm"]
-    values = {}
-    for cfg, ndcg in ndcg_by_config.items():
-        active = frozenset(
-            p for p, on in (("idf", cfg.idf), ("tf_saturation", cfg.tf_saturation), ("length_norm", cfg.length_norm))
-            if on
-        )
-        values[active] = ndcg
-    return shapley_values(values, players)
+    values = {active_players(cfg): ndcg for cfg, ndcg in ndcg_by_config.items()}
+    return shapley_values(values, list(PLAYERS))
+
+
+def corpus_length_stats(corpus: dict[str, str]) -> dict:
+    """
+    Mean, median, standard deviation and coefficient of variation of document
+    length, tokenised with the SAME `_tokenize` the lexical scorer scores
+    against — a whitespace-split or character count would describe a different
+    corpus than the one BM25 actually saw, and this is meant to become an
+    independent variable correlated against the Shapley attribution later, so
+    it has to describe what the scorer saw.
+
+    Computed over the full corpus (never a sample), per the spec: length is
+    background information becoming an experimental variable, and a sampled
+    mean would put unstated sampling error into that variable.
+    """
+    if not corpus:
+        raise ValueError("corpus_length_stats requires a non-empty corpus")
+
+    lengths = sorted(len(_tokenize(text)) for text in corpus.values())
+    n = len(lengths)
+    mean_len = sum(lengths) / n
+
+    mid = n // 2
+    median_len = float(lengths[mid]) if n % 2 else (lengths[mid - 1] + lengths[mid]) / 2
+
+    # Population variance (divide by n, not n-1): this is every document in the
+    # corpus, not a sample of a larger population, so there is no degrees-of-
+    # freedom correction to make.
+    variance = sum((length - mean_len) ** 2 for length in lengths) / n
+    std = math.sqrt(variance)
+    cv = std / mean_len if mean_len > 0 else 0.0
+
+    return {"mean": mean_len, "median": median_len, "std": std, "coefficient_of_variation": cv}

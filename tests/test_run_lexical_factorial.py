@@ -13,6 +13,8 @@ throwaway directory instead of skipping the write path altogether.
 
 import json
 
+import pytest
+
 from rb import metrics
 from rb.experiments.ladder import run as run_module
 from rb.experiments.ladder.retrievers.lexical import LADDER, full_bm25
@@ -53,6 +55,48 @@ def _anchor_matching_our_own_full_bm25() -> float:
     run = full_bm25().retrieve(CORPUS, QUERIES, top_k=100)
     per_query = metrics.score_ranked(QRELS, run)
     return metrics.mean([per_query[q]["ndcg_cut_10"] for q in QUERIES])
+
+
+# A second, separate fixture for the Shapley-bootstrap/regeneration tests
+# below. CORPUS's two same-length, same-term docs per query (e.g. glucose_paper
+# vs insulin_paper on q1) produce raw scores that are IDENTICAL before the
+# 1e-9-per-rank tie-break epsilon LexicalRetriever applies — a real, pre-existing
+# edge case where pytrec_eval's own float precision can resolve that near-tie
+# differently than the strict rank order _per_query_ndcg reconstructs from
+# per_query.jsonl, for configs where length_norm is off. That is a property of
+# the harness's tie handling, not of the Shapley bootstrap wiring under test
+# here, so this fixture instead uses term counts that keep every document's
+# raw score cleanly separated across all eight configs (verified directly:
+# every config's own run_rung ndcg matches the per_query.jsonl reconstruction
+# exactly), so these tests aren't coupled to that pre-existing subtlety.
+CORPUS2 = {
+    "d1": "alpha alpha alpha beta",
+    "d2": "alpha beta beta beta beta",
+    "d3": "gamma gamma delta",
+    "d4": "delta epsilon epsilon epsilon epsilon epsilon",
+    "d5": "zeta zeta zeta zeta",
+}
+QUERIES2 = {"q1": "alpha beta", "q2": "gamma delta"}
+QRELS2 = {"q1": {"d1": 1, "d2": 1}, "q2": {"d3": 1, "d4": 1}}
+
+
+def _fake_load_subsampled2(dataset: str):
+    return CORPUS2, QUERIES2, QRELS2, False
+
+
+def _anchor2_matching_our_own_full_bm25() -> float:
+    run = full_bm25().retrieve(CORPUS2, QUERIES2, top_k=100)
+    per_query = metrics.score_ranked(QRELS2, run)
+    return metrics.mean([per_query[q]["ndcg_cut_10"] for q in QUERIES2])
+
+
+def _write_anchor2(tmp_path) -> None:
+    anchor_ndcg = _anchor2_matching_our_own_full_bm25()
+    anchor_dir = tmp_path / "001" / "toy"
+    anchor_dir.mkdir(parents=True)
+    (anchor_dir / "bm25_control.json").write_text(
+        json.dumps({"published_bm25_ndcg_cut_10": anchor_ndcg, "ndcg_cut_10": anchor_ndcg})
+    )
 
 
 def test_run_lexical_factorial_shares_one_index_across_all_eight_configs(monkeypatch, tmp_path):
@@ -115,3 +159,101 @@ def test_run_lexical_factorial_writes_adjacent_rung_comparisons(monkeypatch, tmp
     # Written to the monkeypatched tmp_path, never to the real results/002/.
     written = json.loads((tmp_path / "002" / "toy" / "lexical_factorial.json").read_text())
     assert written == summary
+
+
+def test_run_lexical_factorial_writes_shapley_intervals_and_pairwise_ordering(monkeypatch, tmp_path):
+    """The Shapley bootstrap job's output must ride along with a fresh
+    factorial run, not just the regeneration path — same fields, same shape,
+    on every mechanism."""
+    import rb.experiments.ladder.run as run_mod
+    from rb.experiments.ladder.retrievers.lexical import PLAYERS
+
+    monkeypatch.setattr(run_mod, "_load_subsampled", _fake_load_subsampled2)
+    monkeypatch.setattr(run_mod, "RESULTS", tmp_path / "002")
+    monkeypatch.setattr(run_mod, "ANCHOR_DIR", tmp_path / "001")
+    _write_anchor2(tmp_path)
+
+    summary = run_mod.run_lexical_factorial("toy", top_k=10)
+
+    assert set(summary["shapley_ci95"]) == set(PLAYERS)
+    for player in PLAYERS:
+        lo, hi = summary["shapley_ci95"][player]
+        assert lo <= hi
+
+    assert set(summary["shapley_pairwise_ordering"]) == {
+        "idf>tf_saturation", "idf>length_norm", "tf_saturation>length_norm",
+    }
+    for frac in summary["shapley_pairwise_ordering"].values():
+        assert 0.0 <= frac <= 1.0
+
+
+def test_add_shapley_intervals_regenerates_from_committed_artifacts_without_rerunning_retrieval(monkeypatch, tmp_path):
+    """
+    add_shapley_intervals must reproduce the committed exact Shapley point
+    values from the per_query.jsonl artifacts alone (asserted implicitly: it
+    would raise on a mismatch), add the new interval/ordering fields, and
+    leave everything else in lexical_factorial.json untouched — all without
+    calling build_index or retrieve() again, which is checked by monkeypatching
+    both to explode if called.
+    """
+    import rb.experiments.ladder.run as run_mod
+    from rb.experiments.ladder.retrievers import lexical as lexical_mod
+
+    monkeypatch.setattr(run_mod, "_load_subsampled", _fake_load_subsampled2)
+    monkeypatch.setattr(run_mod, "RESULTS", tmp_path / "002")
+    monkeypatch.setattr(run_mod, "ANCHOR_DIR", tmp_path / "001")
+    _write_anchor2(tmp_path)
+
+    original = run_mod.run_lexical_factorial("toy", top_k=10)
+
+    # Regeneration reads queries/qrels via _load_queries_and_qrels, not
+    # _load_subsampled (which loads a corpus this step must not need) — patch
+    # datasets.load_qrels/load_queries directly to the fixed toy fixtures.
+    monkeypatch.setattr(run_mod.datasets, "load_qrels", lambda dataset: QRELS2)
+    monkeypatch.setattr(run_mod.datasets, "load_queries", lambda dataset: QUERIES2)
+
+    def _explode(*args, **kwargs):
+        raise AssertionError("regeneration must not rebuild the index or re-run retrieval")
+
+    monkeypatch.setattr(lexical_mod, "build_index", _explode)
+    monkeypatch.setattr(run_mod, "build_index", _explode)
+
+    regenerated = run_mod.add_shapley_intervals("toy")
+
+    assert regenerated["configs"] == original["configs"]
+    assert regenerated["shapley_ndcg_cut_10"] == original["shapley_ndcg_cut_10"]
+    assert regenerated["adjacent_rung_comparisons"] == original["adjacent_rung_comparisons"]
+    assert regenerated["controls"] == original["controls"]
+    assert regenerated["cost"] == original["cost"]
+    # The new fields are present and match what the fresh run already computed
+    # (both were reconstructed from the same per_query.jsonl artifacts).
+    assert regenerated["shapley_ci95"] == original["shapley_ci95"]
+    assert regenerated["shapley_pairwise_ordering"] == original["shapley_pairwise_ordering"]
+
+    on_disk = json.loads((tmp_path / "002" / "toy" / "lexical_factorial.json").read_text())
+    assert on_disk == regenerated
+
+
+def test_add_shapley_intervals_raises_on_a_point_value_mismatch(monkeypatch, tmp_path):
+    """If the committed lexical_factorial.json disagrees with what its own
+    per_query.jsonl artifacts recompute, add_shapley_intervals must refuse to
+    regenerate rather than silently overwrite a subtly different number —
+    this is the "must come out IDENTICAL, or stop and report" requirement."""
+    import rb.experiments.ladder.run as run_mod
+
+    monkeypatch.setattr(run_mod, "_load_subsampled", _fake_load_subsampled2)
+    monkeypatch.setattr(run_mod, "RESULTS", tmp_path / "002")
+    monkeypatch.setattr(run_mod, "ANCHOR_DIR", tmp_path / "001")
+    _write_anchor2(tmp_path)
+    run_mod.run_lexical_factorial("toy", top_k=10)
+
+    monkeypatch.setattr(run_mod.datasets, "load_qrels", lambda dataset: QRELS2)
+    monkeypatch.setattr(run_mod.datasets, "load_queries", lambda dataset: QUERIES2)
+
+    factorial_path = tmp_path / "002" / "toy" / "lexical_factorial.json"
+    summary = json.loads(factorial_path.read_text())
+    summary["configs"][next(iter(summary["configs"]))] += 1.0  # corrupt one committed value
+    factorial_path.write_text(json.dumps(summary))
+
+    with pytest.raises(RuntimeError):
+        run_mod.add_shapley_intervals("toy")
