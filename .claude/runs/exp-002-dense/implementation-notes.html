@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dense &amp; Hybrid Rungs (exp-002-dense) · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>Dense &amp; Hybrid Rungs (exp-002-dense)</h1>
+  <p class="meta">Branch <code>exp-002-dense</code> (worktree) · started 2026-08-19 ·
+     making the dense rung runnable and wiring dense + hybrid into the Experiment 002 ladder,
+     against a real SciFact run.</p>
+  <p>This is a <strong>living document</strong> capturing how the implementation interprets,
+     diverges from, or trades off against the spec. Updated as each slice lands.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Make <code>protocols/002-amendment-1-dense.md</code>'s dense and hybrid arms real: a
+     working, cached, controlled dense retriever wired into the ladder runner, the four
+     pre-registered query properties, per-query win/loss analysis, and paired-bootstrap
+     statistics — run once, end to end, on SciFact.</p>
+
+  <h2>Design decisions <span class="meta">(spec was ambiguous → here's the call I made)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Embedding cache is
+    content-addressed, not dataset-named.</strong>
+    The amendment says "cached to disk per corpus... keyed by model revision." Rather than have
+    <code>DenseRetriever</code> know a dataset name (it only ever sees a corpus dict), the cache
+    key is a SHA-256 over (max_length, sorted doc_ids, doc texts), stored under a directory named
+    for the encoder's revision. Two independent guarantees fall out of this: a different revision
+    physically cannot land in another revision's directory, and a corpus whose content changed
+    (even with identical ids) cannot silently reuse stale vectors.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>batch_size moved from
+    DenseRetriever to the encoder.</strong>
+    The task brief named this exactly: "an earlier review found batch_size reported but never
+    reaching the encoder." Confirmed — <code>DenseRetriever.__init__</code> took a
+    <code>batch_size</code> parameter, put it in the manifest, and never passed it anywhere;
+    <code>SentenceTransformerEncoder.encode_documents</code> referenced <code>self.batch_size</code>,
+    which the encoder never set (would have raised <code>AttributeError</code> the first time it
+    ran). Fixed by making the encoder the sole owner of batch_size — it is the only object that
+    calls <code>.encode()</code> — and <code>DenseRetriever.manifest()</code> now reads it back
+    from <code>self.encoder.batch_size</code>. A regression test
+    (<code>test_manifest_reports_batch_size_from_the_encoder_not_a_separate_field</code>) pins
+    this.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>max_length verified
+    against the loaded model, not hard-coded.</strong>
+    Loaded the pinned revision directly and read <code>model.max_seq_length</code>: it is 256,
+    matching the amendment (the ladder pre-registration's original 512 is superseded by the
+    amendment, which the amendment itself says: "That gate is now closed here"). Pooling mode
+    (<code>mean</code>) and the presence of a built-in L2-normalisation module were read the same
+    way — <code>SentenceTransformerEncoder</code> no longer hard-codes
+    <code>pooling = "mean"</code> as a class attribute; it inspects the loaded model's modules.
+    All three actual values, plus what was requested, are recorded in
+    <code>encoder.verification</code> and folded into the manifest.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>doc_ids sorted, not
+    <code>list(corpus)</code>.</strong>
+    The pre-existing <code>DenseRetriever.retrieve()</code> used <code>doc_ids = list(corpus)</code>,
+    trusting dict insertion order — a house-rule violation ("no dict-order dependence") and the
+    reason the embedding cache could not be keyed reliably: the same corpus dict built via a
+    different code path could fingerprint differently. Changed to
+    <code>sorted(corpus)</code>, matching <code>lexical.build_index</code>'s own convention.</div>
+
+  <h2>Deviations <span class="meta">(intentional departures from the spec/convention)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Cross-process
+    determinism checked as a subprocess unit test plus a manual empirical rerun, not as a
+    runtime gate inside <code>run_dense</code>/<code>run_hybrid</code>.</strong>
+    The amendment lists it as a control that halts the run. Implementing it as an in-process gate
+    would mean re-embedding SciFact in a second subprocess on every invocation, doubling the cost
+    of every rerun for a property that (a) does not depend on the embedding step at all — the
+    dense/hybrid ranking code has no set-iteration or hash-order dependency, unlike the BM25 bug
+    this repo already hit — and (b) is adequately covered by a fast subprocess test against a stub
+    encoder plus one manual empirical check against the real model
+    (<code>results/002/scifact/{dense,hybrid}/per_query.jsonl</code> diffed byte-for-byte across
+    two separate <code>python -m rb.experiments.ladder.run</code> invocations — both diffs are
+    empty). Flagging for review: if a reviewer wants this as an automatic per-run gate rather than
+    a test-suite property, that is a small addition (rerun the retriever in a subprocess and diff)
+    but it would double dense/hybrid wall clock on every future invocation.</div>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Self-retrieval control
+    samples 100 documents, not the whole corpus.</strong>
+    The amendment states the control's requirement ("a document... must retrieve itself at rank
+    1") but not a sample size. Re-encoding every one of SciFact's 5,183 documents as a query would
+    roughly double the dense rung's wall clock for a control whose failure mode (query/document
+    encoder transposition) is not corpus-size-dependent — if it fails, it fails for essentially
+    every document, so a sample catches it. 100 is deterministic (sorted doc ids, first 100), not
+    random.</div>
+
+  <h2>Tradeoffs <span class="meta">(alternatives considered)</span></h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Win/loss bin edges:
+    equal-count quantiles vs. equal-width ranges.</strong>
+    Considered equal-width bins (fixed-size ranges of the raw property value). Rejected: IDF and
+    Jaccard overlap are both skewed on SciFact, and equal-width bins would put most queries in one
+    bin and leave the others sparse by construction, which is a worse failure mode than the
+    sparse-bin flag is meant to catch. Went with equal-COUNT quantile bins (rank-based split into
+    four groups) instead, so every bin (for a continuous property) has a comparable number of
+    queries and the win-rate interval is comparably powered across bins. gold_count is the
+    exception — binned by exact integer value, since quantile-splitting an already-discrete
+    variable would arbitrarily fracture "2 gold docs" across two ranges.</div>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Win/loss interval:
+    reuse <code>paired_bootstrap</code> per bin vs. build a new win-rate-specific bootstrap.</strong>
+    The amendment asks for "win rate... with intervals, alongside the paired per-query
+    difference." Rather than invent a new statistic, each bin's report is exactly one call to the
+    already-tested <code>rb.stats.paired_bootstrap</code> on the bin's subset of per-query
+    differences — this gives the interval on the mean difference (which implies the sign/strength
+    of the win) using code this repo already trusts, instead of a second, parallel bootstrap
+    implementation for proportions that would need its own tests and its own scrutiny.</div>
+
+  <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Is
+    SPARSE_THRESHOLD = 5 the right cutoff?</strong>
+    Not pre-registered by the amendment (which fixes the four properties, not a bin-size cutoff).
+    Chose 5 as a documented, conservative floor — <code>analysis.SPARSE_THRESHOLD</code>. On
+    SciFact's 300 queries this only bites the three sparsest <code>gold_count</code> bins (2, 3,
+    and 5 gold docs — 4, 3, and 2 queries respectively), which is exactly the multi-hop tail where
+    sparsity should be flagged. Changing it is a one-line edit if a different threshold is wanted.</div>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Hybrid beat full BM25 by 0.022
+    nDCG (not Holm-significant, p=0.052) — report as "no" or as "borderline"?</strong>
+    The pre-registered stopping rule (protocol-002-ladder.md section 8, amendment section 10) says
+    publish whatever comes out and call a non-significant result what it is. Reported here as
+    <code>holm_significant: false</code>, which is correct per the protocol, but 0.052 is close
+    enough to the 0.05 line that a reader skimming only the boolean might miss how close it was —
+    the full <code>mean_diff</code>/<code>ci95</code>/<code>p_value</code> are in the artifact for
+    exactly this reason. No code change needed either way; flagging so the write-up doesn't round
+    "borderline" down to "no effect."</div>
+
+  <h2>Build / verification</h2>
+  <ul>
+    <li>Full suite: <code>PYTHONPATH=src .venv/bin/pytest -q tests</code> — 147 passed (121
+      pre-existing + 26 new: query properties, win/loss analysis, dense manifest/cache/
+      self-retrieval regressions, cross-process determinism for dense and hybrid).</li>
+    <li>New deps: none beyond pinning <code>sentence-transformers==6.0.0</code> in
+      <code>requirements.txt</code> (previously unpinned per protocol-002-ladder.md section 4,
+      closed here per the amendment).</li>
+    <li>New on-disk state: <code>data/embeddings_cache/&lt;revision&gt;/*.npz</code> (already
+      covered by the repo's existing <code>data</code> gitignore entry — no config change
+      needed).</li>
+    <li>Real run: SciFact scored for coordination, dense, hybrid, and the win/loss + stats
+      analysis. Both new controls (embedding shuffle, self-retrieval) passed. Cross-process
+      determinism verified empirically by diffing two separate real-model invocations'
+      <code>per_query.jsonl</code> — byte-identical.</li>
+  </ul>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Slice</th><th>What</th><th>Status</th></tr>
+    <tr><td>1</td><td>Fix dense rung: batch_size wiring, sorted doc_ids, verified max_length/pooling/normalisation, embedding cache keyed by revision</td><td class="done">✓ done</td></tr>
+    <tr><td>2</td><td>Pin sentence-transformers==6.0.0 in requirements.txt</td><td class="done">✓ done</td></tr>
+    <tr><td>3</td><td>Wire dense + hybrid rungs into rb.experiments.ladder.run (--rung dense / hybrid / dense-hybrid-analysis)</td><td class="done">✓ done</td></tr>
+    <tr><td>4</td><td>Self-retrieval control (rb.controls.self_retrieval); embedding-shuffle control wired into run_dense</td><td class="done">✓ done</td></tr>
+    <tr><td>5</td><td>Four pre-registered query properties (rb.experiments.ladder.query_properties)</td><td class="done">✓ done</td></tr>
+    <tr><td>6</td><td>Per-query win/loss binned analysis with sparse-bin flagging (rb.experiments.ladder.analysis)</td><td class="done">✓ done</td></tr>
+    <tr><td>7</td><td>Paired bootstrap + Holm correction: dense vs BM25, dense vs coordination, hybrid vs better component</td><td class="done">✓ done</td></tr>
+    <tr><td>8</td><td>Cross-process determinism: subprocess tests + empirical real-model rerun diff</td><td class="done">✓ done</td></tr>
+    <tr><td>9</td><td>Run SciFact end to end, commit results/002/scifact/{dense,hybrid,coordination,dense_hybrid_analysis.json}</td><td class="done">✓ done</td></tr>
+  </table>
+</body>
+</html>

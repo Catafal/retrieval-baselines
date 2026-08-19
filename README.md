@@ -10,7 +10,7 @@ code are not comparable no matter what the prose claims.
 | Experiment | Retriever | Status |
 |---|---|---|
 | 001 | ripgrep, literal word-bounded matching | see `protocols/001-grep-baseline.md` |
-| 002 | lexical factorial, dense, hybrid (the ladder) | lexical factorial measured on all three datasets, see `protocols/002-ladder.md`; dense and hybrid not run |
+| 002 | lexical factorial, dense, hybrid (the ladder) | lexical factorial measured on all three datasets; dense and hybrid measured on SciFact only, see `protocols/002-ladder.md` and `protocols/002-amendment-1-dense.md` |
 | 003 | knowledge graph | not started |
 
 ## Shared instrument, per-experiment arms
@@ -39,11 +39,13 @@ a longer job than the one that was promised.
 
 `reproduce-002-lexical` only runs the cheap rungs (coordination and the lexical factorial,
 minutes per dataset). Experiment 002's dense and hybrid rungs are **not** wired into any
-Makefile target: they need a real pinned embedding model, and running them is a separate,
-explicitly gated step described in `protocols/002-ladder.md`, not something a stranger should
-trigger by accident while trying to reproduce the cheap part. As of this commit neither rung has
-been run — there is no `results/002/*/dense` or `.../hybrid`, and none of this repo's docs
-should be read as claiming otherwise.
+Makefile target: they need a real pinned embedding model (now pinned per
+`protocols/002-amendment-1-dense.md`), and running them (`python -m rb.experiments.ladder.run
+--dataset <name> --rung dense`, `--rung hybrid`) is a separate, explicitly invoked step, not
+something a stranger should trigger by accident while trying to reproduce the cheap part. As of
+this commit both rungs have been measured on SciFact only — `results/002/scifact/dense` and
+`.../hybrid` — per the amendment's stopping point; Quora and HotpotQA are unattended runs the
+amendment gates separately and neither has been launched.
 
 The lexical rungs (`LexicalRetriever`) score against a sparse inverted index
 (`lexical.build_index`) rather than scanning the corpus per query — the naive scan does not
