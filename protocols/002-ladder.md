@@ -61,6 +61,17 @@ reproduces `results/001/scifact/summary.json`'s ranked metrics exactly.
 **Rungs 1–8 — the lexical factorial (`rb.experiments.ladder.retrievers.lexical.LexicalRetriever`).**
 One scoring function, three independent boolean switches — idf, tf_saturation (`k1`),
 length_norm (`b`) — run as the full eight-cell factorial, not a single ladder ordering:
+
+**The one cell the literature does not define, fixed here before scoring.** With
+`tf_saturation` off and `length_norm` on, there is no canonical formula: BM25's length penalty
+lives inside the saturation term it is being asked to survive without. This protocol fixes it
+as `tf / norm`, raw term frequency divided by the same length penalty
+`1 - b + b * (doc_len / avgdl)`. That reading is chosen because it keeps length normalisation
+doing the one thing it exists to do, discounting a match in a long document, and because it
+reduces correctly to both corners the spec does pin: with `length_norm` also off it is raw term
+frequency, and with `tf_saturation` back on it is full BM25. It is a choice, it is recorded
+here rather than left in a code comment, and the Shapley attribution for `length_norm` is
+conditional on it.
 a ladder hands shared credit for interacting mechanisms to whichever one went first.
 
 - `k1 = 1.2`, `b = 0.75`, fixed. Never tuned — tuning against this evaluation set would be
