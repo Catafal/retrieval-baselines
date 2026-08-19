@@ -70,6 +70,7 @@ class DenseRetriever:
         # not re-embed. None (the default) disables caching entirely, which is
         # what every stub-encoder test below exercises. See _cached_doc_vectors.
         self.cache_dir = cache_dir
+        self._embedding_digest: str | None = None
         self.name = f"dense({encoder.model_name}@{encoder.revision[:8]})"
 
     def retrieve(
@@ -121,7 +122,9 @@ class DenseRetriever:
         hash), so a stranger inspecting the cache directory can see which
         revision produced which files without recomputing any hash.
         """
-        fingerprint = _corpus_fingerprint(doc_ids, texts, self.encoder.max_length)
+        fingerprint = _corpus_fingerprint(
+            doc_ids, texts, self.encoder.max_length, self.encoder.model_name
+        )
         path = self.cache_dir / self.encoder.revision / f"{fingerprint}.npz"
         if path.exists():
             # allow_pickle=False by default: doc_ids is stored as a fixed-width
@@ -132,11 +135,22 @@ class DenseRetriever:
             # Defensive re-check rather than trusting the filename: a hash
             # collision or a hand-edited cache directory would otherwise return
             # vectors for the wrong document order silently.
-            if list(cached["doc_ids"]) == doc_ids:
-                return cached["vectors"].astype(np.float32)
+            if list(cached["doc_ids"]) != doc_ids:
+                # Everything else in this repo fails loudly where a wrong number could
+                # otherwise be produced quietly, and a silent recompute here would turn a
+                # hash collision or a hand-edited cache into a slow run rather than a
+                # stated problem.
+                raise RuntimeError(
+                    f"cache file {path} matches the fingerprint but holds different "
+                    "document ids. Delete it rather than trusting either."
+                )
+            vectors = cached["vectors"].astype(np.float32)
+            self._embedding_digest = _matrix_digest(vectors)
+            return vectors
         vecs = np.asarray(self.encoder.encode_documents(texts), dtype=np.float32)
         path.parent.mkdir(parents=True, exist_ok=True)
         np.savez(path, doc_ids=np.array(doc_ids), vectors=vecs)
+        self._embedding_digest = _matrix_digest(vecs)
         return vecs
 
     def manifest(self) -> dict:
@@ -163,15 +177,45 @@ class DenseRetriever:
         verification = getattr(self.encoder, "verification", None)
         if verification is not None:
             manifest["verification"] = verification
+        # Recorded so two runs can be compared for bit-identical embeddings after the
+        # fact, since the real encoder cannot be gated on determinism per run.
+        if getattr(self, "_embedding_digest", None):
+            manifest["embedding_sha256"] = self._embedding_digest
         return manifest
 
 
-def _corpus_fingerprint(doc_ids: list[str], texts: list[str], max_length: int) -> str:
+def _matrix_digest(mat: np.ndarray) -> str:
+    """
+    Hash of the embedding matrix, recorded in the run manifest.
+
+    The amendment lists cross-process determinism as a control, and for the lexical
+    arms it is enforced by a test that runs retrieval in separate subprocesses. The
+    real encoder cannot be gated that way without doubling the wall clock of every
+    run, and torch's reductions on MPS carry no bit-identity guarantee across
+    processes or hardware. So the guarantee is made checkable after the fact rather
+    than asserted: two runs that produced the same vectors carry the same digest, and
+    a reader comparing two manifests can see immediately whether the embeddings moved.
+    A rerun on different hardware that quietly produced different vectors would
+    otherwise be invisible.
+    """
+    return hashlib.sha256(np.ascontiguousarray(mat, dtype=np.float32).tobytes()).hexdigest()
+
+
+def _corpus_fingerprint(doc_ids: list[str], texts: list[str], max_length: int, model_name: str) -> str:
     """Content hash of the exact (doc_id, text) pairs a cache entry was built
     from, plus max_length (truncation changes the resulting vectors). Streamed
     rather than joined into one giant string, so this does not double the peak
     memory of a large corpus just to fingerprint it."""
     h = hashlib.sha256()
+    # model_name is in the key, not only the revision. A reviewer demonstrated two
+    # encoders with different names but the same revision string sharing a cache
+    # entry, so the second never encoded anything and silently inherited the first's
+    # vectors. Revision hashes are effectively unique per repository today, which is
+    # why this was dormant rather than live, but a cache that can serve another
+    # model's vectors is the wrong thing to leave lying around in a repository whose
+    # point is that numbers correspond to a pinned artifact.
+    h.update(model_name.encode("utf8"))
+    h.update(b"\x00")
     h.update(str(max_length).encode("utf8"))
     for doc_id, text in zip(doc_ids, texts):
         h.update(doc_id.encode("utf8"))

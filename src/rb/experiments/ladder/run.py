@@ -279,33 +279,37 @@ def run_dense(dataset: str, top_k: int = 100) -> dict:
     encoder = _make_encoder()
     retriever = DenseRetriever(encoder, cache_dir=EMBEDDING_CACHE_DIR)
     out_dir = RESULTS / dataset / "dense"
+
+    def dense_controls(ranked_run, per_query):
+        """
+        Both dense controls, run against the scored run BEFORE anything is written.
+
+        They used to run after run_rung had already written per_query.jsonl, so a
+        transposed encoder failed its control and still left a complete,
+        real-looking artifact on disk for the hybrid and analysis rungs to read on
+        another day. A reviewer demonstrated exactly that. Passing them through
+        run_rung's gate is what makes "every control halts the run" true of the
+        artifacts rather than only of this process.
+        """
+        normal = metrics.mean([per_query[q]["ndcg_cut_10"] for q in per_query])
+        shuffled = DenseRetriever(encoder, shuffle_seed=CONTROL_SEED, cache_dir=EMBEDDING_CACHE_DIR)
+        shuffled_run = shuffled.retrieve(corpus, queries, top_k=top_k)
+        shuffled_pq = metrics.score_ranked(qrels, shuffled_run)
+        shuffled_ndcg = metrics.mean([shuffled_pq[q]["ndcg_cut_10"] for q in queries])
+        return {
+            "embedding_shuffle": controls.embedding_shuffle(normal, shuffled_ndcg),
+            # A deterministic sample of documents, embedded and used as their own
+            # query text, must come back at rank 1.
+            "self_retrieval": controls.self_retrieval(
+                retriever, corpus, sorted(corpus)[:SELF_RETRIEVAL_SAMPLE_SIZE]
+            ),
+        }
+
     summary = run_rung(
         retriever, dataset, corpus, queries, qrels, out_dir,
         top_k=top_k, subsampled=sampled, seed=seed, extra_manifest=retriever.manifest(),
+        post_scoring_controls=dense_controls,
     )
-    normal_ndcg = summary["ranked"]["ndcg_cut_10"]
-
-    # Embedding shuffle: same corpus, same encoder (cache hit), embeddings
-    # permuted before scoring. Must collapse to at most the chance ceiling.
-    shuffled = DenseRetriever(encoder, shuffle_seed=CONTROL_SEED, cache_dir=EMBEDDING_CACHE_DIR)
-    shuffled_run = shuffled.retrieve(corpus, queries, top_k=top_k)
-    shuffled_per_query = metrics.score_ranked(qrels, shuffled_run)
-    shuffled_ndcg = metrics.mean([shuffled_per_query[q]["ndcg_cut_10"] for q in queries])
-    shuffle_result = controls.embedding_shuffle(normal_ndcg, shuffled_ndcg)
-
-    # Self-retrieval: a deterministic sample of documents, embedded and used
-    # as their own query text, must come back at rank 1.
-    sample_ids = sorted(corpus)[:SELF_RETRIEVAL_SAMPLE_SIZE]
-    self_retrieval_result = controls.self_retrieval(retriever, corpus, sample_ids)
-
-    summary["controls"]["embedding_shuffle"] = shuffle_result
-    summary["controls"]["self_retrieval"] = self_retrieval_result
-    _write_summary(out_dir, summary)
-
-    if not shuffle_result["passed"]:
-        raise RuntimeError(f"embedding shuffle control failed on {dataset}: {shuffle_result}. Nothing else runs.")
-    if not self_retrieval_result["passed"]:
-        raise RuntimeError(f"self-retrieval control failed on {dataset}: {self_retrieval_result}. Nothing else runs.")
     return summary
 
 

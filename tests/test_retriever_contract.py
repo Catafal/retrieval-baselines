@@ -4,6 +4,8 @@ tiny in-memory corpus — not against internals, against the seam every rung sha
 (see rb.retriever.Retriever).
 """
 
+import pytest
+
 import zlib
 
 import numpy as np
@@ -114,3 +116,56 @@ def test_scoring_uses_rank_order_not_score_magnitude(tmp_path):
     )
     # Same epsilon, opposite intent: the two must NOT score the same.
     assert reversed_summary["ranked"]["ndcg_cut_10"] < 1.0
+
+
+def test_failing_post_scoring_control_writes_no_artifact(tmp_path):
+    """
+    A control that needs the scored run must stop the artifact reaching disk.
+
+    Before this gate existed, run_rung wrote per_query.jsonl unconditionally and the
+    dense arm's controls ran afterwards, so a transposed encoder failed its control
+    AND left a complete, real-looking artifact behind for other rungs to read on
+    another day. A reviewer demonstrated it. "Every control halts the run" has to be
+    true of the artifacts, not just of the process that noticed.
+    """
+    from rb.retriever import run_rung
+
+    class _Fine:
+        name = "fine"
+
+        def retrieve(self, corpus, queries, top_k):
+            return {"q": {"a": 2.0, "b": 1.0}}
+
+    corpus = {"a": "alpha", "b": "beta"}
+    queries = {"q": "alpha"}
+    qrels = {"q": {"a": 1}}
+
+    out = tmp_path / "rung"
+    with pytest.raises(RuntimeError, match="post-scoring controls"):
+        run_rung(
+            _Fine(), "scifact", corpus, queries, qrels, out, top_k=10,
+            post_scoring_controls=lambda run, per_query: {
+                "deliberately_failing": {"passed": False, "why": "test"}
+            },
+        )
+    assert not (out / "per_query.jsonl").exists(), "artifact written despite a failed control"
+    assert not (out / "summary.json").exists()
+
+
+def test_passing_post_scoring_control_is_recorded_in_the_summary(tmp_path):
+    from rb.retriever import run_rung
+
+    class _Fine:
+        name = "fine"
+
+        def retrieve(self, corpus, queries, top_k):
+            return {"q": {"a": 2.0, "b": 1.0}}
+
+    out = tmp_path / "rung"
+    summary = run_rung(
+        _Fine(), "scifact", {"a": "alpha", "b": "beta"}, {"q": "alpha"}, {"q": {"a": 1}}, out,
+        top_k=10,
+        post_scoring_controls=lambda run, per_query: {"made_up": {"passed": True, "value": 1}},
+    )
+    assert summary["controls"]["made_up"]["passed"] is True
+    assert (out / "per_query.jsonl").exists()

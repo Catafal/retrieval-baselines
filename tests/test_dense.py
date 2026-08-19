@@ -199,3 +199,18 @@ def test_cache_is_keyed_by_revision_so_a_different_revision_cannot_reuse_vectors
 
     cached_dirs = sorted(p.name for p in tmp_path.iterdir())
     assert cached_dirs == ["revision-aaaaaaaa", "revision-bbbbbbbb"]
+
+
+def test_cache_key_includes_model_name_so_two_models_cannot_share_vectors(tmp_path):
+    """
+    A reviewer demonstrated two encoders with different names but the same revision
+    string sharing a cache entry, so the second never encoded anything and silently
+    inherited the first's vectors. Dormant today because revision hashes are unique
+    per repository, and exactly the kind of thing that stops being dormant after an
+    edit that updates one constant and not the other.
+    """
+    from rb.experiments.ladder.retrievers.dense import _corpus_fingerprint
+
+    a = _corpus_fingerprint(["d1"], ["hello"], 256, "org/model-a")
+    b = _corpus_fingerprint(["d1"], ["hello"], 256, "org/model-b")
+    assert a != b, "two different models must not share a cache fingerprint"

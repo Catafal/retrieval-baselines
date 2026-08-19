@@ -75,6 +75,10 @@ def run_rung(
     subsampled: bool = False,
     seed: int | None = None,
     extra_manifest: dict | None = None,
+    # Controls that need the scored run. Called with (ranked_run, per_query) and
+    # expected to return {name: {"passed": bool, ...}}. Any failure raises before
+    # a single artifact is written.
+    post_scoring_controls=None,
 ) -> dict:
     """
     Score one retriever on one dataset's (already query-subsampled) queries.
@@ -129,6 +133,28 @@ def run_rung(
     }
     per_query = metrics.score_ranked({q: qrels[q] for q in qids}, ranked_run)
 
+    # Controls that need the SCORED run, supplied by the caller, evaluated BEFORE
+    # anything reaches disk.
+    #
+    # A reviewer demonstrated the hole this closes: run_rung used to write
+    # per_query.jsonl unconditionally, and the dense arm's own controls (embedding
+    # shuffle, self-retrieval) ran afterwards in run_dense. A transposed encoder
+    # therefore failed its control AND left a complete, real-looking per_query.jsonl
+    # on disk, which the hybrid and analysis rungs read later without ever consulting
+    # whether the controls had passed. Those rungs are separate CLI invocations run on
+    # different days, so "the run halted" was true of one process and false of the
+    # pipeline. The amendment says every control halts the run; this is what makes
+    # that true of the artifacts rather than of a process.
+    post_controls: dict = {}
+    if post_scoring_controls is not None:
+        post_controls = post_scoring_controls(ranked_run, per_query)
+        failed = [n for n, c in post_controls.items() if not c.get("passed")]
+        if failed:
+            raise RuntimeError(
+                f"{retriever.name} failed post-scoring controls {failed} on {dataset}: "
+                f"{ {n: post_controls[n] for n in failed} }. Nothing written."
+            )
+
     with open(out_dir / "per_query.jsonl", "w", encoding="utf8") as f:
         for qid in qids:
             # Re-sort defensively rather than trust dict insertion order: a Retriever
@@ -149,7 +175,7 @@ def run_rung(
         "subsampled": subsampled,
         "seed": seed if subsampled else None,
         "corpus_documents": len(corpus),
-        "controls": {"gold_presence": check},
+        "controls": {"gold_presence": check, **post_controls},
         "ranked": {
             m: round(metrics.mean([per_query[q][m] for q in qids]), 4) for m in sorted(metrics.MEASURES)
         },

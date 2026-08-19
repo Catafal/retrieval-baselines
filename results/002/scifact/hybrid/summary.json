@@ -20,14 +20,14 @@
     "recall_100": 0.9543
   },
   "cost": {
-    "total_seconds": 1.094,
+    "total_seconds": 1.075,
     "usd": 0.0
   },
   "environment": {
     "python": "3.14.3",
     "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O",
     "machine": "arm64",
-    "git_commit": "90f4616a9ab17daf50dfe73d587888409b62d9ed",
+    "git_commit": "844cfc382a53b789aced15030f3a4e7d106cbc84",
     "dataset_checksums": {
       "hotpotqa": {
         "bytes": 654025350,
