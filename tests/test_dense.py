@@ -214,3 +214,40 @@ def test_cache_key_includes_model_name_so_two_models_cannot_share_vectors(tmp_pa
     a = _corpus_fingerprint(["d1"], ["hello"], 256, "org/model-a")
     b = _corpus_fingerprint(["d1"], ["hello"], 256, "org/model-b")
     assert a != b, "two different models must not share a cache fingerprint"
+
+
+def test_manifest_records_the_embedding_hash_after_retrieval(tmp_path):
+    """
+    The manifest must describe the run that happened.
+
+    manifest() was being evaluated before retrieve(), so the embedding hash — which
+    exists only once the encoder has run — was silently absent from every artifact.
+    The point of that hash is that two runs producing different vectors say so, which
+    is worth nothing if it is never written.
+    """
+    import json
+    from rb.retriever import run_rung
+    from rb.experiments.ladder.retrievers.dense import DenseRetriever
+
+    class _Stub:
+        model_name, revision, max_length, batch_size = "stub/model", "rev0", 8, 4
+        precision, pooling, normalized = "float32", "mean", True
+        verification = None
+
+        def _vec(self, t):
+            import numpy as np
+            h = abs(hash(t)) % 7 + 1
+            return np.array([h, 1.0], dtype="float32")
+
+        def encode_documents(self, texts):
+            import numpy as np
+            return np.stack([self._vec(t) for t in texts])
+
+        encode_queries = encode_documents
+
+    r = DenseRetriever(_Stub(), cache_dir=tmp_path / "cache")
+    out = tmp_path / "rung"
+    run_rung(r, "scifact", {"a": "alpha", "b": "beta"}, {"q": "alpha"}, {"q": {"a": 1}},
+             out, top_k=10, extra_manifest=r.manifest)
+    written = json.loads((out / "summary.json").read_text())
+    assert written["retriever_manifest"].get("embedding_sha256"), "embedding hash missing from the artifact"

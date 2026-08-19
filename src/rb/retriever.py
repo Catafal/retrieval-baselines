@@ -182,6 +182,12 @@ def run_rung(
         "cost": {"total_seconds": round(elapsed, 3), "usd": 0.0},
         "environment": environment(),
     }
+    # Callable, not a dict, when the manifest can only be complete after retrieval.
+    # The dense arm records a hash of the embedding matrix, which does not exist until
+    # the encoder has run, so evaluating the manifest at call time silently dropped it.
+    # Caught by checking the written artifact rather than trusting the commit.
+    if callable(extra_manifest):
+        extra_manifest = extra_manifest()
     if extra_manifest:
         summary["retriever_manifest"] = extra_manifest
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")

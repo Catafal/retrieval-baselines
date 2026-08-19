@@ -307,7 +307,7 @@ def run_dense(dataset: str, top_k: int = 100) -> dict:
 
     summary = run_rung(
         retriever, dataset, corpus, queries, qrels, out_dir,
-        top_k=top_k, subsampled=sampled, seed=seed, extra_manifest=retriever.manifest(),
+        top_k=top_k, subsampled=sampled, seed=seed, extra_manifest=retriever.manifest,  # callable: the embedding hash exists only after retrieval
         post_scoring_controls=dense_controls,
     )
     return summary

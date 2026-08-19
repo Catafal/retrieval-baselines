@@ -32,14 +32,14 @@
     "recall_100": 0.925
   },
   "cost": {
-    "total_seconds": 10.616,
+    "total_seconds": 0.995,
     "usd": 0.0
   },
   "environment": {
     "python": "3.14.3",
     "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O",
     "machine": "arm64",
-    "git_commit": "844cfc382a53b789aced15030f3a4e7d106cbc84",
+    "git_commit": "c9c93abbd953cc00622720bf13ca49ced30c5d3a",
     "dataset_checksums": {
       "hotpotqa": {
         "bytes": 654025350,
@@ -69,6 +69,7 @@
       "actual_max_length": 256,
       "pooling_mode_from_model": "mean",
       "model_has_normalize_module": true
-    }
+    },
+    "embedding_sha256": "647f7166a4e8a26b8f9aa65e72fd0296fbb4169bc699db4e8bc30211142507ed"
   }
 }
