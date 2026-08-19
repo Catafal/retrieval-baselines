@@ -175,3 +175,45 @@ def test_corpus_length_stats_uses_the_same_tokenizer_the_scorer_uses():
 def test_corpus_length_stats_rejects_empty_corpus():
     with pytest.raises(ValueError):
         corpus_length_stats({})
+
+
+def test_retrieval_is_identical_across_processes(tmp_path):
+    """
+    Reproducibility across processes, not just within one.
+
+    BM25's outer sum runs over the distinct query terms. When those came from a
+    bare set, iteration order depended on PYTHONHASHSEED, which is randomised per
+    process. Float addition is not associative, so the same contributions summed
+    in a different order produced totals differing in the last bits, which was
+    enough to flip documents that tie. Two processes disagreed on the ranking for
+    63 of 300 SciFact queries, and nothing in the suite noticed, because every
+    determinism test ran inside a single process.
+
+    A stranger rerunning this repo has to get the ranking we published.
+    """
+    import subprocess
+    import sys
+
+    script = tmp_path / "once.py"
+    script.write_text(
+        "import json\n"
+        "from rb.experiments.ladder.retrievers.lexical import LexicalRetriever, build_index\n"
+        "import dataclasses\n"
+        # Documents engineered to tie: same terms, different order, so any
+        # order-dependent summation shows up as a flipped ranking.
+        "corpus = {f'd{i}': 'alpha beta gamma delta' for i in range(40)}\n"
+        "corpus['d7'] = 'delta gamma beta alpha'\n"
+        "q = {'q': 'alpha beta gamma delta'}\n"
+        "r = dataclasses.replace(LexicalRetriever(idf=True, tf_saturation=True, length_norm=True),"
+        " index=build_index(corpus))\n"
+        "print(json.dumps(list(r.retrieve(corpus, q, 40)['q'])))\n"
+    )
+    env_runs = [
+        subprocess.run(
+            [sys.executable, str(script)],
+            capture_output=True, text=True, check=True,
+            env={"PYTHONPATH": "src", "PATH": "/usr/bin:/bin"},
+        ).stdout
+        for _ in range(3)
+    ]
+    assert env_runs[0] == env_runs[1] == env_runs[2]

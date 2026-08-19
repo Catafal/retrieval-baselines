@@ -95,7 +95,39 @@ def run_rung(
     run_dict = retriever.retrieve(corpus, queries, top_k)
     elapsed = time.perf_counter() - t0
 
-    per_query = metrics.score_ranked({q: qrels[q] for q in qids}, run_dict)
+    # The contract says scores are strictly decreasing. The re-encoding below would
+    # quietly repair a retriever that broke that, turning a bug into a plausible
+    # ranking via the doc-id tie-break, so check first and fail loudly instead.
+    for qid, docs in run_dict.items():
+        scores = [sc for _, sc in sorted(docs.items(), key=lambda kv: (-kv[1], kv[0]))]
+        if any(a <= b for a, b in zip(scores, scores[1:])):
+            raise RuntimeError(
+                f"{retriever.name} returned non-strictly-decreasing scores for query {qid}. "
+                "The Retriever contract requires strict ordering; re-encoding would hide this."
+            )
+
+    # Score the retriever's ORDER, not its score magnitudes.
+    #
+    # pytrec_eval compares scores at reduced precision, so two documents separated
+    # only by the lexical rung's 1e-9 tie-break epsilon are tied to it and get
+    # resolved by its own internal rule rather than by the document-id tie-break
+    # protocols/002-ladder.md pre-registers. Demonstrated directly: for scores
+    # {a: 4.0, b: 4.0 - 1e-9} pytrec_eval returns the same nDCG@10 whichever of the
+    # two is meant to be first, and only differs once the gap is a real rank apart.
+    #
+    # This is the same defect 001 had and fixed, arriving by a different route:
+    # there the two-level sort was encoded as one number that tied, here the
+    # separation is real but below the scorer's resolution. Re-encoding to strictly
+    # decreasing integers here fixes it once for every rung rather than asking each
+    # retriever to guess what magnitude survives the scorer.
+    ranked_run = {
+        qid: {
+            d: float(len(docs) - i)
+            for i, (d, _) in enumerate(sorted(docs.items(), key=lambda kv: (-kv[1], kv[0])))
+        }
+        for qid, docs in run_dict.items()
+    }
+    per_query = metrics.score_ranked({q: qrels[q] for q in qids}, ranked_run)
 
     with open(out_dir / "per_query.jsonl", "w", encoding="utf8") as f:
         for qid in qids:

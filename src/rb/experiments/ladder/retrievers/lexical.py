@@ -167,7 +167,13 @@ class LexicalRetriever:
         index = self.index if self.index is not None else build_index(corpus)
         run: dict[str, dict[str, float]] = {}
         for qid in sorted(queries):
-            terms = set(_tokenize(queries[qid]))  # BM25's outer sum is over distinct query terms
+            # sorted, not a bare set: BM25's outer sum is over distinct query terms, and
+            # set iteration order depends on PYTHONHASHSEED, which varies per process.
+            # Float addition is not associative, so summing the same term contributions
+            # in a different order gives totals that differ in the last bits, which is
+            # enough to flip documents that tie. Measured before this was sorted: two
+            # processes disagreed on the ranking for 63 of 300 SciFact queries.
+            terms = sorted(set(_tokenize(queries[qid])))
             run[qid] = self._score_query(terms, index, top_k)
         return run
 
@@ -297,7 +303,7 @@ class _ReferenceLexicalRetriever:
 
         run: dict[str, dict[str, float]] = {}
         for qid in sorted(queries):
-            terms = set(_tokenize(queries[qid]))
+            terms = sorted(set(_tokenize(queries[qid])))  # sorted for the same reason as the fast path
             scores: dict[str, float] = {}
             for d in doc_ids:
                 s = 0.0

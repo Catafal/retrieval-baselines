@@ -189,6 +189,8 @@ def shapley_bootstrap(
     per_player_draws: dict[str, list[float]] = {p: [] for p in players}
     pair_wins = {pair: 0 for pair in pairs}
 
+    pair_ties = {pair: 0 for pair in pairs}
+
     for _ in range(rounds):
         # ONE draw per round, reused for every cell below — this is the pairing
         # the module docstring above calls the single most important property.
@@ -202,6 +204,8 @@ def shapley_bootstrap(
         for a, b in pairs:
             if phi[a] > phi[b]:
                 pair_wins[(a, b)] += 1
+            elif phi[a] == phi[b]:
+                pair_ties[(a, b)] += 1
 
     phi_ci95 = {}
     for p in players:
@@ -214,7 +218,19 @@ def shapley_bootstrap(
     # means the ordering flips depending on which queries you happened to draw.
     pairwise_ordering = {f"{a}>{b}": pair_wins[(a, b)] / rounds for a, b in pairs}
 
-    return {"phi_ci95": phi_ci95, "pairwise_ordering": pairwise_ordering}
+    # Ties are reported rather than left implicit. The comparison above is strict, so
+    # two mechanisms that come out exactly equal every round give 0.0 in BOTH
+    # directions, and a reader scanning only "a>b: 0.0" would conclude b dominates
+    # when the truth is that they never separated. In a table that has already been
+    # misread once, the difference between "never won" and "never differed" has to be
+    # visible rather than inferred.
+    pairwise_ties = {f"{a}={b}": pair_ties[(a, b)] / rounds for a, b in pairs}
+
+    return {
+        "phi_ci95": phi_ci95,
+        "pairwise_ordering": pairwise_ordering,
+        "pairwise_ties": pairwise_ties,
+    }
 
 
 def _fractional_ranks(values: list[float]) -> list[float]:

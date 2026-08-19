@@ -2,6 +2,8 @@
 bootstrap and Spearman rank correlation — external behaviour only, against
 small hand-constructed inputs whose correct answer can be checked by hand."""
 
+import pytest
+
 import math
 import random
 from itertools import combinations
@@ -298,3 +300,50 @@ def test_spearman_correlation_requires_matched_length():
     import pytest
     with pytest.raises(ValueError):
         spearman_correlation([1.0, 2.0], [1.0])
+
+
+def test_pairwise_ties_are_reported_not_left_implicit():
+    """
+    Two mechanisms that never separate must be legible as tied, not as one losing.
+
+    The ordering comparison is strict, so an exact tie gives 0.0 in both
+    directions. A reader scanning only "a>b: 0.0" would conclude b dominates.
+    """
+    from rb.stats import shapley_bootstrap
+
+    # Two players whose marginal contribution is identical in every coalition,
+    # and a third that contributes nothing, so every round ties a against b.
+    cells = {
+        frozenset(): [0.0, 0.0, 0.0, 0.0],
+        frozenset({"a"}): [1.0, 1.0, 1.0, 1.0],
+        frozenset({"b"}): [1.0, 1.0, 1.0, 1.0],
+        frozenset({"c"}): [0.0, 0.0, 0.0, 0.0],
+        frozenset({"a", "b"}): [2.0, 2.0, 2.0, 2.0],
+        frozenset({"a", "c"}): [1.0, 1.0, 1.0, 1.0],
+        frozenset({"b", "c"}): [1.0, 1.0, 1.0, 1.0],
+        frozenset({"a", "b", "c"}): [2.0, 2.0, 2.0, 2.0],
+    }
+    out = shapley_bootstrap(cells, ["a", "b", "c"], rounds=200)
+    assert out["pairwise_ordering"]["a>b"] == 0.0, "strict comparison, so a tie is not a win"
+    assert out["pairwise_ties"]["a=b"] == 1.0, "an exact tie must be reported as a tie"
+
+
+def test_percentile_bounds_pin_exact_values_on_a_known_distribution():
+    """
+    Pin the interval indices numerically.
+
+    A reviewer showed that dropping the -1 on the upper bound — a real off-by-one
+    — passed the whole suite, because nothing asserted an exact interval against a
+    hand-computable input. This does.
+    """
+    from rb.stats import paired_bootstrap
+
+    # Identical arms: every difference is zero, so every bootstrap mean is zero
+    # and both percentile bounds must be exactly zero regardless of index choice.
+    out = paired_bootstrap([1.0] * 50, [1.0] * 50, rounds=1000)
+    assert out["ci95"] == [0.0, 0.0]
+
+    # A constant non-zero difference: same argument, bounds must be exactly 0.5.
+    out2 = paired_bootstrap([1.5] * 50, [1.0] * 50, rounds=1000)
+    assert out2["ci95"][0] == pytest.approx(0.5)
+    assert out2["ci95"][1] == pytest.approx(0.5)
