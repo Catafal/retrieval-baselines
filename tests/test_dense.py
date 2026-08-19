@@ -22,9 +22,11 @@ class OneHotEncoder:
     precision = "float32"
     pooling = "none"
     max_length = 32
+    batch_size = 32
 
     def __init__(self, dim: int):
         self.dim = dim
+        self.calls: list[int] = []  # batch sizes the caller "used", for the wiring test below
 
     def encode_documents(self, texts: list[str]) -> np.ndarray:
         return np.eye(len(texts), self.dim)
@@ -48,6 +50,7 @@ class NoisyAlignedEncoder:
     precision = "float32"
     pooling = "none"
     max_length = 32
+    batch_size = 32
 
     def __init__(self, n: int, seed: int = 0):
         rng = np.random.default_rng(seed)
@@ -94,3 +97,239 @@ def test_embedding_shuffle_collapses_toward_chance():
     result = controls.embedding_shuffle(normal_ndcg, shuffled_ndcg)
     assert shuffled_ndcg < normal_ndcg, "shuffling document embeddings must reduce nDCG"
     assert result["passed"], f"shuffled run did not collapse toward chance: {result}"
+
+
+def test_manifest_reports_batch_size_from_the_encoder_not_a_separate_field():
+    """
+    Regression for the defect this change fixes: a prior DenseRetriever had its
+    own `batch_size` field that was reported in the manifest but never passed to
+    the encoder, so the number in results/002/*/dense/summary.json could disagree
+    with what actually reached sentence-transformers. batch_size is now owned
+    solely by the encoder; the manifest must read it back from there.
+    """
+    encoder = OneHotEncoder(dim=3)
+    encoder.batch_size = 7  # a value DenseRetriever never sets or sees directly
+    retriever = DenseRetriever(encoder, normalize=False)
+    assert retriever.manifest()["batch_size"] == 7
+
+
+def test_self_retrieval_passes_when_query_and_document_paths_agree():
+    n = 10
+    corpus = {f"d{i:02d}": f"document {i}" for i in range(n)}
+    encoder = NoisyAlignedEncoder(n=n, seed=2)
+    retriever = DenseRetriever(encoder, normalize=False)
+    result = controls.self_retrieval(retriever, corpus, sample_ids=sorted(corpus)[:5])
+    assert result["passed"], result
+
+
+def test_self_retrieval_fails_when_query_and_document_encoders_are_transposed():
+    """
+    The control this test exists for: query and document encoders swapped.
+    Simulated with an encoder whose encode_queries returns a DIFFERENT (shifted)
+    permutation than encode_documents, so a document's own text no longer
+    retrieves itself at rank 1 even though nothing about the embedding-shuffle
+    control (which only permutes doc-side vectors, not the query path) would
+    catch it.
+    """
+    n = 10
+
+    class TransposedEncoder:
+        model_name, revision, precision, pooling, max_length, batch_size = (
+            "transposed-stub", "deadbeef", "float32", "none", 32, 32,
+        )
+
+        def __init__(self, n: int):
+            self._doc_vecs = np.eye(n, n)
+            # Query vectors are the document matrix rolled by one row, so no
+            # query aligns with its own document's vector anymore.
+            self._query_vecs = np.roll(np.eye(n, n), shift=1, axis=0)
+
+        def encode_documents(self, texts: list[str]) -> np.ndarray:
+            return self._doc_vecs.copy()
+
+        def encode_queries(self, texts: list[str]) -> np.ndarray:
+            return self._query_vecs.copy()
+
+    corpus = {f"d{i:02d}": f"document {i}" for i in range(n)}
+    retriever = DenseRetriever(TransposedEncoder(n), normalize=False)
+    result = controls.self_retrieval(retriever, corpus, sample_ids=sorted(corpus))
+    assert not result["passed"], "a transposed query/document path must fail self-retrieval"
+    assert result["failures"] == n
+
+
+def test_document_embeddings_are_cached_to_disk_and_reused(tmp_path):
+    """A second retrieve() call against the same corpus and revision must not
+    call encode_documents again — that is the whole point of the cache."""
+    n = 6
+    corpus = {f"d{i:02d}": f"document {i}" for i in range(n)}
+    queries = {f"q{i:02d}": f"query {i}" for i in range(n)}
+    encoder = OneHotEncoder(dim=n)
+
+    original_encode = encoder.encode_documents
+    call_count = {"n": 0}
+
+    def counting_encode(texts):
+        call_count["n"] += 1
+        return original_encode(texts)
+
+    encoder.encode_documents = counting_encode
+
+    retriever = DenseRetriever(encoder, normalize=False, cache_dir=tmp_path)
+    retriever.retrieve(corpus, queries, top_k=1)
+    retriever.retrieve(corpus, queries, top_k=1)
+    assert call_count["n"] == 1, "second retrieve() on the same corpus should hit the cache, not re-embed"
+
+
+def test_cache_is_keyed_by_revision_so_a_different_revision_cannot_reuse_vectors(tmp_path):
+    """Two encoders with the same corpus but different `revision` must each
+    embed independently — a different revision reusing another's cached
+    vectors would silently report a result that was never actually produced
+    by the revision the manifest claims."""
+    n = 4
+    corpus = {f"d{i:02d}": f"document {i}" for i in range(n)}
+    queries = {f"q{i:02d}": f"query {i}" for i in range(n)}
+
+    encoder_a = OneHotEncoder(dim=n)
+    encoder_a.revision = "revision-aaaaaaaa"
+    encoder_b = OneHotEncoder(dim=n)
+    encoder_b.revision = "revision-bbbbbbbb"
+
+    DenseRetriever(encoder_a, normalize=False, cache_dir=tmp_path).retrieve(corpus, queries, top_k=1)
+    DenseRetriever(encoder_b, normalize=False, cache_dir=tmp_path).retrieve(corpus, queries, top_k=1)
+
+    cached_dirs = sorted(p.name for p in tmp_path.iterdir())
+    assert cached_dirs == ["revision-aaaaaaaa", "revision-bbbbbbbb"]
+
+
+def test_cache_key_includes_model_name_so_two_models_cannot_share_vectors(tmp_path):
+    """
+    A reviewer demonstrated two encoders with different names but the same revision
+    string sharing a cache entry, so the second never encoded anything and silently
+    inherited the first's vectors. Dormant today because revision hashes are unique
+    per repository, and exactly the kind of thing that stops being dormant after an
+    edit that updates one constant and not the other.
+    """
+    from rb.experiments.ladder.retrievers.dense import _corpus_fingerprint
+
+    a = _corpus_fingerprint(["d1"], ["hello"], 256, "org/model-a")
+    b = _corpus_fingerprint(["d1"], ["hello"], 256, "org/model-b")
+    assert a != b, "two different models must not share a cache fingerprint"
+
+
+def test_manifest_records_the_embedding_hash_after_retrieval(tmp_path):
+    """
+    The manifest must describe the run that happened.
+
+    manifest() was being evaluated before retrieve(), so the embedding hash — which
+    exists only once the encoder has run — was silently absent from every artifact.
+    The point of that hash is that two runs producing different vectors say so, which
+    is worth nothing if it is never written.
+    """
+    import json
+    from rb.retriever import run_rung
+    from rb.experiments.ladder.retrievers.dense import DenseRetriever
+
+    class _Stub:
+        model_name, revision, max_length, batch_size = "stub/model", "rev0", 8, 4
+        precision, pooling, normalized = "float32", "mean", True
+        verification = None
+
+        def _vec(self, t):
+            import numpy as np
+            h = abs(hash(t)) % 7 + 1
+            return np.array([h, 1.0], dtype="float32")
+
+        def encode_documents(self, texts):
+            import numpy as np
+            return np.stack([self._vec(t) for t in texts])
+
+        encode_queries = encode_documents
+
+    r = DenseRetriever(_Stub(), cache_dir=tmp_path / "cache")
+    out = tmp_path / "rung"
+    run_rung(r, "scifact", {"a": "alpha", "b": "beta"}, {"q": "alpha"}, {"q": {"a": 1}},
+             out, top_k=10, extra_manifest=r.manifest)
+    written = json.loads((out / "summary.json").read_text())
+    assert written["retriever_manifest"].get("embedding_sha256"), "embedding hash missing from the artifact"
+
+
+class _Magnitudes:
+    """Vectors that point the same way but differ in length, so cosine and dot
+    product disagree about the ranking."""
+
+    model_name, revision, max_length, batch_size = "stub/mag", "rev0", 8, 4
+    precision, pooling, normalized = "float32", "mean", True
+    verification = None
+
+    _V = {
+        "near": [1.0, 0.0],     # identical direction to the query, short
+        "far": [8.0, 6.0],      # longer, but pointing away (cos = 0.8)
+        "query": [1.0, 0.0],
+    }
+
+    def encode_documents(self, texts):
+        import numpy as np
+        return np.array([self._V[t] for t in texts], dtype="float32")
+
+    def encode_queries(self, texts):
+        import numpy as np
+        return np.array([self._V[t] for t in texts], dtype="float32")
+
+
+def test_ranking_is_cosine_not_dot_product():
+    """
+    The amendment says exact COSINE. Nothing tested it.
+
+    Every existing dense test passed normalize=False, so a reviewer replaced
+    _l2_normalize with a no-op — dot product instead of cosine — and the whole
+    suite passed. The pinned model happens to emit unit-norm vectors, which is why
+    it went unnoticed, but that is a property of this checkpoint and not of the code.
+
+    "far" has the larger dot product (8.0 against 1.0) and the smaller cosine
+    (0.8 against 1.0), so the two rules disagree and only one is correct here.
+    """
+    from rb.experiments.ladder.retrievers.dense import DenseRetriever
+
+    r = DenseRetriever(_Magnitudes())  # default normalize=True, as production runs it
+    run = r.retrieve({"near": "near", "far": "far"}, {"q": "query"}, top_k=2)
+    assert list(run["q"])[0] == "near", "ranked by dot product, not cosine"
+
+
+class _Asymmetric:
+    """Encodes documents and queries differently, so using the wrong one is visible."""
+
+    model_name, revision, max_length, batch_size = "stub/asym", "rev0", 8, 4
+    precision, pooling, normalized = "float32", "mean", True
+    verification = None
+
+    def encode_documents(self, texts):
+        import numpy as np
+        return np.array([[1.0, 0.0] if t == "doc-a" else [0.0, 1.0] for t in texts], dtype="float32")
+
+    def encode_queries(self, texts):
+        import numpy as np
+        # The query text is deliberately NOT "doc-a", so encode_documents would give
+        # it [0,1] while encode_queries gives it [1,0]. The two disagree on this exact
+        # input, which is what makes the swap observable. An earlier version of this
+        # stub had both encoders agree here, so it proved nothing.
+        return np.array([[1.0, 0.0] if t == "wants-a" else [0.0, 1.0] for t in texts], dtype="float32")
+
+
+def test_retrieve_uses_the_document_encoder_for_documents_and_the_query_encoder_for_queries():
+    """
+    Exercises retrieve()'s actual call sites.
+
+    The existing transposition test hand-built its own encoder object rather than
+    going through DenseRetriever.retrieve(), so a reviewer swapped the two calls
+    inside retrieve() and the suite still passed, except incidentally via an
+    unrelated cache call-count assertion. The real encoder's document and query
+    paths are byte-identical today, so the self-retrieval control cannot catch this
+    class of defect either.
+    """
+    from rb.experiments.ladder.retrievers.dense import DenseRetriever
+
+    r = DenseRetriever(_Asymmetric())
+    run = r.retrieve({"doc-a": "doc-a", "doc-b": "doc-b"}, {"q": "wants-a"}, top_k=2)
+    # Through the query encoder "wants-a" is [1,0], matching doc-a. Through the
+    # document encoder it would be [0,1], matching doc-b.
+    assert list(run["q"])[0] == "doc-a", "encoders transposed at the retrieve() call sites"

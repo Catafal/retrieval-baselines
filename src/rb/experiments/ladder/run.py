@@ -13,11 +13,13 @@ reimplemented, so the subsample is identical to 001's and per-query pairing
 across the two entries stays valid (spec requirement: same corpora, same query
 subsample, same metric code).
 
-The dense and hybrid rungs are deliberately not wired into this CLI's --rung
-choices yet: they need a real pinned encoder (rb.experiments.ladder.retrievers.dense.
-SentenceTransformerEncoder), and running them is a separate, explicitly gated step
-per protocols/002-ladder.md, not something `python -m rb.experiments.ladder.run`
-should do by accident.
+The dense and hybrid rungs (`--rung dense`, `--rung hybrid`, `--rung
+dense-hybrid-analysis`) ARE wired in now, gated on protocol-002-amendment-1
+being tagged and `sentence-transformers==6.0.0` being pinned in
+requirements.txt per that amendment's section 3 — both true as of this
+change. They are still not part of `make reproduce-002-lexical`: that target
+is the cheap lexical rungs only, and dense/hybrid need a real encoder pass,
+which is a separate, explicitly invoked step.
 """
 
 import argparse
@@ -30,7 +32,11 @@ from rb import controls, datasets, metrics
 from rb.retriever import run_rung
 from rb.run import select_queries
 from rb.stats import holm_correction, paired_bootstrap, shapley_bootstrap
+from rb.experiments.ladder import query_properties
+from rb.experiments.ladder.analysis import win_loss_by_property
 from rb.experiments.ladder.retrievers.coordination import CoordinationRetriever
+from rb.experiments.ladder.retrievers.dense import DenseRetriever, SentenceTransformerEncoder
+from rb.experiments.ladder.retrievers.hybrid import HybridRetriever
 from rb.experiments.ladder.retrievers.lexical import (
     ALL_CONFIGS,
     LADDER,
@@ -45,6 +51,32 @@ ROOT = Path(__file__).resolve().parents[4]
 RESULTS = ROOT / "results" / "002"
 # 001's BM25 numbers are the external anchor the closure control checks against.
 ANCHOR_DIR = ROOT / "results" / "001"
+
+# protocols/002-amendment-1-dense.md section 3, pinned before any embedding is
+# computed. Not a default a caller can override from the CLI — a different
+# model or revision is a different experiment, not a flag on this one.
+ENCODER_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+ENCODER_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+
+# Document embeddings cached here, keyed by revision (see DenseRetriever's
+# _cached_doc_vectors), so a rerun on the same corpus does not re-embed.
+EMBEDDING_CACHE_DIR = ROOT / "data" / "embeddings_cache"
+
+# The self-retrieval control itself is amendment section 9; the SAMPLE SIZE is
+# not — the amendment specifies the check ("a document ... must retrieve
+# itself at rank 1") but not how many documents to run it on. 100 is chosen
+# here because re-encoding every document as a query is the same cost as the
+# retrieval run itself, so sampling is necessary, and 100 is enough to catch
+# the transposition failure mode the control exists for (see controls.py
+# self_retrieval's docstring) without doubling run cost. Deterministic (sorted
+# doc ids, first N), not random, so the control's own pass/fail is itself
+# reproducible.
+SELF_RETRIEVAL_SAMPLE_SIZE = 100
+
+# Same seed as every other bootstrap/shuffle in this repo (BOOTSTRAP_SEED in
+# rb.stats, the SciFact query subsample seed) — one seed, reused everywhere,
+# rather than a fresh one invented per new piece of code.
+CONTROL_SEED = 20260818
 
 
 def _load_subsampled(dataset: str):
@@ -219,6 +251,157 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
     return factorial_summary
 
 
+def _make_encoder() -> SentenceTransformerEncoder:
+    """One pinned encoder, per amendment section 3. A single function so
+    run_dense and run_hybrid cannot drift into loading two different encoders
+    for what is supposed to be the same dense arm."""
+    return SentenceTransformerEncoder(ENCODER_MODEL_NAME, ENCODER_REVISION)
+
+
+
+def run_dense(dataset: str, top_k: int = 100) -> dict:
+    """
+    Rung 9 — dense (protocols/002-amendment-1-dense.md section 4).
+
+    Runs the scored retrieval, then the two dense-specific controls that halt
+    the run on failure: embedding shuffle (must collapse toward chance) and
+    self-retrieval (a document must retrieve itself at rank 1 when used as its
+    own query). Both need the SAME embeddings the scored run used, which the
+    on-disk cache (DenseRetriever(cache_dir=...)) makes cheap to recompute
+    from rather than a second full encoder pass.
+    """
+    corpus, queries, qrels, sampled = _load_subsampled(dataset)
+    seed = CONTROL_SEED if sampled else None
+
+    encoder = _make_encoder()
+    retriever = DenseRetriever(encoder, cache_dir=EMBEDDING_CACHE_DIR)
+    out_dir = RESULTS / dataset / "dense"
+
+    def dense_controls(ranked_run, per_query):
+        """
+        Both dense controls, run against the scored run BEFORE anything is written.
+
+        They used to run after run_rung had already written per_query.jsonl, so a
+        transposed encoder failed its control and still left a complete,
+        real-looking artifact on disk for the hybrid and analysis rungs to read on
+        another day. A reviewer demonstrated exactly that. Passing them through
+        run_rung's gate is what makes "every control halts the run" true of the
+        artifacts rather than only of this process.
+        """
+        normal = metrics.mean([per_query[q]["ndcg_cut_10"] for q in per_query])
+        shuffled = DenseRetriever(encoder, shuffle_seed=CONTROL_SEED, cache_dir=EMBEDDING_CACHE_DIR)
+        shuffled_run = shuffled.retrieve(corpus, queries, top_k=top_k)
+        shuffled_pq = metrics.score_ranked(qrels, shuffled_run)
+        shuffled_ndcg = metrics.mean([shuffled_pq[q]["ndcg_cut_10"] for q in queries])
+        return {
+            "embedding_shuffle": controls.embedding_shuffle(normal, shuffled_ndcg),
+            # A deterministic sample of documents, embedded and used as their own
+            # query text, must come back at rank 1.
+            "self_retrieval": controls.self_retrieval(
+                retriever, corpus, sorted(corpus)[:SELF_RETRIEVAL_SAMPLE_SIZE]
+            ),
+        }
+
+    summary = run_rung(
+        retriever, dataset, corpus, queries, qrels, out_dir,
+        top_k=top_k, subsampled=sampled, seed=seed, extra_manifest=retriever.manifest,  # callable: the embedding hash exists only after retrieval
+        post_scoring_controls=dense_controls,
+    )
+    return summary
+
+
+def run_hybrid(dataset: str, top_k: int = 100) -> dict:
+    """
+    Rung 10 — hybrid (RRF of full BM25 and dense, k=60, amendment section 5).
+
+    Builds its own full-BM25 lexical index and its own dense retriever (the
+    same pinned encoder run_dense uses; the embedding cache means this does
+    not re-embed if run_dense already ran on this dataset) rather than reusing
+    retriever objects a caller happens to have lying around — HybridRetriever
+    owns exactly two Retriever instances, matching hybrid.py's own contract.
+    """
+    corpus, queries, qrels, sampled = _load_subsampled(dataset)
+    seed = CONTROL_SEED if sampled else None
+
+    lexical = dataclasses.replace(full_bm25(), index=build_index(corpus))
+    encoder = _make_encoder()
+    dense = DenseRetriever(encoder, cache_dir=EMBEDDING_CACHE_DIR)
+    hybrid = HybridRetriever(lexical, dense)
+
+    out_dir = RESULTS / dataset / "hybrid"
+    summary = run_rung(
+        hybrid, dataset, corpus, queries, qrels, out_dir,
+        top_k=top_k, subsampled=sampled, seed=seed,
+        extra_manifest={"lexical_component": lexical.name, "dense_component": dense.manifest(), "rrf_k": hybrid.k},
+    )
+    return summary
+
+
+def run_dense_hybrid_analysis(dataset: str, top_k: int = 100) -> dict:
+    """
+    The statistics and query-property analysis amendment sections 7 and 8 ask
+    for, run AFTER dense, hybrid, coordination and the lexical factorial all
+    have committed per_query.jsonl artifacts on this dataset — this function
+    only reconstructs from those artifacts (via _per_query_ndcg, the same
+    helper run_lexical_factorial's own significance block uses), it does not
+    retrieve anything itself.
+    """
+    corpus, queries, qrels, _ = _load_subsampled(dataset)
+    qids = sorted(queries)
+    aligned_qrels = {q: qrels[q] for q in qids}
+
+    dense_ndcg = _per_query_ndcg(RESULTS / dataset / "dense", aligned_qrels)
+    hybrid_ndcg = _per_query_ndcg(RESULTS / dataset / "hybrid", aligned_qrels)
+    bm25_ndcg = _per_query_ndcg(RESULTS / dataset / full_bm25().name, aligned_qrels)
+    coordination_ndcg = _per_query_ndcg(RESULTS / dataset / "coordination", aligned_qrels)
+
+    # Section 7: the four pre-registered query properties, dense vs full BM25.
+    index = build_index(corpus)
+    properties = {
+        q: query_properties.compute_query_properties(queries[q], sorted(qrels[q]), corpus, index)
+        for q in qids
+    }
+    win_loss = win_loss_by_property(dense_ndcg, bm25_ndcg, properties)
+
+    # Section 8: paired bootstrap + Holm correction across the three
+    # pre-registered comparisons for this corpus. "Hybrid vs its better
+    # component" is decided by each component's OWN mean nDCG@10 on this
+    # dataset, not assumed — a hybrid is not guaranteed to beat dense just
+    # because dense usually beats lexical.
+    bm25_mean = metrics.mean([bm25_ndcg[q] for q in qids])
+    dense_mean = metrics.mean([dense_ndcg[q] for q in qids])
+    better_component_name = "full_bm25" if bm25_mean >= dense_mean else "dense"
+    better_component_ndcg = bm25_ndcg if better_component_name == "full_bm25" else dense_ndcg
+
+    comparisons = []
+    for label, a_scores, b_scores in (
+        ("dense_vs_full_bm25", dense_ndcg, bm25_ndcg),
+        ("dense_vs_coordination", dense_ndcg, coordination_ndcg),
+        (f"hybrid_vs_better_component({better_component_name})", hybrid_ndcg, better_component_ndcg),
+    ):
+        boot = paired_bootstrap([a_scores[q] for q in qids], [b_scores[q] for q in qids])
+        comparisons.append({"comparison": label, **boot})
+    significant = holm_correction([c["p_value"] for c in comparisons])
+    for comparison, is_significant in zip(comparisons, significant):
+        comparison["holm_significant"] = is_significant
+
+    analysis = {
+        "dataset": dataset,
+        "mean_ndcg_cut_10": {
+            "dense": round(dense_mean, 4),
+            "hybrid": round(metrics.mean([hybrid_ndcg[q] for q in qids]), 4),
+            "full_bm25": round(bm25_mean, 4),
+            "coordination": round(metrics.mean([coordination_ndcg[q] for q in qids]), 4),
+        },
+        "comparisons": comparisons,
+        "query_property_win_loss": win_loss,
+    }
+    out_dir = RESULTS / dataset
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "dense_hybrid_analysis.json").write_text(json.dumps(analysis, indent=2) + "\n")
+    return analysis
+
+
 def _load_queries_and_qrels(dataset: str) -> tuple[dict[str, str], dict[str, dict[str, int]]]:
     """
     The query subsample and gold judgements only — NOT the corpus text.
@@ -305,7 +488,12 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Experiment 002 — the retrieval ladder")
     p.add_argument("--dataset", required=True, choices=datasets.DATASETS)
     p.add_argument(
-        "--rung", required=True, choices=("coordination", "lexical-factorial", "shapley-intervals")
+        "--rung",
+        required=True,
+        choices=(
+            "coordination", "lexical-factorial", "shapley-intervals",
+            "dense", "hybrid", "dense-hybrid-analysis",
+        ),
     )
     args = p.parse_args()
 
@@ -314,8 +502,14 @@ def main() -> None:
         summary = run_coordination(args.dataset)
     elif args.rung == "lexical-factorial":
         summary = run_lexical_factorial(args.dataset)
-    else:
+    elif args.rung == "shapley-intervals":
         summary = add_shapley_intervals(args.dataset)
+    elif args.rung == "dense":
+        summary = run_dense(args.dataset)
+    elif args.rung == "hybrid":
+        summary = run_hybrid(args.dataset)
+    else:
+        summary = run_dense_hybrid_analysis(args.dataset)
     print(json.dumps(summary, indent=2))
     print(f"done in {time.time() - t0:.0f}s", flush=True)
 

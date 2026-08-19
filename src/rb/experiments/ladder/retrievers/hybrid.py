@@ -7,6 +7,9 @@ weighted fusion turns out to be interesting later, that is a separate experiment
 about fusion, not a rung in this one.
 """
 
+# protocols/002-amendment-1-dense.md section 5: "k = 60, fixed here before any
+# hybrid number exists." Not a tunable default — changing it after seeing a
+# hybrid result would be the weight search the amendment explicitly rules out.
 RRF_K = 60
 
 

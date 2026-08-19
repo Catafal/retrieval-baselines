@@ -1,0 +1,66 @@
+{
+  "dataset": "scifact",
+  "retriever": "hybrid(lexical(idf,tf_sat,len_norm)+dense(sentence-transformers/all-MiniLM-L6-v2@1110a243),k=60)",
+  "queries_scored": 300,
+  "queries_available": 300,
+  "subsampled": false,
+  "seed": null,
+  "corpus_documents": 5183,
+  "controls": {
+    "gold_presence": {
+      "gold_documents": 283,
+      "missing_from_corpus": 0,
+      "examples": [],
+      "passed": true
+    }
+  },
+  "ranked": {
+    "ndcg_cut_10": 0.6826,
+    "recall_10": 0.8106,
+    "recall_100": 0.9543
+  },
+  "cost": {
+    "total_seconds": 1.111,
+    "usd": 0.0
+  },
+  "environment": {
+    "python": "3.14.3",
+    "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "git_commit": "c9c93abbd953cc00622720bf13ca49ced30c5d3a",
+    "dataset_checksums": {
+      "hotpotqa": {
+        "bytes": 654025350,
+        "sha256": "c62459dbc91d31329584507b1fa564b3b1abcee58800967113054ee0f5a15c62"
+      },
+      "quora": {
+        "bytes": 15853968,
+        "sha256": "56aacd9dcc4d9c093b63f175afdda0e21cbc8442ecf6c717d09de7b358d77531"
+      },
+      "scifact": {
+        "bytes": 2816079,
+        "sha256": "536e14446a0ba56ed1398ab1055f39fe852686ecad24a6306c80c490fa8e0165"
+      }
+    }
+  },
+  "retriever_manifest": {
+    "lexical_component": "lexical(idf,tf_sat,len_norm)",
+    "dense_component": {
+      "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+      "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+      "precision": "float32",
+      "pooling": "mean",
+      "max_length": 256,
+      "batch_size": 32,
+      "normalize": true,
+      "verification": {
+        "requested_max_length": 256,
+        "native_max_length": 256,
+        "actual_max_length": 256,
+        "pooling_mode_from_model": "mean",
+        "model_has_normalize_module": true
+      }
+    },
+    "rrf_k": 60
+  }
+}

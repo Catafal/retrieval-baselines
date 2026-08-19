@@ -83,6 +83,39 @@ def bm25_closure(our_ndcg: float, published_ndcg: float, anchor_ndcg: float | No
     return result
 
 
+def self_retrieval(retriever, corpus: dict[str, str], sample_ids: list[str]) -> dict:
+    """
+    Experiment 002's second dense-rung control (amendment section 9).
+
+    A document embedded and used as its own query text must retrieve itself at
+    rank 1. This catches a defect the embedding-shuffle control cannot: shuffle
+    only proves that permuting the doc-id -> vector mapping breaks retrieval,
+    which says the index bookkeeping is wired correctly, but it says nothing
+    about whether the QUERY-side encoding path itself is correct — for example
+    query and document encoders transposed, which would still shuffle-collapse
+    correctly (both sides are still wrong together, consistently) while never
+    once retrieving the right document for an exact self-match.
+
+    `sample_ids` is caller-provided rather than "every document", so the caller
+    controls the cost: re-encoding the entire corpus as queries is the same
+    expense as the retrieval run itself, and a sample deterministically drawn
+    (sorted document ids, first N) is enough to catch the transposition failure
+    mode this control exists for.
+    """
+    queries = {d: corpus[d] for d in sample_ids}
+    run = retriever.retrieve(corpus, queries, top_k=1)
+    failures = [
+        qid for qid in sample_ids
+        if not run.get(qid) or next(iter(run[qid])) != qid
+    ]
+    return {
+        "sampled": len(sample_ids),
+        "failures": len(failures),
+        "examples": failures[:5],
+        "passed": not failures,
+    }
+
+
 def embedding_shuffle(normal_ndcg: float, shuffled_ndcg: float, chance_ceiling: float = 0.15) -> dict:
     """
     Experiment 002's dense-rung control.
@@ -92,6 +125,9 @@ def embedding_shuffle(normal_ndcg: float, shuffled_ndcg: float, chance_ceiling: 
     collapse toward chance once its embeddings are shuffled. If it does not, the
     index or the id bookkeeping around it is broken — a broken vector index would
     otherwise report a real-looking number instead of failing loudly.
+
+    chance_ceiling=0.15 is protocols/002-amendment-1-dense.md section 9, fixed
+    before any dense number existed: "must collapse nDCG@10 to at most 0.15."
     """
     return {
         "normal_ndcg_cut_10": round(normal_ndcg, 4),
