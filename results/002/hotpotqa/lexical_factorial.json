@@ -1,0 +1,69 @@
+{
+  "dataset": "hotpotqa",
+  "configs": {
+    "lexical(idf,tf_sat,len_norm)": 0.5758,
+    "lexical(idf,tf_sat)": 0.5603,
+    "lexical(idf,len_norm)": 0.2434,
+    "lexical(idf)": 0.1355,
+    "lexical(tf_sat,len_norm)": 0.3381,
+    "lexical(tf_sat)": 0.1788,
+    "lexical(len_norm)": 0.0469,
+    "lexical(none)": 0.0
+  },
+  "shapley_ndcg_cut_10": {
+    "idf": 0.22073333333333334,
+    "tf_saturation": 0.2897333333333333,
+    "length_norm": 0.06533333333333333
+  },
+  "adjacent_rung_comparisons": [
+    {
+      "from": "lexical(none)",
+      "to": "lexical(idf)",
+      "mean_diff": 0.1355092554721571,
+      "ci95": [
+        0.11824822788795436,
+        0.15394785742461245
+      ],
+      "p_value": 0.0,
+      "holm_significant": true
+    },
+    {
+      "from": "lexical(idf)",
+      "to": "lexical(idf,tf_sat)",
+      "mean_diff": 0.4248847449519012,
+      "ci95": [
+        0.39798220878974744,
+        0.4512132050783627
+      ],
+      "p_value": 0.0,
+      "holm_significant": true
+    },
+    {
+      "from": "lexical(idf,tf_sat)",
+      "to": "lexical(idf,tf_sat,len_norm)",
+      "mean_diff": 0.015432584104040052,
+      "ci95": [
+        -0.0046923454378278865,
+        0.0362191813987462
+      ],
+      "p_value": 0.137,
+      "holm_significant": false
+    }
+  ],
+  "controls": {
+    "bm25_closure": {
+      "our_ndcg_cut_10": 0.5758,
+      "published_ndcg_cut_10": 0.603,
+      "absolute_difference": 0.0272,
+      "tolerance": 0.1,
+      "passed": true,
+      "in_repo_bm25s_ndcg_cut_10": 0.5678,
+      "difference_to_in_repo_anchor": 0.008
+    }
+  },
+  "cost": {
+    "index_build_seconds": 100.6,
+    "scoring_seconds": 2595.9,
+    "total_seconds": 2696.5
+  }
+}
