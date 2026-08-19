@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Implementation Notes — Second Encoder (Amendment 2)</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; line-height: 1.5; color: #222; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  .box { border-left: 4px solid #888; padding: 0.6rem 1rem; margin: 0.8rem 0; background: #f7f7f7; }
+  .decision { border-color: #2b6cb0; }
+  .deviation { border-color: #c05621; }
+  .tradeoff { border-color: #6b46c1; }
+  .open { border-color: #b7791f; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; font-size: 0.9rem; }
+  code { background: #eee; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>Implementation Notes — protocol-002-amendment-2 (second encoder)</h1>
+<p>Spec: <code>protocols/002-amendment-2-second-encoder.md</code>. Reuses
+<code>protocols/002-amendment-1-dense.md</code>'s dense/hybrid pipeline unchanged
+except for the encoder.</p>
+
+<h2>Progress</h2>
+<table>
+<tr><th>Step</th><th>Status</th></tr>
+<tr><td>Read amendment 2, amendment 1, dense.py, run.py, analysis.py</td><td>done</td></tr>
+<tr><td>SentenceTransformerEncoder: query_prefix (queries only) + expected_dim verification</td><td>done</td></tr>
+<tr><td>Tests: prefix applied to queries only, no-prefix no-op, dim mismatch raises, cache non-collision for the two pinned encoders</td><td>done — 5 new tests, 158/158 pass</td></tr>
+<tr><td>run.py: BGE constants pinned, ENCODER_CONFIGS map, --encoder CLI flag, dense/hybrid/analysis output paths keyed by encoder</td><td>done</td></tr>
+<tr><td>SciFact: dense(bge), hybrid(bge), analysis(bge)</td><td>done — see numbers below</td></tr>
+<tr><td>Quora: dense(bge)</td><td>running (~35 min)</td></tr>
+<tr><td>Quora: hybrid(bge), analysis(bge)</td><td>pending</td></tr>
+<tr><td>Verdict on the three predictions</td><td>pending Quora</td></tr>
+</table>
+
+<h2>Decisions</h2>
+<div class="box decision">
+<b>Query prefix as a constructor parameter, not a subclass.</b>
+<code>SentenceTransformerEncoder(query_prefix=...)</code>, applied only inside
+<code>encode_queries</code> via a pulled-out <code>_with_query_prefix</code> function.
+MiniLM passes <code>None</code> (no-op), matching its pre-amendment-2 behaviour exactly.
+Kept as one class rather than a per-model subclass because the only difference
+between the two encoders is data (name, revision, prefix, expected dim), not behaviour.
+</div>
+<div class="box decision">
+<b>Dimension mismatch raises, doesn't auto-correct.</b> Unlike <code>max_length</code>
+(which the code already overrides to match a request, since sequence-length
+truncation is configurable), embedding dimension is architectural — a mismatch
+means the wrong revision loaded, so <code>_verify_dim</code> raises rather than
+silently recording a number nobody asked for.
+</div>
+<div class="box decision">
+<b>Encoder selection via one <code>ENCODER_CONFIGS</code> dict + <code>--encoder</code> CLI flag</b>,
+not new rung names (<code>dense-bge</code> etc.) and not new run_* functions.
+Default <code>"minilm"</code> reproduces every existing call site's behaviour
+byte-for-byte; <code>_dense_out_dir</code> resolves to the existing
+<code>results/002/&lt;corpus&gt;/dense</code> only when <code>encoder_key == "minilm"</code>,
+so nothing already committed is ever overwritten.
+</div>
+<div class="box decision">
+<b>Used <code>get_embedding_dimension</code>, not <code>get_sentence_embedding_dimension</code>.</b>
+The pinned <code>sentence-transformers==6.0.0</code> renamed the method; the old one
+still works but raises a <code>FutureWarning</code> on every construction. Verified
+both exist in 6.0.0 before switching.
+</div>
+
+<h2>Tradeoffs</h2>
+<div class="box tradeoff">
+Considered a per-model subclass (<code>BgeEncoder(SentenceTransformerEncoder)</code>)
+for the prefix behaviour. Rejected: the amendment's own framing treats the prefix
+as a data property of a pinned revision ("this model family expects..."), and a
+subclass would need to override <code>encode_queries</code> anyway — same code,
+extra indirection, no test benefit (the seam constructed in tests via
+<code>__new__</code> bypass works identically either way).
+</div>
+
+<h2>Numbers so far (SciFact, both encoders)</h2>
+<table>
+<tr><th></th><th>MiniLM (existing)</th><th>bge-base-en-v1.5</th></tr>
+<tr><td>dense nDCG@10</td><td>0.6451</td><td>0.7404</td></tr>
+<tr><td>hybrid nDCG@10</td><td>0.6826</td><td>0.7172</td></tr>
+<tr><td>full BM25 (shared)</td><td>0.6605</td><td>0.6605</td></tr>
+<tr><td>gold_jaccard gradient, dense-bm25 diff, bin1→bin4</td>
+    <td>0.043 → -0.025 → 0.005 → -0.084 (decline 0.128)</td>
+    <td>0.144 → 0.091 → 0.090 → -0.006 (decline 0.150)</td></tr>
+</table>
+<p>SciFact isn't part of the amendment's numeric prediction (0.13–0.38 decline is
+a Quora-specific claim), but both encoders show a negative, non-flattening
+gradient here, and BGE's curve sits above MiniLM's throughout — consistent
+with the direction of all three predictions. Full verdict waits on Quora.</p>
+
+<h2>Open Questions</h2>
+<div class="box open">
+None yet — will record here if Quora's numbers require a judgment call before
+the final verdict.
+</div>
+
+</body>
+</html>
