@@ -125,6 +125,9 @@ def embedding_shuffle(normal_ndcg: float, shuffled_ndcg: float, chance_ceiling: 
     collapse toward chance once its embeddings are shuffled. If it does not, the
     index or the id bookkeeping around it is broken — a broken vector index would
     otherwise report a real-looking number instead of failing loudly.
+
+    chance_ceiling=0.15 is protocols/002-amendment-1-dense.md section 9, fixed
+    before any dense number existed: "must collapse nDCG@10 to at most 0.15."
     """
     return {
         "normal_ndcg_cut_10": round(normal_ndcg, 4),

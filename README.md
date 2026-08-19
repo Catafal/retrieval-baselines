@@ -10,7 +10,7 @@ code are not comparable no matter what the prose claims.
 | Experiment | Retriever | Status |
 |---|---|---|
 | 001 | ripgrep, literal word-bounded matching | see `protocols/001-grep-baseline.md` |
-| 002 | lexical factorial, dense, hybrid (the ladder) | lexical factorial measured on all three datasets; dense and hybrid measured on SciFact only, see `protocols/002-ladder.md` and `protocols/002-amendment-1-dense.md` |
+| 002 | lexical factorial, dense, hybrid (the ladder) | lexical factorial, dense and hybrid all measured on all three datasets, see `protocols/002-ladder.md` and `protocols/002-amendment-1-dense.md` |
 | 003 | knowledge graph | not started |
 
 ## Shared instrument, per-experiment arms
@@ -39,13 +39,28 @@ a longer job than the one that was promised.
 
 `reproduce-002-lexical` only runs the cheap rungs (coordination and the lexical factorial,
 minutes per dataset). Experiment 002's dense and hybrid rungs are **not** wired into any
-Makefile target: they need a real pinned embedding model (now pinned per
-`protocols/002-amendment-1-dense.md`), and running them (`python -m rb.experiments.ladder.run
---dataset <name> --rung dense`, `--rung hybrid`) is a separate, explicitly invoked step, not
-something a stranger should trigger by accident while trying to reproduce the cheap part. As of
-this commit both rungs have been measured on SciFact only — `results/002/scifact/dense` and
-`.../hybrid` — per the amendment's stopping point; Quora and HotpotQA are unattended runs the
-amendment gates separately and neither has been launched.
+Makefile target: they need a real pinned embedding model (pinned per
+`protocols/002-amendment-1-dense.md`), and running them is a separate, explicitly invoked step,
+not something a stranger should trigger by accident while trying to reproduce the cheap part:
+
+```
+python -m rb.experiments.ladder.run --dataset <name> --rung dense
+python -m rb.experiments.ladder.run --dataset <name> --rung hybrid
+python -m rb.experiments.ladder.run --dataset <name> --rung dense-hybrid-analysis
+```
+
+As of this commit dense and hybrid have been measured on all three corpora —
+`results/002/<dataset>/dense` and `.../hybrid` for `scifact`, `quora`, `hotpotqa` — per the
+amendment's section 6, which includes HotpotQA rather than bounding it out.
+
+**Document embeddings are cached to disk**, keyed by the encoder revision and a content
+fingerprint of the exact corpus text (`data/embeddings_cache/<revision>/<fingerprint>.npz`; see
+`DenseRetriever._cached_doc_vectors`), so a rerun on the same corpus does not re-embed. The
+`--rung hybrid` invocation reuses the same cache the `--rung dense` invocation populated, since
+both build the same pinned encoder over the same corpus. First-time embedding cost, cold cache,
+roughly: SciFact seconds, Quora ~15 minutes, HotpotQA ~90 minutes. Budget for that once per
+corpus; every rerun after is seconds, dominated by query encoding and the cosine matrix
+multiply, not by re-embedding the corpus.
 
 The lexical rungs (`LexicalRetriever`) score against a sparse inverted index
 (`lexical.build_index`) rather than scanning the corpus per query — the naive scan does not
@@ -59,8 +74,61 @@ itself is ~2.1 GB).
 
 The lexical factorial has since been run for real, on all three datasets:
 `results/002/<dataset>/lexical_factorial.json`, one file per dataset, each
-`<dataset>/lexical(...)/` holding that cell's own `per_query.jsonl` and `summary.json`. Dense
-and hybrid have not — see the paragraph above.
+`<dataset>/lexical(...)/` holding that cell's own `per_query.jsonl` and `summary.json`. Dense and
+hybrid now have too, one `dense/` and `hybrid/` directory per dataset in the same shape, plus
+`results/002/<dataset>/dense_hybrid_analysis.json` — the query-property and significance
+analysis described below.
+
+## Dense and hybrid: the answer differs by corpus
+
+nDCG@10, all three corpora, amendment section 2's two lexical baselines plus the two new arms:
+
+| Corpus | coordination | full BM25 | dense | hybrid |
+|---|---|---|---|---|
+| SciFact | 0.535 | 0.661 | 0.645 | 0.683 |
+| Quora | 0.532 | 0.768 | 0.879 | 0.846 |
+| HotpotQA | 0.411 | 0.576 | 0.446 | 0.584 |
+
+**There is no single winner, and the entry does not pretend there is one.** Dense against full
+BM25: SciFact is a statistical tie (-0.015), Quora is a clear dense win (+0.112), HotpotQA is a
+clear BM25 win (-0.130) — the multi-hop corpus, the one section 6 flagged as "the one where the
+literature says lexical is hardest to beat," is exactly where lexical wins here too. Hybrid beats
+its better component on SciFact and HotpotQA but **not** on Quora, where dense alone
+(0.879) outscores the RRF fusion of dense and BM25 (0.846): folding in a weaker lexical ranking
+by fixed-weight fusion can cost accuracy on a corpus where one component is already dominant.
+"Hybrid is safer than picking one arm" is not a conclusion this data supports uniformly.
+
+The per-query win/loss analysis (`dense_hybrid_analysis.json`, section 7's four pre-registered
+query properties) found dense's advantage over full BM25 tracks query-gold lexical overlap
+(Jaccard between query and gold-document tokens) more than any of the other three properties:
+dense wins by +0.246 nDCG in the bin of queries sharing the fewest words with their gold
+document, and by only -0.009 in the bin sharing the most. That is consistent with the mechanism
+dense retrieval is supposed to supply — matching meaning where the words themselves do not
+overlap — and with why it loses on HotpotQA, whose multi-hop queries are answered by chaining
+lexical hops the corpus itself supplies the words for.
+
+None of this generalises past what was measured: one encoder
+(`sentence-transformers/all-MiniLM-L6-v2`, chosen per section 3 for reproducibility, not
+performance), three corpora, four query properties fixed in advance. A different encoder, a
+fourth corpus, or a property outside the pre-registered four could all read differently, and
+section 11 rules out drawing conclusions about rerankers, ANN indexes, tuned fusion weights, or
+production systems from any of it.
+
+## The embedding digest
+
+Every dense-arm `summary.json` records `retriever_manifest.embedding_sha256`, a SHA-256 of the
+document embedding matrix (`dense._matrix_digest`). It exists because the amendment's
+cross-process determinism control (section 9) cannot be enforced on the real encoder the way the
+lexical rungs enforce it — running the actual model twice, in separate processes, to compare
+outputs would double the wall-clock cost of every dense run, and torch's floating-point
+reductions on GPU/MPS carry no bit-identity guarantee across processes or hardware in the first
+place, so a live gate would sometimes fail on hardware noise rather than a real defect. The
+digest makes the guarantee **checkable after the fact instead of gated per run**: two runs (same
+machine or different ones) that produced the same vectors carry the same digest, and a reader
+comparing two committed manifests can tell immediately whether the embeddings moved, without
+re-running anything. What it does not do is catch a divergence at run time — it is a record for
+a later comparison, not a control that halts the run the way `embedding_shuffle` and
+`self_retrieval` do.
 
 Corpora come from [BEIR](https://github.com/beir-cellar/beir). They are downloaded, never
 redistributed. What this repo commits is the SHA-256 of every zip consumed

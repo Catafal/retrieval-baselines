@@ -62,10 +62,15 @@ ENCODER_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
 # _cached_doc_vectors), so a rerun on the same corpus does not re-embed.
 EMBEDDING_CACHE_DIR = ROOT / "data" / "embeddings_cache"
 
-# Self-retrieval control (amendment section 9) samples this many documents
-# rather than the whole corpus — re-encoding every document as a query is the
-# same cost as the retrieval run itself. Deterministic (sorted doc ids, first
-# N), not random, so the control's own pass/fail is itself reproducible.
+# The self-retrieval control itself is amendment section 9; the SAMPLE SIZE is
+# not — the amendment specifies the check ("a document ... must retrieve
+# itself at rank 1") but not how many documents to run it on. 100 is chosen
+# here because re-encoding every document as a query is the same cost as the
+# retrieval run itself, so sampling is necessary, and 100 is enough to catch
+# the transposition failure mode the control exists for (see controls.py
+# self_retrieval's docstring) without doubling run cost. Deterministic (sorted
+# doc ids, first N), not random, so the control's own pass/fail is itself
+# reproducible.
 SELF_RETRIEVAL_SAMPLE_SIZE = 100
 
 # Same seed as every other bootstrap/shuffle in this repo (BOOTSTRAP_SEED in
