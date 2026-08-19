@@ -84,5 +84,10 @@
     "index_build_seconds": 0.3,
     "scoring_seconds": 2.0,
     "total_seconds": 2.3
+  },
+  "shapley_pairwise_ties": {
+    "idf=tf_saturation": 0.0,
+    "idf=length_norm": 0.0,
+    "tf_saturation=length_norm": 0.0
   }
 }

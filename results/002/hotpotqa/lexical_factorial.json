@@ -2,18 +2,37 @@
   "dataset": "hotpotqa",
   "configs": {
     "lexical(idf,tf_sat,len_norm)": 0.5758,
-    "lexical(idf,tf_sat)": 0.5603,
-    "lexical(idf,len_norm)": 0.2434,
+    "lexical(idf,tf_sat)": 0.5604,
+    "lexical(idf,len_norm)": 0.2435,
     "lexical(idf)": 0.1355,
-    "lexical(tf_sat,len_norm)": 0.3381,
-    "lexical(tf_sat)": 0.1788,
+    "lexical(tf_sat,len_norm)": 0.3379,
+    "lexical(tf_sat)": 0.1782,
     "lexical(len_norm)": 0.0469,
     "lexical(none)": 0.0
   },
   "shapley_ndcg_cut_10": {
-    "idf": 0.22073333333333334,
-    "tf_saturation": 0.2897333333333333,
-    "length_norm": 0.06533333333333333
+    "idf": 0.22093333333333331,
+    "tf_saturation": 0.2894833333333333,
+    "length_norm": 0.06538333333333332
+  },
+  "shapley_ci95": {
+    "idf": [
+      0.20512155408711602,
+      0.23606247242692402
+    ],
+    "tf_saturation": [
+      0.27203832954923546,
+      0.3070263281979945
+    ],
+    "length_norm": [
+      0.05310687461961864,
+      0.0781299794447893
+    ]
+  },
+  "shapley_pairwise_ordering": {
+    "idf>tf_saturation": 0.0,
+    "idf>length_norm": 1.0,
+    "tf_saturation>length_norm": 1.0
   },
   "adjacent_rung_comparisons": [
     {
@@ -62,8 +81,13 @@
     }
   },
   "cost": {
-    "index_build_seconds": 100.6,
-    "scoring_seconds": 2595.9,
-    "total_seconds": 2696.5
+    "index_build_seconds": 104.8,
+    "scoring_seconds": 2567.1,
+    "total_seconds": 2671.9
+  },
+  "shapley_pairwise_ties": {
+    "idf=tf_saturation": 0.0,
+    "idf=length_norm": 0.0,
+    "tf_saturation=length_norm": 0.0
   }
 }

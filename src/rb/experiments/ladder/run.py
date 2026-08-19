@@ -195,6 +195,10 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
         "shapley_ndcg_cut_10": shapley,
         "shapley_ci95": bootstrap["phi_ci95"],
         "shapley_pairwise_ordering": bootstrap["pairwise_ordering"],
+        # Ties travel with the ordering or the ordering is misreadable: 0.0 in the
+        # one direction reported means "never won", which is not the same as
+        # "never differed", and only the tie fraction distinguishes them.
+        "shapley_pairwise_ties": bootstrap["pairwise_ties"],
         "adjacent_rung_comparisons": comparisons,
         "controls": {"bm25_closure": closure},
         # The index is built once and shared, so its cost lands in no config's own
@@ -292,6 +296,7 @@ def add_shapley_intervals(dataset: str) -> dict:
 
     summary["shapley_ci95"] = bootstrap["phi_ci95"]
     summary["shapley_pairwise_ordering"] = bootstrap["pairwise_ordering"]
+    summary["shapley_pairwise_ties"] = bootstrap["pairwise_ties"]
     factorial_path.write_text(json.dumps(summary, indent=2) + "\n")
     return summary
 

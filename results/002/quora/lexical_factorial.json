@@ -7,26 +7,26 @@
     "lexical(idf)": 0.3803,
     "lexical(tf_sat,len_norm)": 0.5664,
     "lexical(tf_sat)": 0.3506,
-    "lexical(len_norm)": 0.4603,
+    "lexical(len_norm)": 0.4604,
     "lexical(none)": 0.037
   },
   "shapley_ndcg_cut_10": {
-    "idf": 0.2712333333333333,
-    "tf_saturation": 0.19083333333333333,
-    "length_norm": 0.2687333333333333
+    "idf": 0.27121666666666666,
+    "tf_saturation": 0.19081666666666666,
+    "length_norm": 0.26876666666666665
   },
   "shapley_ci95": {
     "idf": [
-      0.25065748944760124,
-      0.29220454202759344
+      0.25062467413242046,
+      0.29220144084013117
     ],
     "tf_saturation": [
-      0.1754862307007637,
-      0.2065979407069566
+      0.17547529226237008,
+      0.206587002268563
     ],
     "length_norm": [
-      0.2500039833882844,
-      0.2883667393777418
+      0.2500101857632089,
+      0.2883948186294535
     ]
   },
   "shapley_pairwise_ordering": {
@@ -81,8 +81,13 @@
     }
   },
   "cost": {
-    "index_build_seconds": 2.9,
-    "scoring_seconds": 96.1,
-    "total_seconds": 99.1
+    "index_build_seconds": 2.8,
+    "scoring_seconds": 93.5,
+    "total_seconds": 96.3
+  },
+  "shapley_pairwise_ties": {
+    "idf=tf_saturation": 0.0,
+    "idf=length_norm": 0.0,
+    "tf_saturation=length_norm": 0.0
   }
 }
