@@ -4,9 +4,11 @@ mechanism's effect has a known direction — same shape as test_grep_baseline.py
 word-boundary test: small, fast, data-free, behavioural.
 """
 
+import math
+
 import pytest
 
-from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, LADDER, LexicalRetriever, full_bm25
+from rb.experiments.ladder.retrievers.lexical import ALL_CONFIGS, LADDER, LexicalRetriever, corpus_length_stats, full_bm25
 
 
 def test_idf_on_prefers_rare_term_match_over_common_term_match():
@@ -136,3 +138,40 @@ def test_ladder_runs_from_all_off_to_full_bm25_one_mechanism_at_a_time():
             getattr(prev_cfg, f) != getattr(next_cfg, f) for f in ("idf", "tf_saturation", "length_norm")
         )
         assert flips == 1, "each ladder step must turn on exactly one additional mechanism"
+
+
+def test_corpus_length_stats_against_hand_built_corpus_with_known_token_counts():
+    """
+    Token counts by construction: 1, 3, 5, 7 (using plain ascii words so
+    _tokenize's lowercasing/splitting does not change the count).
+    mean = 16/4 = 4; median of an even-sized sorted set is the mean of the two
+    middle values, (3+5)/2 = 4; population variance ((1-4)^2+(3-4)^2+(5-4)^2+
+    (7-4)^2)/4 = 20/4 = 5, so std = sqrt(5); cv = std/mean.
+    """
+    corpus = {
+        "one_token": "a",
+        "three_tokens": "a b c",
+        "five_tokens": "a b c d e",
+        "seven_tokens": "a b c d e f g",
+    }
+    stats = corpus_length_stats(corpus)
+    assert stats["mean"] == pytest.approx(4.0)
+    assert stats["median"] == pytest.approx(4.0)
+    assert stats["std"] == pytest.approx(math.sqrt(5))
+    assert stats["coefficient_of_variation"] == pytest.approx(math.sqrt(5) / 4.0)
+
+
+def test_corpus_length_stats_uses_the_same_tokenizer_the_scorer_uses():
+    """Punctuation and casing must be handled exactly as _tokenize handles
+    them (lowercase, split on non-alphanumerics, no dedup) — a naive
+    whitespace split would count "World!!" as one token instead of the one
+    real token "world" it tokenizes to, and "Hello," as one instead of
+    "hello"."""
+    corpus = {"doc": "Hello, World!! Hello again."}  # tokenizes to: hello world hello again (4 tokens)
+    stats = corpus_length_stats(corpus)
+    assert stats["mean"] == pytest.approx(4.0)
+
+
+def test_corpus_length_stats_rejects_empty_corpus():
+    with pytest.raises(ValueError):
+        corpus_length_stats({})
