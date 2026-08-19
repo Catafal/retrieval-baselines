@@ -72,3 +72,25 @@ The entry states that this control halted a run, that the halt was investigated 
 worked around, and that investigating it turned up a weaker guarantee than the protocol had
 claimed. A control that fires and turns out to be mis-specified is worth more written down than
 quietly retuned.
+
+## 7. Correction, after tagging
+
+Section 4 justified relaxing this control on the grounds that transposed query and document
+encoders are "covered instead by `tests/test_dense.py`, which exercises the actual `retrieve()`
+call sites with a stub encoder whose two paths disagree, and which fails when they are swapped."
+
+**That was false when it was written.** A reviewer swapped the two calls inside `retrieve()` and
+the cited test still passed. The stub mapped vectors by asking "is this text `doc-a`", so under a
+full swap both documents encoded to the same vector, tied, and the deterministic document-id
+tie-break put `doc-a` first, which is exactly what the assertion expects when the code is
+correct. The test passed in both directions, for the same reason in both.
+
+So at the moment this amendment was tagged, the control had been weakened on the strength of a
+backstop that did not exist, and transposition was covered by nothing.
+
+The stub now assigns an explicit vector per path per text, which makes a tie impossible: correct
+wiring ranks `doc-a` first, a swap ranks `doc-b` first. Verified by swapping the call sites and
+watching the test fail. Section 4's claim now holds, but it did not hold when made, and the
+sequence matters more than the outcome: this is the second time a test written specifically to
+catch this defect did not catch it, and both times it took someone deliberately breaking the code
+to find out. A test that has never been seen to fail is not yet evidence of anything.
