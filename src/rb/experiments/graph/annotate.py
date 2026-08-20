@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 RULE_CARD_VERSION = "v1"
+ANNOTATOR = "llm-panel-3x-majority"  # see protocols/003-graph-arm.md section 8.2
 
 ROOT = Path(__file__).resolve().parents[4]
 SAMPLE = ROOT / "results" / "003" / "extraction-sample.jsonl"
@@ -84,14 +85,47 @@ def next_index(rows: list[dict]) -> int | None:
     return None
 
 
-def record(row: dict, entities: list[str]) -> dict:
-    """Stamp one annotation. The rule-card version travels WITH the record: if the card is ever
-    revised mid-session, the cutover is visible per-passage instead of being reconstructed."""
+def record(row: dict, entities: list[str], annotator: str = ANNOTATOR,
+           agreement: float | None = None) -> dict:
+    """
+    Stamp one annotation.
+
+    The rule-card version travels WITH the record: if the card is ever revised mid-session, the
+    cutover is visible per-passage instead of being reconstructed. So does `annotator`, because
+    this reference set is model-produced rather than hand-annotated and a reader must be able to
+    see that from the artifact itself rather than only from the protocol.
+    """
     row["entities"] = entities
     row["annotated"] = True
     row["annotated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     row["rule_card"] = RULE_CARD_VERSION
+    row["annotator"] = annotator
+    if agreement is not None:
+        row["rater_jaccard"] = round(agreement, 4)
     return row
+
+
+def ingest(adjudicated: dict[str, list[str]], agreement_by_doc: dict[str, float] | None = None,
+           path: Path = SAMPLE) -> dict:
+    """
+    Write an adjudicated panel annotation into the sample file.
+
+    Refuses to write a partial result: every passage must be covered. A reference set with holes
+    would silently understate recall for passages nobody annotated, which would look exactly like
+    an extractor failure.
+    """
+    rows = load(path)
+    missing = [r["doc_id"] for r in rows if r["doc_id"] not in adjudicated]
+    if missing:
+        raise RuntimeError(
+            f"{len(missing)} passages have no adjudicated annotation; refusing a partial "
+            f"reference set. Examples: {missing[:5]}"
+        )
+    agreement_by_doc = agreement_by_doc or {}
+    for row in rows:
+        record(row, adjudicated[row["doc_id"]], agreement=agreement_by_doc.get(row["doc_id"]))
+    save_atomic(rows, path)
+    return {"passages": len(rows), "entities": sum(len(r["entities"]) for r in rows)}
 
 
 def _render(row: dict, i: int, total: int, done: int) -> str:

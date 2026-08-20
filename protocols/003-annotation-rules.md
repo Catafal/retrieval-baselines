@@ -81,17 +81,27 @@ as passage 3 was.
     Systematic over-inclusion is visible in precision and is recoverable; a hesitation rule that
     varies with fatigue is not.
 
-## Session procedure
+## Who annotates, and how
 
-- Annotate in the **seed-drawn order**, not sorted by length. Sorting would align fatigue with a
-  passage property and turn drift into a systematic bias rather than noise.
-- **Two blocks of 50** with a real break between them. Start and end times are recorded per block
-  by the tool.
-- **Blind re-annotation of 15 passages in a later sitting**, without consulting the first pass,
-  published as intra-annotator agreement.
+**Revised 2026-08-20.** This card was written for a single human annotator working through the
+passages in seed order across two sittings, with a blind re-annotation of 15 passages as a
+self-consistency check.
 
-  What this measures, stated plainly: **self-consistency, not correctness.** It does not answer
-  the single-rater objection — nothing available here does — and it is not reported as if it did.
+That is **not** what happened. The reference set was produced by **three independent language-model
+annotators**, each given this card and each working alone with no knowledge of the others. An
+entity is kept when at least two of the three listed it, applied as deterministic code rather than
+by a judging model.
+
+The rules above are unchanged — they are what each annotator was given, verbatim.
+
+Two consequences, both of which belong in the entry rather than only here:
+
+- The result is a **model-annotated reference set**, not a gold standard. It carries language-model
+  biases about entity boundaries and is not independent human judgement.
+- It does produce real **inter-annotator agreement** (mean pairwise Jaccard across the three
+  raters), which the single-human plan could not. The blind re-annotation provision above is
+  therefore retired: it measured self-consistency as a substitute for agreement, and actual
+  agreement is now measurable.
 
 ## What is recorded about the session
 

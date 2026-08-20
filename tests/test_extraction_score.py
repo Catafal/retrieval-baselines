@@ -182,11 +182,45 @@ def test_next_index_resumes_at_the_first_unannotated_record():
 
 # --- the sample itself ----------------------------------------------------------------
 
-def test_the_committed_sample_is_still_unannotated_and_unprefilled():
-    """The contamination guarantee, asserted rather than promised: the scorer, the tool and
-    the whitelist were all committed while every record was still empty. When annotation
-    begins this test is expected to fail and should be updated in the SAME commit that
-    lands the annotations."""
-    rows = [json.loads(l) for l in (ROOT / "results" / "003" / "extraction-sample.jsonl").read_text().splitlines() if l.strip()]
+def _sample_rows():
+    path = ROOT / "results" / "003" / "extraction-sample.jsonl"
+    return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+
+
+def test_the_reference_set_is_complete_and_carries_its_provenance():
+    """
+    Replaces the pre-annotation guard, in the same commit that landed the annotations as
+    that guard's docstring required.
+
+    The scorer, the whitelist and the tool were all committed while every record was still
+    empty — checkable in the history at 732be11. What is asserted now is the property that
+    matters going forward: the reference set is complete, and every record says who
+    produced it, because it is MODEL-annotated rather than hand-annotated and a reader must
+    see that from the artifact rather than only from the protocol.
+    """
+    rows = _sample_rows()
     assert len(rows) == 100
-    assert all(r["entities"] == [] and r["annotated"] is False for r in rows)
+    assert all(r["annotated"] is True for r in rows), "a partial reference set understates recall"
+    assert all(r["rule_card"] == "v1" for r in rows)
+    assert all(r["annotator"] == "llm-panel-3x-majority" for r in rows), (
+        "provenance must travel with the record, not only with the protocol"
+    )
+
+
+def test_the_reference_set_is_not_silently_empty():
+    """Three passages are legitimately empty (Aldosterone, Line of battle, Sacral nerve
+    stimulator are concept articles with no named entities). Many more would mean the
+    annotation failed rather than that the passages had nothing in them."""
+    rows = _sample_rows()
+    empty = [r for r in rows if not r["entities"]]
+    assert len(empty) <= 5, f"{len(empty)} empty passages suggests a failed annotation pass"
+    assert sum(len(r["entities"]) for r in rows) > 500
+
+
+def test_agreement_artifact_matches_the_reference_set():
+    """The published agreement number must describe the file it ships beside."""
+    agreement = json.loads((ROOT / "results" / "003" / "annotation-agreement.json").read_text())
+    rows = _sample_rows()
+    assert agreement["passages"] == len(rows)
+    assert agreement["entities_kept"] == sum(len(r["entities"]) for r in rows)
+    assert agreement["raters"] == 3

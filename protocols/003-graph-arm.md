@@ -215,28 +215,66 @@ their 9,221-passage corpus and compare to Table 2's **BM25 row** (55.4 / 72.2) a
 absolute on R@2 and R@5. This is an external number computed under matching conditions, and it
 checks our indexing, scoring and pooling. Failure halts the run before anything is written.
 
-**8.2 Extraction quality — a DIAGNOSTIC, not a gate.** Revised 2026-08-20 after review. The
-earlier version made precision/recall against a hand-annotated sample the thing that gates the
-graph arm. It cannot be, and the reason is decisive: **no threshold on it can be pre-committed
-non-arbitrarily.** There is no published figure for spaCy NER against Wikipedia intros under this
-annotation scheme, so any cutoff would be chosen after seeing the number — the exact
-un-pre-registered decision this protocol exists to prevent. A number with no pre-committable
-decision rule is a measurement in search of one.
+**8.2 Extraction quality — a DIAGNOSTIC, not a gate, from a MODEL-ANNOTATED reference.**
+Revised twice on 2026-08-20.
 
-So it is reported, with its limitations in the same sentence as the number, and it gates nothing:
+*First revision.* The original made precision/recall against a hand-annotated sample the thing
+that gates the graph arm. It cannot be, and the reason is decisive: **no threshold on it can be
+pre-committed non-arbitrarily.** There is no published figure for spaCy NER against Wikipedia
+intros under this annotation scheme, so any cutoff would be chosen after seeing the number — the
+exact un-pre-registered decision this protocol exists to prevent.
+
+*Second revision, and it must be stated plainly in the entry.* The reference set is **not
+hand-annotated**. It was produced by **three independent language-model annotators**, each working
+alone from the frozen rule card, with an entity kept when at least two of the three listed it.
+Majority-of-three is applied in deterministic code, not by a judging model, so the merge cannot
+drift the way a fourth model's taste could.
+
+What that costs, and what it buys:
+
+- **Costs:** this is a model-produced reference, so it inherits language-model biases about entity
+  boundaries, and it is not the independent human judgement the original design assumed. Anywhere
+  this document or the entry would have said "gold standard" or "hand-annotated", it says
+  *model-annotated reference set*. A reader must be able to discount it accordingly.
+- **Buys:** genuine **inter-annotator agreement**, reported as mean pairwise Jaccard across the
+  three raters per passage. The single-human design could not produce this at all — the council
+  reviewing it flagged single-rater bias as the one objection nothing available could answer, and
+  three independent raters answer it directly.
+- **Independence from the thing being graded is preserved.** The extractor is spaCy — a fixed
+  third-party statistical NER model, not a language model. The annotators share no parameters,
+  training pipeline, or failure modes with it, so this is not a system grading itself.
+
+Everything else stands:
 
 - 100 passages, drawn with seed 20260820, ids committed at `results/003/extraction-sample.jsonl`.
-- Annotated under `protocols/003-annotation-rules.md` v1, frozen before passage 1.
+- Annotated under `protocols/003-annotation-rules.md` v1, frozen before annotation began.
 - Set-of-strings per passage, scored after **symmetric whitelist filtering of both sides** — the
-  single easiest way to make this number wrong is to filter the gold set to 11 types and score
+  single easiest way to make this number wrong is to filter the reference to 11 types and score
   spaCy's raw 17-type output against it, turning every correct DATE into a false positive.
 - Uncertainty as a **passage-clustered bootstrap**, not per-mention. Entities inside a passage
   share extraction outcomes; treating ~1,226 correlated observations as independent reports an
   interval two to three times too narrow (±0.022 rather than the honest ±0.03 to ±0.06).
-- The annotator is the author of the extractor and there is no second rater. A blind
-  re-annotation of 15 passages is published as intra-annotator agreement, and it measures
-  **self-consistency, not correctness** — it does not answer the single-rater objection, and is
-  not reported as though it does.
+- Low inter-annotator agreement is itself a publishable result: it would mean the rule card is
+  under-specified and the reference set is not trustworthy enough to report a diagnostic against.
+  That outcome ships rather than being repaired until it looks better.
+
+**Measured, and the number needs its caveat more than it needs celebrating.** The panel produced
+940 entities over 100 passages (mean 9.4, median 9; three passages legitimately empty — they are
+concept articles: *Aldosterone*, *Line of battle*, *Sacral nerve stimulator*). Of 989 entities
+proposed by at least one rater, 940 survived the majority rule and 49 (5.0%) were dropped.
+
+**Mean pairwise Jaccard: 0.936.** Sixty of the hundred passages had perfect three-way agreement.
+
+That is *higher* than published span-level agreement between trained human annotators on named
+entities, which typically sits nearer 0.7–0.9 — and it should be read as a warning rather than as
+reassurance. Three instances of the same model family, given the same prompt and the same rule
+card, are **correlated draws, not independent raters**. The number therefore measures how
+deterministic the prompt is at least as much as it measures how well-specified the rule card is,
+and it does not license the claim that the reference set is 94% reliable.
+
+What it does support, and only this: the rule card is not so ambiguous that following it produces
+divergent output. The lowest-agreement passages (3 below 0.50) are where the rule card is
+genuinely underdetermined, and those are worth reading before the entry is written.
 
 **8.3 The gate: bridge reachability.** What actually gates the arm needs no gold annotation — only
 the extractor's own output and the qrels. The arm's whole mechanism is reaching a document the
