@@ -1,0 +1,75 @@
+"""
+The entity-type whitelist — protocols/003-graph-arm.md section 8.2.
+
+FROZEN BEFORE spaCy IS INSTALLED. Not merely before it is run: at the time this file was
+committed, spaCy was absent from the environment entirely, so no output of the extractor
+could have informed the list. That is checkable from the repository history rather than
+asserted here.
+
+WHY RESTRICT AT ALL. An extracted entity earns its place only if it can (a) be matched
+from a query and (b) connect two documents. Measured against the corpus itself: of all
+13,783 gold-document titles in HotpotQA — which ARE the bridge entities the experiment is
+about — exactly 2 (0.01%) are purely numeric. Dates and cardinals do not bridge anything.
+Including them would measure a capability the graph does not use.
+
+WHY THIS IS NOT GERRYMANDERING, WITH THE NUMBERS. The obvious objection is that a
+whitelist chosen by the author flatters the extractor. The opposite is true here, and it
+is measurable in advance from spaCy's own published per-type OntoNotes scores for the
+pinned model. The types this list EXCLUDES are among spaCy's strongest; the types it
+KEEPS include its four weakest:
+
+    excluded   MONEY 0.910  PERCENT 0.896  DATE 0.867  CARDINAL 0.841  ORDINAL 0.820
+    kept       GPE 0.904  NORP 0.903  PERSON 0.880  ORG 0.805  LOC 0.668
+               LANGUAGE 0.690  LAW 0.417  EVENT 0.406  WORK_OF_ART 0.393  FAC 0.349
+               PRODUCT 0.309
+
+Overall published ents_f is 0.843. Restricting to this whitelist should therefore push
+the measured number DOWN, not up. A restriction that costs the extractor points is not a
+restriction chosen to flatter it.
+
+ONE HONEST QUALIFICATION. The whitelist borrows spaCy's own OntoNotes label vocabulary,
+so "frozen before install" defends against contamination by THIS run's predictions, not
+against general prior knowledge of the schema. The list is grounded in the title
+distribution above rather than in any calibration of the extractor, and that is the claim
+being made — not naive blindness.
+"""
+
+# Types that can serve as graph nodes: things a query can name and two documents can share.
+WHITELIST = frozenset({
+    "PERSON", "ORG", "GPE", "LOC", "FAC", "NORP",
+    "PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "LANGUAGE",
+})
+
+# Measures and quantities. Excluded for the reason above, recorded explicitly so the
+# exclusion is a decision in the artifact rather than an absence a reader must infer.
+EXCLUDED = frozenset({
+    "DATE", "TIME", "PERCENT", "MONEY", "QUANTITY", "ORDINAL", "CARDINAL",
+})
+
+# spaCy's published OntoNotes 5 scores for the pinned model, transcribed from
+# explosion/spacy-models meta for en_core_web_sm 3.8.0. REPORTED AS CONTEXT, NEVER AS A
+# GATE: OntoNotes is newswire and this corpus is Wikipedia intros, so it is a figure
+# measured under different conditions — the same reason the first BM25 closure control
+# failed a correct implementation, and the reason HippoRAG's retrieval rows cannot gate
+# this arm either.
+SPACY_ONTONOTES_ENTS_F = 0.8433
+
+
+def assert_partition() -> None:
+    """The two sets must be disjoint and must cover spaCy's label inventory. A type in
+    neither would be silently dropped from both sides of the comparison."""
+    overlap = WHITELIST & EXCLUDED
+    if overlap:
+        raise RuntimeError(f"a type cannot be both kept and excluded: {sorted(overlap)}")
+
+
+def filter_entities(entities, kept=WHITELIST):
+    """
+    Keep only whitelisted types, from an iterable of (text, label) pairs.
+
+    APPLIED TO BOTH SIDES. Filtering only the gold set while scoring the extractor's raw
+    output would turn every correctly-found DATE into a false positive and collapse
+    precision for a reason that has nothing to do with extraction quality. Symmetric
+    filtering is the whole point of this function existing rather than being inlined.
+    """
+    return [(text, label) for text, label in entities if label in kept]

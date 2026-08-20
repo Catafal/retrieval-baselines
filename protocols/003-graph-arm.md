@@ -215,16 +215,46 @@ their 9,221-passage corpus and compare to Table 2's **BM25 row** (55.4 / 72.2) a
 absolute on R@2 and R@5. This is an external number computed under matching conditions, and it
 checks our indexing, scoring and pooling. Failure halts the run before anything is written.
 
-**8.2 Extraction closure — gating the graph arm.** Intrinsic extraction quality is measured
-against a hand-annotated sample of 100 passages drawn with seed 20260820, and reported as its own
-number **before any retrieval score exists**. The draw is deterministic and the drawn ids are
-committed at `results/003/extraction-sample.jsonl` so a reader can check that the annotated
-passages are the ones the seed selects. The `entities` field ships **empty and is not pre-filled
-by any model**: seeding it with a model's guesses would make this control measure agreement rather
-than extraction quality. Annotation is by the author and must be complete before tagging. Precision and recall of extracted entities against
-the annotation, published as an artifact. This is what gates the graph arm, because spaCy performs
-named-entity recognition and HippoRAG and REBEL perform OpenIE triple extraction; no published
-retrieval row is a like-for-like reference for our arm.
+**8.2 Extraction quality — a DIAGNOSTIC, not a gate.** Revised 2026-08-20 after review. The
+earlier version made precision/recall against a hand-annotated sample the thing that gates the
+graph arm. It cannot be, and the reason is decisive: **no threshold on it can be pre-committed
+non-arbitrarily.** There is no published figure for spaCy NER against Wikipedia intros under this
+annotation scheme, so any cutoff would be chosen after seeing the number — the exact
+un-pre-registered decision this protocol exists to prevent. A number with no pre-committable
+decision rule is a measurement in search of one.
+
+So it is reported, with its limitations in the same sentence as the number, and it gates nothing:
+
+- 100 passages, drawn with seed 20260820, ids committed at `results/003/extraction-sample.jsonl`.
+- Annotated under `protocols/003-annotation-rules.md` v1, frozen before passage 1.
+- Set-of-strings per passage, scored after **symmetric whitelist filtering of both sides** — the
+  single easiest way to make this number wrong is to filter the gold set to 11 types and score
+  spaCy's raw 17-type output against it, turning every correct DATE into a false positive.
+- Uncertainty as a **passage-clustered bootstrap**, not per-mention. Entities inside a passage
+  share extraction outcomes; treating ~1,226 correlated observations as independent reports an
+  interval two to three times too narrow (±0.022 rather than the honest ±0.03 to ±0.06).
+- The annotator is the author of the extractor and there is no second rater. A blind
+  re-annotation of 15 passages is published as intra-annotator agreement, and it measures
+  **self-consistency, not correctness** — it does not answer the single-rater objection, and is
+  not reported as though it does.
+
+**8.3 The gate: bridge reachability.** What actually gates the arm needs no gold annotation — only
+the extractor's own output and the qrels. The arm's whole mechanism is reaching a document the
+query does not name by traversing from one it does, so the precondition is: **do a query's two
+gold documents share an extracted entity at all?** If they never do, no propagation reaches the
+second one and the arm cannot work, for structural reasons unrelated to extraction accuracy.
+
+The threshold is not a number anyone invented. Gold document pairs are compared against **random
+document pairs**: if gold pairs share entities no more often than random pairs, the graph carries
+no bridging signal. The gate is that the observed rate exceeds the 95th percentile of the random-
+pair null.
+
+*Recorded because it was tried and failed:* the first version of this gate compared observed
+entity-sharing against a permutation null that reshuffled entity strings across documents. That
+null has **no power** — shuffling preserves how often each string occurs, and "is this entity in
+two or more documents" depends on nothing else, so the null equals the observed value even on a
+graph with obvious structure. A test written for it failed, which is how this was caught before
+the protocol was tagged rather than after it was published.
 
 **Table 2 rows are reported as context, never as a gate for the graph arm.** The entry states
 plainly that no published figure exists for a spaCy-NER graph on this corpus rather than
