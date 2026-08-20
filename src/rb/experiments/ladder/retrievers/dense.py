@@ -26,6 +26,15 @@ FIXED SINCE THE LAST REVIEW (protocol-002-amendment-1, section 4):
     unverified default. It reads the model's own configured value and only
     overrides when the caller explicitly asks for a different one, recording
     which happened — see its docstring.
+
+SECOND ENCODER (protocol-002-amendment-2, section 3): SentenceTransformerEncoder
+now accepts `query_prefix` and `expected_dim`. `query_prefix` is applied ONLY in
+encode_queries (bge-base-en-v1.5 expects
+"Represent this sentence for searching relevant passages: " on queries, documents
+plain); `expected_dim` is verified against the loaded model's own
+get_sentence_embedding_dimension() rather than trusted, and both the requested
+and actual values are recorded in `self.verification` the same way max_length
+already is. MiniLM (amendment 1) passes neither, so its behaviour is unchanged.
 """
 
 import hashlib
@@ -240,6 +249,33 @@ def _l2_normalize(mat: np.ndarray) -> np.ndarray:
     return mat / norms
 
 
+def _verify_dim(actual_dim: int, expected_dim: int | None, model_name: str, revision: str) -> None:
+    """Amendment-2 section 3: embedding dimension is verified against the loaded
+    model, not trusted. Pulled out of __init__ so this check is testable without
+    loading a real transformer (see tests/test_dense.py's dim-mismatch test).
+    `expected_dim is None` skips the check entirely — MiniLM's caller (amendment
+    1) does not pass one."""
+    if expected_dim is not None and actual_dim != expected_dim:
+        raise RuntimeError(
+            f"{model_name}@{revision} produces {actual_dim}-dim embeddings, "
+            f"expected {expected_dim}. Verify the pinned revision before proceeding."
+        )
+
+
+def _with_query_prefix(texts: list[str], prefix: str | None) -> list[str]:
+    """Prepend the retrieval-query prefix to every text, or return the texts
+    unchanged if this encoder has no such convention (`prefix is None`).
+
+    Pulled out of encode_queries as its own function so a test can exercise the
+    prefixing rule directly without loading a real transformer — see
+    tests/test_dense.py's query-prefix tests, which construct
+    SentenceTransformerEncoder without __init__ specifically to reach this seam.
+    """
+    if prefix is None:
+        return list(texts)
+    return [prefix + t for t in texts]
+
+
 def _shuffle_rows(mat: np.ndarray, seed: int) -> np.ndarray:
     """Deterministic permutation of embedding rows, used only by the embedding-
     shuffle control to break the doc-id -> vector correspondence on purpose."""
@@ -274,12 +310,21 @@ class SentenceTransformerEncoder:
         revision: str,
         max_length: int | None = 256,  # amendment section 4; see class docstring re: verification
         batch_size: int = 32,
+        # amendment-2 section 3: bge-base's asymmetric retrieval convention. None
+        # (MiniLM's default) means no prefix is applied to queries — the seam
+        # this docstring's prior version predicted a future model would need.
+        query_prefix: str | None = None,
+        # amendment-2 section 3: "verify those against the loaded model rather
+        # than trusting the amendment". None skips the check (MiniLM's caller
+        # does not pass one, matching its pre-amendment-2 behaviour).
+        expected_dim: int | None = None,
     ):
         from sentence_transformers import SentenceTransformer  # lazy: see class docstring
 
         self.model_name = model_name
         self.revision = revision
         self.batch_size = batch_size
+        self.query_prefix = query_prefix
         self._model = SentenceTransformer(model_name, revision=revision)
 
         native_max_length = self._model.max_seq_length
@@ -305,6 +350,17 @@ class SentenceTransformerEncoder:
                 "step still runs, so this is a mismatch to report, not silent."
             )
 
+        # amendment-2 section 3: 768 dimensions is a claim about the pinned
+        # revision, not an assumption. Unlike max_length, embedding dimension is
+        # architectural and cannot be overridden to match a request — a mismatch
+        # means the wrong revision loaded, so this raises rather than silently
+        # recording a number nobody asked for.
+        # get_embedding_dimension is the current name in the pinned
+        # sentence-transformers==6.0.0; get_sentence_embedding_dimension still
+        # works but is deprecated there, so this repo uses the current name.
+        actual_dim = self._model.get_embedding_dimension()
+        _verify_dim(actual_dim, expected_dim, model_name, revision)
+
         # Recorded rather than trusted: this is what run_rung's manifest reports,
         # so a reviewer sees what was actually measured against the model object,
         # not what protocols/002-ladder.md guessed before anything was run.
@@ -314,6 +370,9 @@ class SentenceTransformerEncoder:
             "actual_max_length": self.max_length,
             "pooling_mode_from_model": self.pooling,
             "model_has_normalize_module": model_normalizes,
+            "requested_dim": expected_dim,
+            "actual_dim": actual_dim,
+            "query_prefix": self.query_prefix,
         }
 
     def encode_documents(self, texts: list[str]) -> np.ndarray:
@@ -323,14 +382,15 @@ class SentenceTransformerEncoder:
 
     def encode_queries(self, texts: list[str]) -> np.ndarray:
         # Separate from encode_documents because some models use an asymmetric
-        # query/document convention (e.g. an "query: " prefix); this is the seam
-        # where that convention would be applied, kept visible rather than buried
-        # inside a single shared encode(). all-MiniLM-L6-v2 uses no such prefix
-        # (verified: it ships no prompt templates), so both methods call the
-        # same underlying encode() today — recorded here rather than silently
-        # assumed, so a future model swap has an obvious place to add one.
+        # query/document convention. all-MiniLM-L6-v2 uses none (query_prefix is
+        # None, so _with_query_prefix is a no-op); bge-base-en-v1.5 (amendment-2
+        # section 3) needs its retrieval-query instruction prepended here and
+        # ONLY here — encode_documents never sees query_prefix at all.
         return np.asarray(
-            self._model.encode(texts, batch_size=self.batch_size, show_progress_bar=False, convert_to_numpy=True)
+            self._model.encode(
+                _with_query_prefix(texts, self.query_prefix),
+                batch_size=self.batch_size, show_progress_bar=False, convert_to_numpy=True,
+            )
         )
 
 

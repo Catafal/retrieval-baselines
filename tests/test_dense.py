@@ -216,6 +216,34 @@ def test_cache_key_includes_model_name_so_two_models_cannot_share_vectors(tmp_pa
     assert a != b, "two different models must not share a cache fingerprint"
 
 
+def test_two_pinned_encoders_cannot_collide_in_the_cache(tmp_path):
+    """
+    protocol-002-amendment-2 section 3's "confirm the two encoders cannot
+    collide" requirement, exercised with the actual pinned model names/revisions
+    from rb.experiments.ladder.run rather than arbitrary stand-ins — MiniLM
+    (amendment 1) and bge-base-en-v1.5 (amendment 2) must land in separate cache
+    subdirectories and never share a fingerprint, so switching encoders on the
+    same corpus can never silently reuse the other's vectors.
+    """
+    from rb.experiments.ladder.run import (
+        BGE_MODEL_NAME, BGE_REVISION, ENCODER_MODEL_NAME, ENCODER_REVISION,
+    )
+
+    n = 4
+    corpus = {f"d{i:02d}": f"document {i}" for i in range(n)}
+    queries = {f"q{i:02d}": f"query {i}" for i in range(n)}
+
+    minilm = OneHotEncoder(dim=n)
+    minilm.model_name, minilm.revision = ENCODER_MODEL_NAME, ENCODER_REVISION
+    bge = OneHotEncoder(dim=n)
+    bge.model_name, bge.revision = BGE_MODEL_NAME, BGE_REVISION
+
+    DenseRetriever(minilm, normalize=False, cache_dir=tmp_path).retrieve(corpus, queries, top_k=1)
+    DenseRetriever(bge, normalize=False, cache_dir=tmp_path).retrieve(corpus, queries, top_k=1)
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted([ENCODER_REVISION, BGE_REVISION])
+
+
 def test_manifest_records_the_embedding_hash_after_retrieval(tmp_path):
     """
     The manifest must describe the run that happened.
@@ -296,40 +324,193 @@ def test_ranking_is_cosine_not_dot_product():
 
 
 class _Asymmetric:
-    """Encodes documents and queries differently, so using the wrong one is visible."""
+    """
+    Two encoders that disagree, with no vector shared between them.
+
+    Every text gets an explicit vector per path. That matters: an earlier version
+    of this stub mapped by "is this text doc-a", so under a full call-site swap
+    BOTH documents encoded to the same vector, tied, and the deterministic
+    document-id tie-break put doc-a first, which is what the assertion expects
+    when the code is CORRECT. The test passed in both directions. A reviewer
+    demonstrated it. Explicit per-path vectors make a tie impossible.
+    """
 
     model_name, revision, max_length, batch_size = "stub/asym", "rev0", 8, 4
-    precision, pooling, normalized = "float32", "mean", True
+    precision, pooling, normalized = "float32", "cls", True
     verification = None
+
+    _DOC = {"doc-a": [1.0, 0.0], "doc-b": [0.0, 1.0], "wants-a": [1.0, 0.0]}
+    _QRY = {"doc-a": [0.0, 1.0], "doc-b": [1.0, 0.0], "wants-a": [1.0, 0.0]}
 
     def encode_documents(self, texts):
         import numpy as np
-        return np.array([[1.0, 0.0] if t == "doc-a" else [0.0, 1.0] for t in texts], dtype="float32")
+        return np.array([self._DOC[t] for t in texts], dtype="float32")
 
     def encode_queries(self, texts):
         import numpy as np
-        # The query text is deliberately NOT "doc-a", so encode_documents would give
-        # it [0,1] while encode_queries gives it [1,0]. The two disagree on this exact
-        # input, which is what makes the swap observable. An earlier version of this
-        # stub had both encoders agree here, so it proved nothing.
-        return np.array([[1.0, 0.0] if t == "wants-a" else [0.0, 1.0] for t in texts], dtype="float32")
+        return np.array([self._QRY[t] for t in texts], dtype="float32")
 
 
 def test_retrieve_uses_the_document_encoder_for_documents_and_the_query_encoder_for_queries():
     """
-    Exercises retrieve()'s actual call sites.
+    Exercises retrieve()'s actual call sites, and fails if they are swapped.
 
-    The existing transposition test hand-built its own encoder object rather than
-    going through DenseRetriever.retrieve(), so a reviewer swapped the two calls
-    inside retrieve() and the suite still passed, except incidentally via an
-    unrelated cache call-count assertion. The real encoder's document and query
-    paths are byte-identical today, so the self-retrieval control cannot catch this
-    class of defect either.
+    Correct: documents encode to a=[1,0], b=[0,1]; the query encodes to [1,0], so
+    doc-a wins. Swapped: documents encode to a=[0,1], b=[1,0]; the query encodes to
+    [1,0], so doc-b wins. No tie in either direction, so the tie-break cannot
+    rescue a broken implementation into looking correct.
+
+    This is the only automated detector of a call-site transposition in the suite.
+    The self-retrieval control cannot do it: measured on 100 Quora documents with
+    the pinned BGE encoder, correctly wired and transposed both give 0 failures,
+    which is why protocols/002-amendment-3 stopped claiming otherwise.
     """
     from rb.experiments.ladder.retrievers.dense import DenseRetriever
 
     r = DenseRetriever(_Asymmetric())
     run = r.retrieve({"doc-a": "doc-a", "doc-b": "doc-b"}, {"q": "wants-a"}, top_k=2)
-    # Through the query encoder "wants-a" is [1,0], matching doc-a. Through the
-    # document encoder it would be [0,1], matching doc-b.
     assert list(run["q"])[0] == "doc-a", "encoders transposed at the retrieve() call sites"
+
+
+def test_self_retrieval_threshold_tolerates_a_near_duplicate_but_not_misalignment():
+    """
+    The threshold from amendment 3, pinned so it cannot drift.
+
+    98 of 100 passes, because a duplicate-question corpus can legitimately have a
+    paraphrase edge out the document itself. 96 of 100 fails, because a genuine
+    id-alignment failure breaks nearly every sample rather than one or two, and
+    the threshold has to stay tight enough to catch that.
+    """
+    from rb import controls
+
+    class _Rigged:
+        """Returns itself for all but `misses` of the sampled documents."""
+
+        model_name, revision, precision, pooling, max_length, batch_size = (
+            "rigged", "rev0", "float32", "none", 8, 8,
+        )
+        verification = None
+
+        def __init__(self, misses: int):
+            self.misses = misses
+
+        def retrieve(self, corpus, queries, top_k):
+            out, missed = {}, 0
+            for qid in sorted(queries):
+                if missed < self.misses:
+                    other = next(d for d in sorted(corpus) if d != qid)
+                    out[qid] = {other: 1.0}
+                    missed += 1
+                else:
+                    out[qid] = {qid: 1.0}
+            return out
+
+    corpus = {f"d{i:03d}": f"text {i}" for i in range(100)}
+    ids = sorted(corpus)
+
+    assert controls.self_retrieval(_Rigged(2), corpus, ids)["passed"], "2 misses must pass"
+    assert not controls.self_retrieval(_Rigged(4), corpus, ids)["passed"], "4 misses must fail"
+
+
+def test_expected_dim_mismatch_raises_rather_than_silently_recording_wrong_dim():
+    """Amendment 2 section 3: 768 dimensions is verified against the loaded
+    model, not trusted. A model producing a different dimension than requested
+    means the wrong revision loaded, which must fail loudly. Exercises the real
+    __init__ code path's own verification function, not a reimplementation."""
+    import pytest
+    from rb.experiments.ladder.retrievers.dense import _verify_dim
+
+    with pytest.raises(RuntimeError, match="384"):
+        _verify_dim(actual_dim=384, expected_dim=768, model_name="fake/model", revision="deadbeef")
+
+
+def test_expected_dim_none_skips_the_check():
+    """MiniLM's caller (amendment 1) passes no expected_dim; that must not raise
+    regardless of the model's actual dimension."""
+    from rb.experiments.ladder.retrievers.dense import _verify_dim
+
+    _verify_dim(actual_dim=384, expected_dim=None, model_name="fake/model", revision="deadbeef")  # no raise
+
+
+def test_no_query_prefix_configured_leaves_queries_unchanged():
+    """MiniLM (amendment 1) passes query_prefix=None; this must be a true no-op,
+    not an accidental empty-string prefix that happens to look like one."""
+    enc = _bare_encoder(query_prefix=None)
+    enc.encode_queries(["a query"])
+    assert enc._model.calls[0] == ["a query"]
+
+
+def test_query_prefix_is_applied_to_queries_only():
+    """Amendment 2 section 3: bge-base's asymmetric convention must reach
+    encode_queries and must NOT reach encode_documents. This is the test the
+    task calls for — it fails if the prefix is dropped from queries or leaks
+    into documents."""
+    prefix = "Represent this sentence for searching relevant passages: "
+    enc = _bare_encoder(query_prefix=prefix)
+
+    enc.encode_documents(["a document"])
+    enc.encode_queries(["a query"])
+
+    assert enc._model.calls[0] == ["a document"], "documents must be encoded plain, never prefixed"
+    assert enc._model.calls[1] == [prefix + "a query"], "queries must carry the prefix"
+
+
+def _bare_encoder(query_prefix):
+    """A SentenceTransformerEncoder with its query_prefix/batch_size/_model set
+    directly, bypassing __init__ (which loads a real transformer — see the
+    module docstring on why tests never do that). This is the seam
+    protocols/002-amendment-2-second-encoder.md section 3 needs covered: a test
+    that fails if the prefix is dropped or applied to documents."""
+    from rb.experiments.ladder.retrievers.dense import SentenceTransformerEncoder
+
+    enc = SentenceTransformerEncoder.__new__(SentenceTransformerEncoder)
+    enc.batch_size = 8
+    enc.query_prefix = query_prefix
+    enc._model = _FakeSTModel()
+    return enc
+
+
+class _FakeSTModel:
+    """Stands in for the real sentence_transformers model object that
+    SentenceTransformerEncoder wraps: records exactly which texts .encode() was
+    called with, so the query-prefix tests below can assert on them directly."""
+
+    def __init__(self):
+        self.calls: list[list[str]] = []
+
+    def encode(self, texts, batch_size, show_progress_bar, convert_to_numpy):
+        self.calls.append(list(texts))
+        return np.zeros((len(texts), 2), dtype="float32")
+
+
+def test_self_retrieval_threshold_fails_at_the_stated_boundary():
+    """
+    Amendment 3 says three failures in a hundred must halt a run. Nothing tested
+    the boundary itself, only 2 and 4, so the claim in the protocol prose could
+    have drifted from the code without anything noticing.
+    """
+    from rb import controls
+
+    class _Rigged:
+        model_name, revision, precision, pooling, max_length, batch_size = (
+            "rigged", "rev0", "float32", "none", 8, 8,
+        )
+        verification = None
+
+        def __init__(self, misses: int):
+            self.misses = misses
+
+        def retrieve(self, corpus, queries, top_k):
+            out, missed = {}, 0
+            for qid in sorted(queries):
+                if missed < self.misses:
+                    out[qid] = {next(d for d in sorted(corpus) if d != qid): 1.0}
+                    missed += 1
+                else:
+                    out[qid] = {qid: 1.0}
+            return out
+
+    corpus = {f"d{i:03d}": f"text {i}" for i in range(100)}
+    ids = sorted(corpus)
+    assert not controls.self_retrieval(_Rigged(3), corpus, ids)["passed"], \
+        "3 failures in 100 is 0.97, below the 0.98 threshold, and must halt"

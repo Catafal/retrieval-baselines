@@ -58,6 +58,38 @@ ANCHOR_DIR = ROOT / "results" / "001"
 ENCODER_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 ENCODER_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
 
+# protocols/002-amendment-2-second-encoder.md section 3, pinned before the
+# second encoder embeds anything. Stronger than MiniLM (768 dims vs 384, 512
+# max sequence length vs 256) — the whole point of this arm is to settle
+# whether the draft's per-query overlap gradient is a property of the queries
+# or of the small encoder, which requires an actually-different encoder.
+BGE_MODEL_NAME = "BAAI/bge-base-en-v1.5"
+BGE_REVISION = "a5beb1e3e68b9ab7"
+BGE_EXPECTED_DIM = 768
+BGE_MAX_LENGTH = 512
+# Amendment 2 section 3: this model family expects retrieval queries prefixed,
+# documents plain. Passed to SentenceTransformerEncoder's query_prefix, which
+# applies it in encode_queries only — see that class's docstring.
+BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
+
+# One place mapping a CLI-selectable encoder name to its pinned config, so
+# run_dense/run_hybrid/run_dense_hybrid_analysis share one source of truth
+# instead of each hard-coding which constants belong to which encoder.
+ENCODER_CONFIGS = {
+    "minilm": {
+        # max_length=256 matches amendment 1 section 4 and _make_encoder's
+        # pre-amendment-2 default — keeping this explicit rather than relying
+        # on SentenceTransformerEncoder's own default means adding "bge" here
+        # cannot silently change what minilm requests.
+        "model_name": ENCODER_MODEL_NAME, "revision": ENCODER_REVISION,
+        "max_length": 256, "query_prefix": None, "expected_dim": None,
+    },
+    "bge": {
+        "model_name": BGE_MODEL_NAME, "revision": BGE_REVISION,
+        "max_length": BGE_MAX_LENGTH, "query_prefix": BGE_QUERY_PREFIX, "expected_dim": BGE_EXPECTED_DIM,
+    },
+}
+
 # Document embeddings cached here, keyed by revision (see DenseRetriever's
 # _cached_doc_vectors), so a rerun on the same corpus does not re-embed.
 EMBEDDING_CACHE_DIR = ROOT / "data" / "embeddings_cache"
@@ -251,17 +283,34 @@ def run_lexical_factorial(dataset: str, top_k: int = 100) -> dict:
     return factorial_summary
 
 
-def _make_encoder() -> SentenceTransformerEncoder:
-    """One pinned encoder, per amendment section 3. A single function so
-    run_dense and run_hybrid cannot drift into loading two different encoders
-    for what is supposed to be the same dense arm."""
-    return SentenceTransformerEncoder(ENCODER_MODEL_NAME, ENCODER_REVISION)
+def _make_encoder(encoder_key: str = "minilm") -> SentenceTransformerEncoder:
+    """One pinned encoder for the given key, per amendment 1 section 3 (minilm)
+    or amendment 2 section 3 (bge). A single function so run_dense and
+    run_hybrid cannot drift into loading two different encoders for what is
+    supposed to be the same dense arm."""
+    cfg = ENCODER_CONFIGS[encoder_key]
+    return SentenceTransformerEncoder(
+        cfg["model_name"], cfg["revision"],
+        max_length=cfg["max_length"], query_prefix=cfg["query_prefix"], expected_dim=cfg["expected_dim"],
+    )
 
 
+def _dense_out_dir(dataset: str, encoder_key: str) -> Path:
+    """`dense` for minilm keeps the existing, already-committed path untouched
+    (amendment-2 item 2: "must not be overwritten"); any other encoder gets its
+    own clearly-named subdirectory."""
+    name = "dense" if encoder_key == "minilm" else f"dense-{encoder_key}"
+    return RESULTS / dataset / name
 
-def run_dense(dataset: str, top_k: int = 100) -> dict:
+
+def run_dense(dataset: str, top_k: int = 100, encoder_key: str = "minilm") -> dict:
     """
     Rung 9 — dense (protocols/002-amendment-1-dense.md section 4).
+
+    `encoder_key` selects which pinned encoder runs (protocol-002-amendment-2
+    section 3 adds "bge" alongside the default "minilm"); everything else —
+    queries, subsample, seed, scoring, controls — is unchanged, exactly what
+    the amendment requires ("the encoder is the only variable").
 
     Runs the scored retrieval, then the two dense-specific controls that halt
     the run on failure: embedding shuffle (must collapse toward chance) and
@@ -273,9 +322,9 @@ def run_dense(dataset: str, top_k: int = 100) -> dict:
     corpus, queries, qrels, sampled = _load_subsampled(dataset)
     seed = CONTROL_SEED if sampled else None
 
-    encoder = _make_encoder()
+    encoder = _make_encoder(encoder_key)
     retriever = DenseRetriever(encoder, cache_dir=EMBEDDING_CACHE_DIR)
-    out_dir = RESULTS / dataset / "dense"
+    out_dir = _dense_out_dir(dataset, encoder_key)
 
     def dense_controls(ranked_run, per_query):
         """
@@ -310,9 +359,13 @@ def run_dense(dataset: str, top_k: int = 100) -> dict:
     return summary
 
 
-def run_hybrid(dataset: str, top_k: int = 100) -> dict:
+def run_hybrid(dataset: str, top_k: int = 100, encoder_key: str = "minilm") -> dict:
     """
     Rung 10 — hybrid (RRF of full BM25 and dense, k=60, amendment section 5).
+
+    `encoder_key` selects the dense component's encoder, same as run_dense;
+    `dense-minilm` keeps the existing "hybrid" path, any other key gets its own
+    directory (see _dense_out_dir's docstring — the naming convention matches).
 
     Builds its own full-BM25 lexical index and its own dense retriever (the
     same pinned encoder run_dense uses; the embedding cache means this does
@@ -324,11 +377,11 @@ def run_hybrid(dataset: str, top_k: int = 100) -> dict:
     seed = CONTROL_SEED if sampled else None
 
     lexical = dataclasses.replace(full_bm25(), index=build_index(corpus))
-    encoder = _make_encoder()
+    encoder = _make_encoder(encoder_key)
     dense = DenseRetriever(encoder, cache_dir=EMBEDDING_CACHE_DIR)
     hybrid = HybridRetriever(lexical, dense)
 
-    out_dir = RESULTS / dataset / "hybrid"
+    out_dir = RESULTS / dataset / ("hybrid" if encoder_key == "minilm" else f"hybrid-{encoder_key}")
     summary = run_rung(
         hybrid, dataset, corpus, queries, qrels, out_dir,
         top_k=top_k, subsampled=sampled, seed=seed,
@@ -337,7 +390,7 @@ def run_hybrid(dataset: str, top_k: int = 100) -> dict:
     return summary
 
 
-def run_dense_hybrid_analysis(dataset: str, top_k: int = 100) -> dict:
+def run_dense_hybrid_analysis(dataset: str, top_k: int = 100, encoder_key: str = "minilm") -> dict:
     """
     The statistics and query-property analysis amendment sections 7 and 8 ask
     for, run AFTER dense, hybrid, coordination and the lexical factorial all
@@ -345,13 +398,21 @@ def run_dense_hybrid_analysis(dataset: str, top_k: int = 100) -> dict:
     only reconstructs from those artifacts (via _per_query_ndcg, the same
     helper run_lexical_factorial's own significance block uses), it does not
     retrieve anything itself.
+
+    `encoder_key` reads the dense/hybrid artifacts that encoder produced
+    (_dense_out_dir's naming) and writes to a matching output file, so the
+    minilm and bge analyses never overwrite each other — bm25 and coordination
+    are shared across encoders (amendment-2 section 5: reuse everything but the
+    encoder), so those two are always read from their one committed location.
     """
     corpus, queries, qrels, _ = _load_subsampled(dataset)
     qids = sorted(queries)
     aligned_qrels = {q: qrels[q] for q in qids}
 
-    dense_ndcg = _per_query_ndcg(RESULTS / dataset / "dense", aligned_qrels)
-    hybrid_ndcg = _per_query_ndcg(RESULTS / dataset / "hybrid", aligned_qrels)
+    dense_dir = _dense_out_dir(dataset, encoder_key)
+    hybrid_dir = RESULTS / dataset / ("hybrid" if encoder_key == "minilm" else f"hybrid-{encoder_key}")
+    dense_ndcg = _per_query_ndcg(dense_dir, aligned_qrels)
+    hybrid_ndcg = _per_query_ndcg(hybrid_dir, aligned_qrels)
     bm25_ndcg = _per_query_ndcg(RESULTS / dataset / full_bm25().name, aligned_qrels)
     coordination_ndcg = _per_query_ndcg(RESULTS / dataset / "coordination", aligned_qrels)
 
@@ -387,6 +448,7 @@ def run_dense_hybrid_analysis(dataset: str, top_k: int = 100) -> dict:
 
     analysis = {
         "dataset": dataset,
+        "encoder": encoder_key,
         "mean_ndcg_cut_10": {
             "dense": round(dense_mean, 4),
             "hybrid": round(metrics.mean([hybrid_ndcg[q] for q in qids]), 4),
@@ -398,7 +460,8 @@ def run_dense_hybrid_analysis(dataset: str, top_k: int = 100) -> dict:
     }
     out_dir = RESULTS / dataset
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "dense_hybrid_analysis.json").write_text(json.dumps(analysis, indent=2) + "\n")
+    filename = "dense_hybrid_analysis.json" if encoder_key == "minilm" else f"dense_hybrid_analysis-{encoder_key}.json"
+    (out_dir / filename).write_text(json.dumps(analysis, indent=2) + "\n")
     return analysis
 
 
@@ -495,6 +558,11 @@ def main() -> None:
             "dense", "hybrid", "dense-hybrid-analysis",
         ),
     )
+    # protocol-002-amendment-2 section 3: selects which pinned encoder the
+    # dense/hybrid/dense-hybrid-analysis rungs use. Only meaningful for those
+    # three; ignored by the others. Default "minilm" so an unqualified command
+    # keeps behaving exactly as it did before this encoder existed.
+    p.add_argument("--encoder", default="minilm", choices=tuple(ENCODER_CONFIGS))
     args = p.parse_args()
 
     t0 = time.time()
@@ -505,11 +573,11 @@ def main() -> None:
     elif args.rung == "shapley-intervals":
         summary = add_shapley_intervals(args.dataset)
     elif args.rung == "dense":
-        summary = run_dense(args.dataset)
+        summary = run_dense(args.dataset, encoder_key=args.encoder)
     elif args.rung == "hybrid":
-        summary = run_hybrid(args.dataset)
+        summary = run_hybrid(args.dataset, encoder_key=args.encoder)
     else:
-        summary = run_dense_hybrid_analysis(args.dataset)
+        summary = run_dense_hybrid_analysis(args.dataset, encoder_key=args.encoder)
     print(json.dumps(summary, indent=2))
     print(f"done in {time.time() - t0:.0f}s", flush=True)
 

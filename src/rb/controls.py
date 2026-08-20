@@ -83,38 +83,52 @@ def bm25_closure(our_ndcg: float, published_ndcg: float, anchor_ndcg: float | No
     return result
 
 
-def self_retrieval(retriever, corpus: dict[str, str], sample_ids: list[str]) -> dict:
+def self_retrieval(retriever, corpus: dict[str, str], sample_ids: list[str],
+                   min_rank1_fraction: float = 0.98) -> dict:
     """
-    Experiment 002's second dense-rung control (amendment section 9).
+    Alignment check: a document used as its own query should come back first.
 
-    A document embedded and used as its own query text must retrieve itself at
-    rank 1. This catches a defect the embedding-shuffle control cannot: shuffle
-    only proves that permuting the doc-id -> vector mapping breaks retrieval,
-    which says the index bookkeeping is wired correctly, but it says nothing
-    about whether the QUERY-side encoding path itself is correct — for example
-    query and document encoders transposed, which would still shuffle-collapse
-    correctly (both sides are still wrong together, consistently) while never
-    once retrieving the right document for an exact self-match.
+    WHAT THIS DETECTS. Document ids, embedding rows and the similarity computation
+    lining up. A misaligned index fails almost every sample, not one or two, which
+    is why a threshold rather than perfection is the right shape.
 
-    `sample_ids` is caller-provided rather than "every document", so the caller
-    controls the cost: re-encoding the entire corpus as queries is the same
-    expense as the retrieval run itself, and a sample deterministically drawn
-    (sorted document ids, first N) is enough to catch the transposition failure
-    mode this control exists for.
+    WHAT IT DOES NOT DETECT, contrary to what protocols/002-amendment-1-dense.md
+    claimed. It does NOT catch query and document encoders being transposed.
+    Measured on 100 Quora documents with BAAI/bge-base-en-v1.5: correctly wired,
+    0 failures; with the two encoders swapped, also 0 failures. The two paths for
+    that model differ only by a query prefix, so a swap leaves a document still
+    close to its own nearest neighbour, and for a symmetric encoder like MiniLM
+    the paths are identical so nothing could be caught at all. Transposition is
+    covered by tests/test_dense.py, which exercises retrieve()'s actual call sites
+    with a stub whose two paths disagree. See protocols/002-amendment-3.
+
+    WHY THE THRESHOLD IS NOT 100%. Quora is a duplicate-question corpus. Document
+    "100", "How to make friends ?", sits among near-identical paraphrases, and with
+    an encoder that shifts queries by a prefix one of those can edge it out at full
+    corpus scale (on a 40,000-document subset it still wins). That is a property of
+    the corpus and the encoder rather than a defect. 98 of 100 keeps every alignment
+    failure detectable, since those fail wholesale, and this run passes it with one
+    failure rather than being written to fit.
     """
+    # One batched call, as before. Querying one document at a time would be slower
+    # and would also break any encoder that returns a fixed matrix per call.
     queries = {d: corpus[d] for d in sample_ids}
     run = retriever.retrieve(corpus, queries, top_k=1)
     failures = [
         qid for qid in sample_ids
         if not run.get(qid) or next(iter(run[qid])) != qid
     ]
-    return {
-        "sampled": len(sample_ids),
-        "failures": len(failures),
-        "examples": failures[:5],
-        "passed": not failures,
-    }
 
+    sampled = len(sample_ids)
+    rank1_fraction = (sampled - len(failures)) / sampled if sampled else 0.0
+    return {
+        "sampled": sampled,
+        "failures": len(failures),
+        "rank1_fraction": round(rank1_fraction, 4),
+        "min_rank1_fraction": min_rank1_fraction,
+        "examples": failures[:5],
+        "passed": rank1_fraction >= min_rank1_fraction,
+    }
 
 def embedding_shuffle(normal_ndcg: float, shuffled_ndcg: float, chance_ceiling: float = 0.15) -> dict:
     """
