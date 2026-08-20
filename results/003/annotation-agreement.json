@@ -1,0 +1,712 @@
+{
+  "annotator": "llm-panel-3x-majority",
+  "rule_card": "v1",
+  "raters": 3,
+  "adjudication": "entity kept when >=2 of 3 raters listed it, applied in deterministic code",
+  "mean_pairwise_jaccard": 0.9356,
+  "passages": 100,
+  "entities_kept": 940,
+  "entities_proposed": 989,
+  "per_doc": [
+    {
+      "doc": "8079",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 8,
+      "proposed": 8
+    },
+    {
+      "doc": "37404",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 9,
+      "proposed": 9
+    },
+    {
+      "doc": "59906",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "94590",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 11,
+      "proposed": 11
+    },
+    {
+      "doc": "124450",
+      "raters": 3,
+      "jaccard": 0.9393939393939394,
+      "kept": 10,
+      "proposed": 11
+    },
+    {
+      "doc": "151159",
+      "raters": 3,
+      "jaccard": 0.6555555555555556,
+      "kept": 7,
+      "proposed": 11
+    },
+    {
+      "doc": "214445",
+      "raters": 3,
+      "jaccard": 0.888888888888889,
+      "kept": 5,
+      "proposed": 6
+    },
+    {
+      "doc": "259471",
+      "raters": 3,
+      "jaccard": 0.8333333333333334,
+      "kept": 6,
+      "proposed": 8
+    },
+    {
+      "doc": "375130",
+      "raters": 3,
+      "jaccard": 0.3333333333333333,
+      "kept": 0,
+      "proposed": 1
+    },
+    {
+      "doc": "399162",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 16,
+      "proposed": 16
+    },
+    {
+      "doc": "548777",
+      "raters": 3,
+      "jaccard": 0.8333333333333334,
+      "kept": 8,
+      "proposed": 8
+    },
+    {
+      "doc": "563302",
+      "raters": 3,
+      "jaccard": 0.8666666666666667,
+      "kept": 4,
+      "proposed": 5
+    },
+    {
+      "doc": "591020",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 10,
+      "proposed": 10
+    },
+    {
+      "doc": "594329",
+      "raters": 3,
+      "jaccard": 0.3333333333333333,
+      "kept": 0,
+      "proposed": 1
+    },
+    {
+      "doc": "764072",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 11,
+      "proposed": 11
+    },
+    {
+      "doc": "864681",
+      "raters": 3,
+      "jaccard": 0.7083333333333334,
+      "kept": 12,
+      "proposed": 16
+    },
+    {
+      "doc": "978953",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "1063792",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 6,
+      "proposed": 6
+    },
+    {
+      "doc": "1217453",
+      "raters": 3,
+      "jaccard": 0.8333333333333334,
+      "kept": 8,
+      "proposed": 8
+    },
+    {
+      "doc": "1307278",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 10,
+      "proposed": 10
+    },
+    {
+      "doc": "1591064",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 2,
+      "proposed": 2
+    },
+    {
+      "doc": "2248394",
+      "raters": 3,
+      "jaccard": 0.773148148148148,
+      "kept": 8,
+      "proposed": 9
+    },
+    {
+      "doc": "3308731",
+      "raters": 3,
+      "jaccard": 0.9393939393939394,
+      "kept": 11,
+      "proposed": 11
+    },
+    {
+      "doc": "3489515",
+      "raters": 3,
+      "jaccard": 0.888888888888889,
+      "kept": 5,
+      "proposed": 6
+    },
+    {
+      "doc": "3677015",
+      "raters": 3,
+      "jaccard": 0.9555555555555556,
+      "kept": 14,
+      "proposed": 15
+    },
+    {
+      "doc": "3711155",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 8,
+      "proposed": 8
+    },
+    {
+      "doc": "3843340",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 4,
+      "proposed": 4
+    },
+    {
+      "doc": "4875070",
+      "raters": 3,
+      "jaccard": 0.9487179487179488,
+      "kept": 12,
+      "proposed": 13
+    },
+    {
+      "doc": "4914848",
+      "raters": 3,
+      "jaccard": 0.8666666666666667,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "5106599",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 9,
+      "proposed": 9
+    },
+    {
+      "doc": "5222531",
+      "raters": 3,
+      "jaccard": 0.9393939393939394,
+      "kept": 10,
+      "proposed": 11
+    },
+    {
+      "doc": "5251935",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 18,
+      "proposed": 18
+    },
+    {
+      "doc": "5680030",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "5960016",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "6788268",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 10,
+      "proposed": 10
+    },
+    {
+      "doc": "8779232",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 1,
+      "proposed": 1
+    },
+    {
+      "doc": "9073107",
+      "raters": 3,
+      "jaccard": 0.9523809523809524,
+      "kept": 14,
+      "proposed": 14
+    },
+    {
+      "doc": "9918351",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 10,
+      "proposed": 10
+    },
+    {
+      "doc": "10305284",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 18,
+      "proposed": 18
+    },
+    {
+      "doc": "10897655",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 18,
+      "proposed": 18
+    },
+    {
+      "doc": "11605065",
+      "raters": 3,
+      "jaccard": 0.8787878787878789,
+      "kept": 10,
+      "proposed": 11
+    },
+    {
+      "doc": "12036861",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 9,
+      "proposed": 9
+    },
+    {
+      "doc": "12765812",
+      "raters": 3,
+      "jaccard": 0.6784313725490198,
+      "kept": 13,
+      "proposed": 18
+    },
+    {
+      "doc": "13234635",
+      "raters": 3,
+      "jaccard": 0.8689640768588137,
+      "kept": 18,
+      "proposed": 21
+    },
+    {
+      "doc": "13392046",
+      "raters": 3,
+      "jaccard": 0.8666666666666667,
+      "kept": 8,
+      "proposed": 10
+    },
+    {
+      "doc": "13446850",
+      "raters": 3,
+      "jaccard": 0.3333333333333333,
+      "kept": 0,
+      "proposed": 1
+    },
+    {
+      "doc": "13608220",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 7,
+      "proposed": 7
+    },
+    {
+      "doc": "13713930",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 12,
+      "proposed": 12
+    },
+    {
+      "doc": "13907832",
+      "raters": 3,
+      "jaccard": 0.8571428571428571,
+      "kept": 12,
+      "proposed": 15
+    },
+    {
+      "doc": "14278790",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "15690788",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 11,
+      "proposed": 11
+    },
+    {
+      "doc": "15926226",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "15959222",
+      "raters": 3,
+      "jaccard": 0.9047619047619048,
+      "kept": 13,
+      "proposed": 14
+    },
+    {
+      "doc": "16025172",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 16,
+      "proposed": 16
+    },
+    {
+      "doc": "16953404",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 14,
+      "proposed": 14
+    },
+    {
+      "doc": "18951054",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 25,
+      "proposed": 25
+    },
+    {
+      "doc": "19924608",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 2,
+      "proposed": 2
+    },
+    {
+      "doc": "21391202",
+      "raters": 3,
+      "jaccard": 0.9607843137254902,
+      "kept": 16,
+      "proposed": 17
+    },
+    {
+      "doc": "22986858",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 17,
+      "proposed": 17
+    },
+    {
+      "doc": "23487242",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 14,
+      "proposed": 14
+    },
+    {
+      "doc": "25447056",
+      "raters": 3,
+      "jaccard": 0.8333333333333334,
+      "kept": 4,
+      "proposed": 4
+    },
+    {
+      "doc": "25578183",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 4,
+      "proposed": 4
+    },
+    {
+      "doc": "25821171",
+      "raters": 3,
+      "jaccard": 0.9393939393939394,
+      "kept": 10,
+      "proposed": 11
+    },
+    {
+      "doc": "25841453",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 8,
+      "proposed": 8
+    },
+    {
+      "doc": "25934084",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "26501904",
+      "raters": 3,
+      "jaccard": 0.9047619047619048,
+      "kept": 6,
+      "proposed": 7
+    },
+    {
+      "doc": "26725588",
+      "raters": 3,
+      "jaccard": 0.8787878787878789,
+      "kept": 11,
+      "proposed": 11
+    },
+    {
+      "doc": "27261334",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 6,
+      "proposed": 6
+    },
+    {
+      "doc": "28576973",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 12,
+      "proposed": 12
+    },
+    {
+      "doc": "28800640",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 3,
+      "proposed": 3
+    },
+    {
+      "doc": "29162885",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 7,
+      "proposed": 7
+    },
+    {
+      "doc": "32558673",
+      "raters": 3,
+      "jaccard": 0.9166666666666666,
+      "kept": 8,
+      "proposed": 8
+    },
+    {
+      "doc": "33183855",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 11,
+      "proposed": 11
+    },
+    {
+      "doc": "33896524",
+      "raters": 3,
+      "jaccard": 0.875,
+      "kept": 30,
+      "proposed": 32
+    },
+    {
+      "doc": "35023703",
+      "raters": 3,
+      "jaccard": 0.8973684210526316,
+      "kept": 18,
+      "proposed": 20
+    },
+    {
+      "doc": "36665263",
+      "raters": 3,
+      "jaccard": 0.888888888888889,
+      "kept": 5,
+      "proposed": 6
+    },
+    {
+      "doc": "37531046",
+      "raters": 3,
+      "jaccard": 0.9047619047619048,
+      "kept": 6,
+      "proposed": 7
+    },
+    {
+      "doc": "39446202",
+      "raters": 3,
+      "jaccard": 0.9523809523809524,
+      "kept": 13,
+      "proposed": 14
+    },
+    {
+      "doc": "39522631",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 6,
+      "proposed": 6
+    },
+    {
+      "doc": "40522967",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 17,
+      "proposed": 17
+    },
+    {
+      "doc": "41550404",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "42063114",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 4,
+      "proposed": 4
+    },
+    {
+      "doc": "42404219",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 17,
+      "proposed": 17
+    },
+    {
+      "doc": "43150746",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 11,
+      "proposed": 11
+    },
+    {
+      "doc": "47269639",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    },
+    {
+      "doc": "48829119",
+      "raters": 3,
+      "jaccard": 0.9393939393939394,
+      "kept": 11,
+      "proposed": 11
+    },
+    {
+      "doc": "49139009",
+      "raters": 3,
+      "jaccard": 0.9607843137254902,
+      "kept": 16,
+      "proposed": 17
+    },
+    {
+      "doc": "51073936",
+      "raters": 3,
+      "jaccard": 0.8974358974358975,
+      "kept": 12,
+      "proposed": 13
+    },
+    {
+      "doc": "51086626",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 3,
+      "proposed": 3
+    },
+    {
+      "doc": "51658176",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 12,
+      "proposed": 12
+    },
+    {
+      "doc": "51666630",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 3,
+      "proposed": 3
+    },
+    {
+      "doc": "51777674",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 3,
+      "proposed": 3
+    },
+    {
+      "doc": "52531669",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 7,
+      "proposed": 7
+    },
+    {
+      "doc": "53928055",
+      "raters": 3,
+      "jaccard": 0.9333333333333332,
+      "kept": 9,
+      "proposed": 10
+    },
+    {
+      "doc": "53931025",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 6,
+      "proposed": 6
+    },
+    {
+      "doc": "54328985",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 16,
+      "proposed": 16
+    },
+    {
+      "doc": "54597273",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 12,
+      "proposed": 12
+    },
+    {
+      "doc": "54626547",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 14,
+      "proposed": 14
+    },
+    {
+      "doc": "54682968",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 14,
+      "proposed": 14
+    },
+    {
+      "doc": "54932968",
+      "raters": 3,
+      "jaccard": 1,
+      "kept": 5,
+      "proposed": 5
+    }
+  ]
+}

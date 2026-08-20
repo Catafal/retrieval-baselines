@@ -11,6 +11,15 @@ Two families are reported and they answer different questions:
   set     — recall over grep's ENTIRE unranked output, plus the size of that output.
             This is the honest "grep alone" figure. Grep hands back a pile; the
             pile's size is the cost, and it is the number nobody publishes.
+
+MEASURES is the set 001 and 002 published against, and it does not change. An
+experiment that needs different cutoffs passes its own set instead (see
+`measures` below and rb.experiments.graph.measures). Growing MEASURES globally
+would have been the smaller diff and the wrong call: `make reproduce` is a
+published promise about 001's output, tests/test_coordination_regression.py
+asserts 001's `ranked` dict by exact equality, and both would break on a shape
+change even though no measured VALUE moves. Additive means additive for the
+experiment that asked, not for every artifact already on disk.
 """
 
 import pytrec_eval
@@ -18,9 +27,17 @@ import pytrec_eval
 MEASURES = {"ndcg_cut_10", "recall_10", "recall_100"}
 
 
-def score_ranked(qrels: dict[str, dict[str, int]], run: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
-    """Per-query trec_eval measures. Returns query_id -> {measure: value}."""
-    evaluator = pytrec_eval.RelevanceEvaluator(qrels, MEASURES)
+def score_ranked(qrels: dict[str, dict[str, int]], run: dict[str, dict[str, float]],
+                 measures: set[str] | None = None) -> dict[str, dict[str, float]]:
+    """
+    Per-query trec_eval measures. Returns query_id -> {measure: value}.
+
+    `measures` defaults to MEASURES, so every existing caller is unaffected. Passing a
+    set is how an experiment adds cutoffs without changing what earlier experiments
+    computed — pytrec_eval evaluates each measure independently, so a larger set adds
+    keys and never moves the values of the ones already there.
+    """
+    evaluator = pytrec_eval.RelevanceEvaluator(qrels, measures or MEASURES)
     return evaluator.evaluate(run)
 
 

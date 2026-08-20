@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bridge-entity coverage class · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>Bridge-entity coverage class</h1>
+  <p class="meta">Branch <code>exp-003-protocol</code> · started 2026-08-20 · Experiment 003's
+     query-class instrument, the piece the protocol calls the single largest threat to the entry.</p>
+  <p>This is a <strong>living document</strong> capturing how the implementation interprets,
+     diverges from, or trades off against the spec. Updated as each slice lands.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Protocol 003 §4: for each query, count how many of its gold-document titles appear in the
+     query text as a contiguous, case- and punctuation-normalised token sequence, under two
+     definitions registered before any run — <code>PRIMARY</code> strips one trailing Wikipedia
+     disambiguator, <code>SENSITIVITY</code> does not — and reproduce the frozen distributions
+     exactly.</p>
+
+  <h2>Design decisions <span class="meta">(spec was ambiguous → here's the call I made)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Use the scorer's tokenizer,
+    after checking it does not move the frozen counts.</strong>
+    002's convention is that query properties are computed with <code>lexical._tokenize</code>, so a
+    class describes the vocabulary the arms actually saw. But the frozen counts (1,821 / 3,634 /
+    1,950) were measured with a throwaway probe using its own regex, and adopting a different
+    tokenizer could silently invalidate the registered numbers. Checked before choosing: both
+    lowercase and split on non-alphanumerics (<code>TOKEN_RE = [^a-z0-9]+</code>), they produce
+    identical output on 4,000 queries, and both reproduce the frozen distribution exactly. So the
+    convention is followed at zero cost. Had they differed, the frozen counts would have won and the
+    deviation would be recorded here instead — the registered number is the thing that cannot move.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Strip only a
+    <em>trailing</em> parenthetical, anchored to end-of-string.</strong>
+    §4 says "strip one trailing parenthetical" without defining the pattern. Anchoring matters:
+    <code>Alpha (beta) Gamma</code> has brackets mid-name that are part of the entity, and an
+    unanchored pattern would rewrite it. Mutation testing confirms removing the anchor breaks three
+    tests.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>A nested trailing group is
+    left <em>unchanged</em> rather than partly stripped.</strong>
+    <code>[^)]*</code> cannot span an inner <code>)</code>, so <code>Nested (a (b) c)</code> simply
+    fails to match and survives whole. This surfaced as a failing test whose <em>expectation</em>
+    was wrong, not the code. Leaving it whole is the safe direction: half-stripping would invent an
+    entity name that never existed, whereas a title we failed to strip merely behaves like the
+    sensitivity definition, which is registered and reported anyway.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Make the frozen distribution
+    a halting control, not a comment.</strong>
+    Added <code>controls.coverage_distribution</code> alongside the existing
+    <code>pool_construction</code>. The class is the experiment's instrument; its distribution is a
+    fact frozen before tagging, so the code should be able to falsify the prose. The control also
+    checks the 1,138-query disagreement between definitions — if the two suddenly agree, the
+    normalisation changed under us and 15.4% of queries moved silently.</div>
+
+  <h2>Deviations <span class="meta">(intentional departures from the spec/convention)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Added a module logger; the
+    repo has none.</strong>
+    The skill directs "proper logging to easily debug it". No other module in this repository logs,
+    so this is a departure from house style. Kept deliberately small and <em>outside the hot path</em>:
+    one <code>INFO</code> line per batch classification and one for the disagreement count, nothing
+    per-query. Logging inside <code>title_in_query</code> would fire ~15,000 times per run and produce
+    noise rather than traceability. If house style should win, deleting three lines removes it.</div>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>The class lives in its own
+    module, not in 002's <code>query_properties</code>.</strong>
+    That module states it holds "the four pre-registered properties — and only these four", and
+    002's analysis hardcodes that tuple. Adding a fifth would require a 002 amendment and risks
+    moving published numbers. 003 registers its property in its own protocol and its own file.</div>
+
+  <h2>Tradeoffs <span class="meta">(alternatives considered)</span></h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Contiguous token run vs.
+    bag-of-words vs. fuzzy matching.</strong>
+    Bag-of-words was rejected: "Chris" and "Evans" scattered through a long question is not the
+    entity being named, and against a 20-word query almost any two-word title would match, inflating
+    coverage-2 and destroying the negative control. Fuzzy or partial matching was rejected for a
+    different reason — it introduces a threshold, and a threshold is a judgement call that would
+    have to be frozen and defended, which is exactly what §4 exists to avoid. Contiguous exact match
+    is the only rule with no free parameter.</div>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Reuse 002's binning, or
+    bin here?</strong>
+    Coverage is already discrete (0/1/2), so it needs the existing discrete-binning path rather than
+    quantile bins. <code>distribution()</code> deliberately emits all three bins even when empty, so
+    a vanished class shows up as a zero rather than an absent key a caller might not notice — which
+    matters because 2Wiki genuinely has no coverage-0 class, and that absence is a finding, not a
+    glitch.</div>
+
+  <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Should the logger stay?</strong>
+    It is the one thing here that departs from repo style. Ran with it because the skill asked for
+    it and it is genuinely useful when a distribution control fails. Removing it is a three-line
+    change and touches nothing else.</div>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Two comparison questions sit at
+    coverage 1.</strong>
+    Real, in the data (<code>comparison|1: 2</code>). They are counted as disagreements with the
+    gold <code>type</code> label, which is correct under the protocol's mapping. Flagging because
+    they are the kind of tiny cell that later gets mistaken for a bug — they are not.</div>
+
+  <h2>Build / verification</h2>
+  <ul>
+    <li><strong>Tests:</strong> 24 new in <code>tests/test_coverage.py</code>; full suite
+        <strong>200 passed</strong>.</li>
+    <li><strong>Mutation testing:</strong> 10 mutations, <strong>10 killed</strong>. Two survived on
+        the first pass and both were fixed by strengthening the test, not the code — see below.</li>
+    <li><strong>Against real data:</strong> primary {0: 1821, 1: 3634, 2: 1950} and sensitivity
+        {0: 2529, 1: 3418, 2: 1458} both reproduce the frozen values exactly; disagreement 1,138;
+        type agreement 6,938/7,405 = 93.7%; cross-tab matches the protocol cell for cell.</li>
+    <li><strong>New deps:</strong> none (<code>pyarrow</code> was already added for the pool).</li>
+  </ul>
+
+  <h2>Mutation log</h2>
+  <table>
+    <tr><th>Mutation</th><th>Result</th></tr>
+    <tr><td>contiguity → bag of words</td><td class="done">killed</td></tr>
+    <tr><td>strip applied to both definitions</td><td class="done">killed</td></tr>
+    <tr><td>strip applied to neither</td><td class="done">killed</td></tr>
+    <tr><td>empty needle counts as present</td><td class="done">killed</td></tr>
+    <tr><td>sliding-window off-by-one</td><td class="done">killed</td></tr>
+    <tr><td>disambiguator pattern unanchored</td><td class="done">killed</td></tr>
+    <tr><td>unknown definition accepted</td><td class="done">killed</td></tr>
+    <tr><td>distribution drops empty bins</td><td class="done">killed</td></tr>
+    <tr><td>agreement maps coverage 1 → comparison</td><td class="done">killed <span class="meta">(survived first pass)</span></td></tr>
+    <tr><td>reclassified counts equality not difference</td><td class="done">killed <span class="meta">(survived first pass)</span></td></tr>
+  </table>
+  <p>Both first-pass survivors were <em>symmetric fixtures</em>: a cross-tab with no
+     comparison-question at coverage 1, and a two-query disagreement fixture returning 1 whether the
+     code counted matches or mismatches. Both were fixed by making the fixture asymmetric. This is
+     the same defect class 002 found in its own encoder-transposition test — a stub that could tie,
+     so a swap was invisible — and it is why the mutation pass is run rather than assumed.</p>
+  <p>A third, quieter finding: the first mutation sweep was <strong>invalid</strong>. Stale
+     <code>__pycache__</code> left by the harness made one test report a wrong value after restore,
+     which briefly looked like a code bug. The sweep was re-run with bytecode cleared between every
+     mutation. A mutation harness that does not clear caches can report a mutant as killed when it
+     was never applied.</p>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Slice</th><th>What</th><th>Status</th></tr>
+    <tr><td>1</td><td>Tokenizer equivalence checked against the frozen counts</td><td class="done">✓ done</td></tr>
+    <tr><td>2</td><td><code>coverage.py</code> — both definitions, contiguity rule, cross-tab</td><td class="done">✓ done</td></tr>
+    <tr><td>3</td><td><code>controls.coverage_distribution</code> — frozen counts as a halting gate</td><td class="done">✓ done</td></tr>
+    <tr><td>4</td><td>24 tests + 10-mutation sweep, all killed</td><td class="done">✓ done</td></tr>
+    <tr><td>5</td><td>Verified against real data, every frozen number reproduced</td><td class="done">✓ done</td></tr>
+    <tr><td>6</td><td>Recall@2/@5 into <code>MEASURES</code> (protocol §5) — next</td><td>not started</td></tr>
+    <tr><td>7</td><td>Annotate the 100-passage sample (§8.2) — blocks tagging, human</td><td>not started</td></tr>
+  </table>
+</body>
+</html>
