@@ -3,6 +3,10 @@
     "bytes": 654025350,
     "sha256": "c62459dbc91d31329584507b1fa564b3b1abcee58800967113054ee0f5a15c62"
   },
+  "hotpotqa_distractor": {
+    "bytes": 27452575,
+    "sha256": "c20b638ca82b21d04fe12e14ff417ad05153d4d215a65de54497fca4e972f7c6"
+  },
   "quora": {
     "bytes": 15853968,
     "sha256": "56aacd9dcc4d9c093b63f175afdda0e21cbc8442ecf6c717d09de7b358d77531"

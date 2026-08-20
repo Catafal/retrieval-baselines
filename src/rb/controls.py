@@ -149,3 +149,51 @@ def embedding_shuffle(normal_ndcg: float, shuffled_ndcg: float, chance_ceiling: 
         "chance_ceiling": chance_ceiling,
         "passed": shuffled_ndcg <= chance_ceiling,
     }
+
+
+def pool_construction(questions: int, passages: int, title_slots: int,
+                      unresolved: int, collisions: int,
+                      gold_titles_matched: int, gold_queries: int) -> dict:
+    """
+    Experiment 003's pool control — protocols/003-graph-arm.md section 9.
+
+    The pool is the experiment's central factual claim: an exactly-identified SUBSET of
+    the corpus 002 published on, same document ids, same qrels, 79x smaller. Everything
+    downstream inherits that claim, so it is checked rather than documented.
+
+    Deduping 73,700 title slots into 66,581 uniques and mapping them onto BEIR document
+    ids is exactly the indexing step that produces unreproducible numbers, and this
+    repository exists because of a retraction for unreproducible numbers. Each figure
+    below was measured before tagging and frozen in the protocol; this control is what
+    makes the written counts falsifiable by the code rather than merely asserted by the
+    author.
+
+    Why the pair (passages, title_slots) rather than passages alone: a loader that
+    silently dropped a column would still produce a plausible unique count. Only the
+    dedup ratio catches it.
+    """
+    from rb.experiments.graph.pool import (
+        EXPECTED_PASSAGES,
+        EXPECTED_QUESTIONS,
+        EXPECTED_TITLE_SLOTS,
+    )
+
+    checks = {
+        "questions": (questions, EXPECTED_QUESTIONS),
+        "passages": (passages, EXPECTED_PASSAGES),
+        "title_slots": (title_slots, EXPECTED_TITLE_SLOTS),
+        "gold_titles_matched": (gold_titles_matched, gold_queries),
+    }
+    mismatched = {k: {"got": g, "expected": e} for k, (g, e) in checks.items() if g != e}
+    return {
+        "questions": questions,
+        "passages": passages,
+        "title_slots": title_slots,
+        "unresolved_titles": unresolved,
+        "title_collisions": collisions,
+        "gold_titles_matched": gold_titles_matched,
+        "gold_queries": gold_queries,
+        "mismatched": mismatched,
+        "passed": not mismatched and unresolved == 0 and collisions == 0,
+    }
+

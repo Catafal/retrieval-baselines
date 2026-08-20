@@ -108,6 +108,26 @@ def load_corpus(name: str) -> dict[str, str]:
     return corpus
 
 
+def load_titles(name: str) -> dict[str, str]:
+    """
+    doc_id -> title, for the SAME corpus load_corpus() reads.
+
+    Additive on purpose. load_corpus() concatenates title and text into the one
+    string every retriever is scored on, and that must not change: altering it
+    would move 001's and 002's published numbers. Experiment 003 needs titles
+    separately to compute its bridge-entity query class and to resolve its
+    candidate pool, and neither use is a retrieval signal — no arm ever sees
+    this. See protocols/003-graph-arm.md sections 3 and 4.
+    """
+    path = extract(name) / "corpus.jsonl"
+    titles = {}
+    with open(path, encoding="utf8") as f:
+        for line in f:
+            d = json.loads(line)
+            titles[d["_id"]] = (d.get("title") or "").strip()
+    return titles
+
+
 def load_queries(name: str) -> dict[str, str]:
     path = extract(name) / "queries.jsonl"
     with open(path, encoding="utf8") as f:

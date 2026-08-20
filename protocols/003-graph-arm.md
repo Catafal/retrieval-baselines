@@ -213,7 +213,11 @@ checks our indexing, scoring and pooling. Failure halts the run before anything 
 
 **8.2 Extraction closure — gating the graph arm.** Intrinsic extraction quality is measured
 against a hand-annotated sample of 100 passages drawn with seed 20260820, and reported as its own
-number **before any retrieval score exists**. Precision and recall of extracted entities against
+number **before any retrieval score exists**. The draw is deterministic and the drawn ids are
+committed at `results/003/extraction-sample.jsonl` so a reader can check that the annotated
+passages are the ones the seed selects. The `entities` field ships **empty and is not pre-filled
+by any model**: seeding it with a model's guesses would make this control measure agreement rather
+than extraction quality. Annotation is by the author and must be complete before tagging. Precision and recall of extracted entities against
 the annotation, published as an artifact. This is what gates the graph arm, because spaCy performs
 named-entity recognition and HippoRAG and REBEL perform OpenIE triple extraction; no published
 retrieval row is a like-for-like reference for our arm.
@@ -252,6 +256,49 @@ Two limitations ship with the entry, stated plainly rather than discovered by a 
 conclusion. That test is filed as NB-20 / experiment 004 before this one runs.
 
 **Construct validity of the smaller haystack.** Part of HippoRAG's thesis is that graphs help when
-retrieval degrades in a large noisy corpus; cutting the haystack 79× may remove some of the
+retrieval degrades in a large noisy corpus; cutting the haystack 78.6× may remove some of the
 condition the graph needs, independent of statistical power. Mitigating evidence: HippoRAG measured
 its own gains on a 9,221-passage pool.
+
+## 12. The null paragraph, written before the run
+
+Required by §11 and written here, before any entity is extracted, so that a null is reported
+rather than spun. If prediction A does not resolve — the CI95 includes zero, or the point estimate
+falls short of the +0.02 margin — the entry publishes the following, adjusted only for the actual
+numbers:
+
+> **The graph arm did not resolve the question.** On bridge-absent queries its advantage over full
+> BM25 was [X] and on comparison queries [Y], a difference of [Z] with a 95% interval of [L, U].
+> The interval includes zero, so this experiment does not support the claim that graphs help
+> specifically where the bridge entity is missing, and it does not refute it either.
+>
+> Three explanations remain open and this design cannot separate them. The extractor may be too
+> weak: it performs named-entity recognition rather than the OpenIE triple extraction the prior
+> art uses, and its measured extraction quality was [P precision / R recall] (§8.2). The corpus
+> may be wrong for the question: HotpotQA's own authors call it "a much weaker test for multi-hop
+> reasoning due to many spurious signals", and HippoRAG's graph makes its own base retriever worse
+> here. Or the mechanism may not exist — bridge-entity absence may simply not be what a graph
+> repairs.
+>
+> The first of the three has a test already filed: Experiment 004 swaps the deterministic extractor
+> for an LLM one and re-runs this identical protocol. That was filed before this entry ran, not
+> after it failed. What this entry establishes either way is the instrument: a bridge-absence class
+> that is computed mechanically, agrees with HotpotQA's own human labels on 93.7% of queries, and
+> can be recomputed by anyone from the qrels and the query text.
+
+**What must not appear in that paragraph**, stated now while it costs nothing:
+
+- No claim that graphs do not help, in general or on this corpus. A null on one weak extractor is
+  not a verdict on a family of methods, and 002's encoder swap is the standing evidence for why.
+- No promotion of coverage-0, or of the sensitivity class definition, or of R@5 over R@2, to
+  headline status because it happened to reach significance. The primary contrast, class and metric
+  are fixed in §4, §5 and §7. Every registered figure is reported; which one leads does not change
+  after the fact.
+- No quiet omission of the overall verdict. The registered expectation in §7 is reported whether
+  or not it held.
+
+**If prediction B fails** — the graph arm shows a real advantage on coverage-2 queries, where
+nothing needs traversing — that is reported as a probable defect in the arm rather than as a
+finding, and the entry does not report prediction A as supported until the cause is found. A graph
+that wins where the mechanism cannot operate is evidence about our code, not about graphs.
+

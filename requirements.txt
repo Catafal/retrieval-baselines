@@ -13,3 +13,9 @@ pytest
 # embedding is computed" — the model revision alone does not fix the result,
 # the library version that runs it does too.
 sentence-transformers==6.0.0
+
+# Experiment 003's candidate pool only (rb.experiments.graph.pool). HotpotQA's
+# distractor split is distributed as parquet; imported lazily so the rest of the
+# suite never needs it installed. See protocols/003-graph-arm.md section 3.
+pyarrow
+
