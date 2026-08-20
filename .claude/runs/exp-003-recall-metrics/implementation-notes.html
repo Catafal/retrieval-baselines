@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Recall@2/@5 metric set · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>Recall@2/@5 metric set</h1>
+  <p class="meta">Branch <code>exp-003-protocol</code> · 2026-08-20 · Experiment 003 §5 — the
+     metric change, and the guarantee that it moved nothing already published.</p>
+  <p>This is a <strong>living document</strong> capturing how the implementation interprets,
+     diverges from, or trades off against the spec.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Protocol 003 §5: make Recall@2 and Recall@5 the primary metrics — every judged HotpotQA query
+     has exactly two gold documents, and the prior art's closure table reports R@2/R@5 — while
+     retaining nDCG@10 for continuity with 002, and regression-testing that 001's and 002's
+     committed artifacts do not change.</p>
+
+  <h2>Design decisions <span class="meta">(spec was ambiguous → here's the call I made)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Scope the measure set to the
+    experiment instead of growing the global one.</strong>
+    §5 said "adding R@2/R@5 to the measure set", which reads as editing
+    <code>rb.metrics.MEASURES</code>. Investigating first showed that would be wrong. No measured
+    <em>value</em> would move — trec_eval evaluates each measure independently — but the
+    <em>shape</em> of every already-published artifact would change: <code>make reproduce</code> is
+    described in the Makefile as a published promise about 001's output, and
+    <code>test_coordination_regression.py</code> asserts 001's <code>ranked</code> dict by
+    <strong>exact equality</strong>. So <code>score_ranked</code> and <code>run_rung</code> gained an
+    optional <code>measures</code> parameter defaulting to the published set, and 003 passes
+    <code>GRAPH_MEASURES</code>. Every existing caller is untouched. Confirmed empirically: the
+    mutation that grows <code>MEASURES</code> globally fails <strong>46 tests</strong>.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Retain nDCG@10/R@10/R@100
+    rather than replace them.</strong>
+    §5 makes R@2 primary but does not say whether the others survive. Kept, so 003's numbers sit
+    beside 002's on the same axes and a reader can follow the sequence across entries. The cost is
+    two extra columns; the alternative would make 003 unreadable next to 002.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Name the primary and
+    secondary measures in code, not just in prose.</strong>
+    <code>PRIMARY_MEASURE</code> and <code>SECONDARY_MEASURES</code> are constants. §7 fixes which
+    metric carries the registered prediction precisely so the analysis cannot promote whichever one
+    reaches significance; leaving that only in the protocol would make it a convention rather than a
+    constraint. A test asserts the primary is not also listed as secondary.</div>
+
+  <h2>Deviations <span class="meta">(intentional departures from the spec)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Protocol §5 was reworded
+    to match the implementation.</strong>
+    Its original text implied a global edit. Since the protocol is <em>untagged</em>, the honest fix
+    is to correct it now rather than tag a document that describes something the code does not do.
+    The reworded §5 states the scoping and the reason. Had the protocol already been tagged this
+    would have had to be an amendment instead.</div>
+
+  <h2>Tradeoffs <span class="meta">(alternatives considered)</span></h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Optional parameter vs. a
+    second scoring function vs. a config object.</strong>
+    A separate <code>score_ranked_003()</code> would duplicate the evaluator wiring and drift. A
+    config object is more structure than one set of strings deserves. An optional parameter
+    defaulting to the current behaviour is the smallest change that satisfies open/closed: existing
+    callers are not modified, and a new experiment extends rather than edits. Total production diff:
+    <strong>30 lines across two files</strong>.</div>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Test one representative
+    artifact, or all of them.</strong>
+    The regression test is parametrised over <em>every</em> committed <code>summary.json</code> —
+    43 of them — rather than a sampled one. Shape regressions are exactly the kind of failure that
+    hides in the artifact nobody thought to check, and the test costs milliseconds.</div>
+
+  <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Should 002's arms be re-scored with
+    R@2/R@5 when they re-run on the pool?</strong>
+    003 re-runs BM25 and dense on the 66,581-passage pool (§3), and those runs are new artifacts, so
+    they can carry the full five measures without touching anything published. I assumed yes — the
+    paired comparison needs all arms on the same metrics. Flagging because it means 003's BM25
+    numbers will exist at two metric widths: three in the 002 artifacts, five in the 003 ones.</div>
+
+  <h2>Build / verification</h2>
+  <ul>
+    <li><strong>Tests:</strong> 16 new in <code>tests/test_measures.py</code> (51 including the
+        43-way parametrised artifact check); full suite <strong>251 passed</strong>.</li>
+    <li><strong>001 regression:</strong> <code>test_coordination_regression.py</code> passes
+        unchanged against the real SciFact corpus.</li>
+    <li><strong>Mutation testing:</strong> 7 mutations, <strong>7 killed</strong>.</li>
+    <li><strong>Production diff:</strong> 30 lines, 2 files. No new deps, no migrations.</li>
+  </ul>
+
+  <h2>Mutation log</h2>
+  <table>
+    <tr><th>Mutation</th><th>Tests failed</th><th>Result</th></tr>
+    <tr><td><code>score_ranked</code> ignores its <code>measures</code> argument</td><td>3</td><td class="done">killed</td></tr>
+    <tr><td><code>run_rung</code> ignores its <code>measures</code> argument</td><td>1</td><td class="done">killed</td></tr>
+    <tr><td>summary written with the global set</td><td>1</td><td class="done">killed</td></tr>
+    <tr><td><code>GRAPH_MEASURES</code> equals <code>MEASURES</code></td><td>4</td><td class="done">killed</td></tr>
+    <tr><td><code>GRAPH_MEASURES</code> adds only <code>recall_2</code></td><td>3</td><td class="done">killed</td></tr>
+    <tr><td>primary metric silently becomes nDCG@10</td><td>1</td><td class="done">killed</td></tr>
+    <tr><td><code>MEASURES</code> grown globally</td><td><strong>46</strong></td><td class="done">killed</td></tr>
+  </table>
+  <p>The last row is the interesting one: it is the counterfactual for the main design decision,
+     and it shows the regression guard has real teeth rather than being a formality.</p>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Slice</th><th>What</th><th>Status</th></tr>
+    <tr><td>1</td><td>Confirm <code>recall_2</code>/<code>recall_5</code> are valid trec_eval names</td><td class="done">✓ done</td></tr>
+    <tr><td>2</td><td><code>measures</code> parameter on <code>score_ranked</code> and <code>run_rung</code></td><td class="done">✓ done</td></tr>
+    <tr><td>3</td><td><code>graph/measures.py</code> — the 003 set, primary and secondary named</td><td class="done">✓ done</td></tr>
+    <tr><td>4</td><td>Regression tests over all 43 committed summaries + 7-mutation sweep</td><td class="done">✓ done</td></tr>
+    <tr><td>5</td><td>Protocol §5 reworded to match</td><td class="done">✓ done</td></tr>
+    <tr><td>6</td><td>Annotate the 100-passage sample (§8.2) — blocks tagging, human</td><td>not started</td></tr>
+    <tr><td>7</td><td>Tag <code>protocol-003</code>, then build the graph arm</td><td>blocked</td></tr>
+  </table>
+</body>
+</html>

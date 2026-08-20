@@ -135,8 +135,12 @@ the family the prior art reports and therefore the only one the closure control 
 
 **Secondary: nDCG@10**, retained for continuity with 001 and 002.
 
-Adding R@2/R@5 to the measure set is additive. 001's and 002's committed artifacts are
-regression-tested to confirm no published number moves.
+Adding R@2/R@5 is additive **and scoped to this experiment**. `rb.metrics.MEASURES` — what 001
+and 002 published against — is left unchanged, and 003 passes its own set instead. Growing the
+global set would not have moved any measured value, because trec_eval evaluates each measure
+independently; it would have changed the SHAPE of artifacts already published, including the
+output of `make reproduce`, which the Makefile records as a published promise. Every committed
+`summary.json` is regression-tested to still carry exactly the three published measures.
 
 ## 6. Power, measured before tagging
 

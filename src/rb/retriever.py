@@ -79,6 +79,13 @@ def run_rung(
     # expected to return {name: {"passed": bool, ...}}. Any failure raises before
     # a single artifact is written.
     post_scoring_controls=None,
+    # The trec_eval measure set. None means rb.metrics.MEASURES — what 001 and 002
+    # published against, and what every existing caller keeps getting. Experiment 003
+    # passes a larger set because its queries have exactly two gold documents each,
+    # which makes Recall@2/@5 the informative cutoffs and nDCG@10 mostly empty rank
+    # positions (protocols/003-graph-arm.md section 5). Scoped rather than global so
+    # 001's and 002's committed artifacts keep their exact shape.
+    measures: set[str] | None = None,
 ) -> dict:
     """
     Score one retriever on one dataset's (already query-subsampled) queries.
@@ -131,7 +138,8 @@ def run_rung(
         }
         for qid, docs in run_dict.items()
     }
-    per_query = metrics.score_ranked({q: qrels[q] for q in qids}, ranked_run)
+    measures = measures or metrics.MEASURES
+    per_query = metrics.score_ranked({q: qrels[q] for q in qids}, ranked_run, measures)
 
     # Controls that need the SCORED run, supplied by the caller, evaluated BEFORE
     # anything reaches disk.
@@ -177,7 +185,7 @@ def run_rung(
         "corpus_documents": len(corpus),
         "controls": {"gold_presence": check, **post_controls},
         "ranked": {
-            m: round(metrics.mean([per_query[q][m] for q in qids]), 4) for m in sorted(metrics.MEASURES)
+            m: round(metrics.mean([per_query[q][m] for q in qids]), 4) for m in sorted(measures)
         },
         "cost": {"total_seconds": round(elapsed, 3), "usd": 0.0},
         "environment": environment(),
