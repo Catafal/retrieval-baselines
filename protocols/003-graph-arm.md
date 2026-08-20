@@ -55,6 +55,43 @@ This experiment therefore tests a subgroup hypothesis against an unfavourable ag
 a corpus its own source paper calls weak, with an extractor weaker than one that already lost. A
 positive subgroup finding is held to the higher bar in §7; a negative one is not.
 
+## 2b. A known failure mode, registered before any scored run
+
+Found while building the arm, before anything was scored, and recorded here rather than
+discovered in the results.
+
+**Exact string linking is defeated by context-dependent spans.** spaCy segments the same name
+differently depending on the sentence around it. Measured on the worked example this experiment
+was designed around:
+
+| context | spans produced |
+|---|---|
+| `Kiss and Tell is a 1945 film starring Shirley Temple.` | `Kiss` (PERSON), `Tell` (PERSON) |
+| `The film Kiss and Tell stars Shirley Temple.` | `Kiss` (PERSON) |
+| the question naming it | `Kiss and Tell` (WORK_OF_ART) |
+
+So the graph holds nodes `kiss` and `tell` while the query offers `kiss and tell`, and the exact
+linker matches neither. This fails on precisely the bridge case the experiment is about.
+
+**It is not repaired, and that is the point.** The protocol pins spaCy NER plus *string* linking
+(§2). Substituting embedding-based linking, as HippoRAG does, would smuggle a dense component
+into an arm whose whole claim is to be deterministic, and would make a loss unattributable
+between the graph and the encoder. Repairing it after seeing that it hurts would also be tuning
+the method to the outcome.
+
+**What this predicts, in advance.** The seed-match rate — the fraction of queries whose entities
+link to at least one node — will be low, and the arm's overall loss (§7's registered expectation)
+is partly attributable to linking rather than to graphs. §8.3's gate is what makes this visible:
+if gold document pairs do not share extracted entities more often than random pairs, the graph
+carries no bridging signal to begin with.
+
+**It also sharpens what experiment 004 tests.** NB-20 swaps the deterministic extractor for an
+LLM one. Span stability across contexts is one concrete thing that upgrade should fix, and it is
+now a stated prediction rather than a hope.
+
+The behaviour is pinned by a test, so a future spaCy that fixes it appears as a failure rather
+than as an unexplained improvement.
+
 ## 3. Corpus
 
 **HotpotQA distractor setting: all 7,405 questions, 66,581 unique passages.** Every arm is scored
