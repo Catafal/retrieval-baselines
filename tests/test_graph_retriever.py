@@ -10,7 +10,7 @@ import pytest
 
 from rb.experiments.graph import build as kg
 from rb.experiments.graph import retriever as gr
-from tests.helpers import assert_retriever_contract
+from helpers import assert_retriever_contract
 
 
 # --- the walk, on a hand-built graph ------------------------------------------------
