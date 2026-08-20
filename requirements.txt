@@ -19,3 +19,9 @@ sentence-transformers==6.0.0
 # suite never needs it installed. See protocols/003-graph-arm.md section 3.
 pyarrow
 
+# Experiment 003's graph arm (rb.experiments.graph.extractor). Pinned per
+# protocols/003-graph-arm.md section 2, before any scored run: a different spaCy or a
+# different model revision is a different experiment. The model itself is fetched with
+# `python -m spacy download en_core_web_sm` and its version is asserted at load.
+spacy==3.8.13
+
