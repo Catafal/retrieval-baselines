@@ -197,3 +197,42 @@ def pool_construction(questions: int, passages: int, title_slots: int,
         "passed": not mismatched and unresolved == 0 and collisions == 0,
     }
 
+
+def coverage_distribution(measured: dict, definition: str, reclassified: int) -> dict:
+    """
+    Experiment 003's query-class control — protocols/003-graph-arm.md section 4.
+
+    The bridge-entity class is the experiment's instrument, and the protocol's own
+    assessment is that the entry lives or dies on it. Its distribution was measured
+    before tagging and frozen, so this control is what makes the written bin counts
+    falsifiable by the code rather than merely asserted by the author — the same reason
+    pool_construction exists.
+
+    The disagreement count between the two registered definitions is checked too. It is
+    the number that justifies registering both, and a run where the definitions suddenly
+    agree (or disagree far more) means the normalisation changed under us, which would
+    silently move 15.4% of queries between classes.
+    """
+    from rb.experiments.graph.coverage import (
+        FROZEN_DISTRIBUTION,
+        FROZEN_QUERIES,
+        FROZEN_RECLASSIFIED,
+    )
+
+    expected = FROZEN_DISTRIBUTION[definition]
+    measured = {int(k): v for k, v in measured.items()}
+    bins_ok = measured == expected
+    total = sum(measured.values())
+    return {
+        "definition": definition,
+        "measured": measured,
+        "expected": expected,
+        "queries": total,
+        "expected_queries": FROZEN_QUERIES,
+        "reclassified": reclassified,
+        "expected_reclassified": FROZEN_RECLASSIFIED,
+        "passed": bins_ok
+        and total == FROZEN_QUERIES
+        and reclassified == FROZEN_RECLASSIFIED,
+    }
+
