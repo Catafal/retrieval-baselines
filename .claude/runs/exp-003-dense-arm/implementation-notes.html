@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dense arm on the 003 pool · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>Dense arm on the 003 pool</h1>
+  <p class="meta">Branch <code>main</code> · 2026-08-21 · completing the grep / vectors / graphs
+     comparison on the 66,581-passage HotpotQA distractor pool.</p>
+  <p>This is a <strong>living document</strong> capturing how the implementation interprets,
+     diverges from, or trades off against the spec.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Add the dense arm to Experiment 003's scored run — same pool, same 7,405 queries, same
+     <code>GRAPH_MEASURES</code> — so the instalment delivers three families rather than two.</p>
+
+  <h2>Design decisions <span class="meta">(spec was ambiguous → here's the call I made)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Write and tag an amendment
+    before computing a single vector.</strong>
+    Checking the protocol first turned up the thing that decided the whole shape of this task:
+    <code>protocol-003</code> <em>pins no encoder and never registers dense as an arm.</em> §3 says
+    "every arm is scored against this identical candidate set" and names none. So adding dense is
+    an addition <em>after</em> the tag, not the execution of something already registered. It is
+    now <code>protocols/003-amendment-2-dense-arm.md</code>, tagged
+    <code>protocol-003-amendment-2</code>, committed before any embedding existed. Had I simply run
+    it, the entry would have reported a number that no pre-registration covered, which is the
+    failure the retraction was about.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Both encoders, not one.</strong>
+    002's central finding is that swapping MiniLM for BGE <em>flipped</em> SciFact's corpus-level
+    verdict while the per-query gradient survived. An entry whose lesson is "corpus-level verdicts
+    are encoder-dependent" cannot then report one encoder and call it "the dense arm" — that is the
+    exact error 002 exists to warn against. Both are affordable only because the pool is 66,581
+    passages rather than 5,233,329, which is precisely why 002 amendment 2 excluded HotpotQA from
+    its own BGE run.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Dense is excluded from the
+    registered Holm family, in writing.</strong>
+    §7's clauses A and B are already resolved, with p-values corrected across a family declared
+    before the run. Adding members now would change the correction applied to <em>settled</em>
+    claims — retrospective re-scoring of a result that has already landed. The amendment prohibits
+    it explicitly rather than leaving it to judgement, and any per-class dense figure is labelled
+    exploratory.</div>
+
+  <h2>Deviations <span class="meta">(intentional departures)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Amendment 1 is untagged;
+    amendment 2 is tagged.</strong>
+    Inconsistent on its face, deliberate underneath. Amendment 1 <em>records</em> a prediction that
+    failed after the fact — there is nothing to freeze, and tagging it would imply it constrains
+    future work. Amendment 2 <em>registers</em> work not yet done, so freezing it is the entire
+    point. The rule I applied: tag what constrains the future, commit what documents the past.</div>
+
+  <h2>Tradeoffs <span class="meta">(alternatives considered)</span></h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Reuse 002's encoder
+    factory vs. re-declare the pins in the 003 runner.</strong>
+    Re-declaring would have been a three-line change and self-contained. Rejected: two copies of a
+    pin is one copy too many. The whole purpose of pinning is that the artefact cannot drift, and a
+    second declaration is exactly how it drifts — the two would agree today and diverge the first
+    time either is edited. The 003 runner imports <code>_make_encoder</code> and
+    <code>ENCODER_CONFIGS</code> from 002 instead, so there remains one place where a model name
+    and revision are written down.</div>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Run the two encoders in
+    parallel or in sequence?</strong>
+    Sequential, though parallel would roughly halve wall-clock. The protocol requires build cost
+    and query cost reported separately, and two CPU-bound encoders competing for the same cores
+    produce timings that describe the contention rather than the arm. A number reported as cost
+    should be a cost.</div>
+
+  <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Should the dense arms also get the
+    embedding-shuffle and self-retrieval controls?</strong>
+    They are inherited from 002 and the amendment says "all inherited controls apply", but they
+    cost a second scoring pass each. Running them for now; say if that is not worth the time on an
+    arm that is context rather than a registered claim.</div>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Does the entry report four arms or
+    three?</strong>
+    BM25, graph, dense-MiniLM, dense-BGE. Four rows is honest and slightly cluttered; collapsing
+    the two encoders into "dense" would reproduce the exact mistake 002 warns about. My assumption
+    is four rows with the two encoders adjacent, but it is a presentation call.</div>
+
+  <h2>Build / verification</h2>
+  <ul>
+    <li><strong>Amendment:</strong> written, committed, tagged <code>protocol-003-amendment-2</code>
+        before any vector was computed.</li>
+    <li><strong>Both encoders load at their pinned revisions:</strong>
+        <code>all-MiniLM-L6-v2@1110a243</code>, <code>bge-base-en-v1.5@a5beb1e3</code>.</li>
+    <li><strong>Runs:</strong> in progress, sequential.</li>
+    <li><strong>New deps:</strong> none — <code>sentence-transformers 6.0.0</code> was already
+        pinned for 002.</li>
+  </ul>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Slice</th><th>What</th><th>Status</th></tr>
+    <tr><td>1</td><td>Check whether dense is registered in <code>protocol-003</code> — it is not</td><td class="done">✓ done</td></tr>
+    <tr><td>2</td><td>Write + tag amendment 2, both encoders pinned, 3 predictions registered</td><td class="done">✓ done</td></tr>
+    <tr><td>3</td><td>Wire both arms into the 003 runner, reusing 002's factory</td><td class="done">✓ done</td></tr>
+    <tr><td>4</td><td>Score dense-MiniLM and dense-BGE on the pool</td><td>running</td></tr>
+    <tr><td>5</td><td>Report against the three registered predictions</td><td>not started</td></tr>
+  </table>
+</body>
+</html>

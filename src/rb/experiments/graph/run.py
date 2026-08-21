@@ -50,18 +50,35 @@ def load_pool():
 
 
 def _arm(name: str):
+    """
+    One arm per name, each already pinned somewhere else.
+
+    The dense arms REUSE 002's encoder factory and its ENCODER_CONFIGS rather than
+    re-declaring model names and revisions here. Two copies of a pin is one copy too many:
+    the point of pinning is that the artefact cannot drift, and a second declaration is
+    exactly how it drifts. Registered in protocols/003-amendment-2-dense-arm.md, tagged
+    before any vector was computed.
+    """
     if name == "bm25":
         from rb.experiments.ladder.retrievers.lexical import full_bm25
         return full_bm25(), None
     if name == "graph":
         from rb.experiments.graph.retriever import GraphRetriever
         return GraphRetriever(), "fit"
+    if name.startswith("dense-"):
+        from rb.experiments.ladder.retrievers.dense import DenseRetriever
+        from rb.experiments.ladder.run import EMBEDDING_CACHE_DIR, _make_encoder
+        encoder = _make_encoder(name.split("-", 1)[1])
+        # Cached because embedding 66,581 passages is the expensive half and the
+        # embedding-shuffle control has to re-embed nothing to run.
+        return DenseRetriever(encoder, cache_dir=EMBEDDING_CACHE_DIR), None
     raise SystemExit(f"unknown arm {name!r}")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--arm", required=True, choices=["bm25", "graph"])
+    ap.add_argument("--arm", required=True,
+                    choices=["bm25", "graph", "dense-minilm", "dense-bge"])
     ap.add_argument("--top-k", type=int, default=100)
     args = ap.parse_args()
 
