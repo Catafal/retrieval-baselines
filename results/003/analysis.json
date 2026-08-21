@@ -1,0 +1,193 @@
+{
+  "queries": 7405,
+  "overall": {
+    "ndcg_cut_10": {
+      "graph": 0.2955,
+      "bm25": 0.7197
+    },
+    "recall_10": {
+      "graph": 0.3382,
+      "bm25": 0.7863
+    },
+    "recall_100": {
+      "graph": 0.398,
+      "bm25": 0.915
+    },
+    "recall_2": {
+      "graph": 0.2132,
+      "bm25": 0.549
+    },
+    "recall_5": {
+      "graph": 0.2861,
+      "bm25": 0.6948
+    }
+  },
+  "contrasts": {
+    "A|recall_2|stripped": {
+      "n_bridge_absent": 5455,
+      "n_comparison": 1950,
+      "mean_bridge_absent": -0.3217,
+      "mean_comparison": -0.3751,
+      "difference": 0.0534,
+      "ci95": [
+        0.0334,
+        0.073
+      ],
+      "p_value": 0.0,
+      "excludes_zero": true,
+      "meets_margin": true,
+      "supported": true,
+      "p_holm": 0.0
+    },
+    "B|recall_2|stripped": {
+      "n": 1950,
+      "mean_advantage": -0.3751,
+      "ci95": [
+        -0.3926,
+        -0.3574
+      ],
+      "p_value": 0.0,
+      "no_advantage": true,
+      "p_holm": 0.0
+    },
+    "A|recall_5|stripped": {
+      "n_bridge_absent": 5455,
+      "n_comparison": 1950,
+      "mean_bridge_absent": -0.3852,
+      "mean_comparison": -0.4744,
+      "difference": 0.0891,
+      "ci95": [
+        0.0681,
+        0.1097
+      ],
+      "p_value": 0.0,
+      "excludes_zero": true,
+      "meets_margin": true,
+      "supported": true,
+      "p_holm": 0.0
+    },
+    "B|recall_5|stripped": {
+      "n": 1950,
+      "mean_advantage": -0.4744,
+      "ci95": [
+        -0.4923,
+        -0.4562
+      ],
+      "p_value": 0.0,
+      "no_advantage": true,
+      "p_holm": 0.0
+    },
+    "A|ndcg_cut_10|stripped": {
+      "n_bridge_absent": 5455,
+      "n_comparison": 1950,
+      "mean_bridge_absent": -0.4064,
+      "mean_comparison": -0.474,
+      "difference": 0.0676,
+      "ci95": [
+        0.0489,
+        0.0861
+      ],
+      "p_value": 0.0,
+      "excludes_zero": true,
+      "meets_margin": true,
+      "supported": true,
+      "p_holm": 0.0
+    },
+    "B|ndcg_cut_10|stripped": {
+      "n": 1950,
+      "mean_advantage": -0.474,
+      "ci95": [
+        -0.4894,
+        -0.4578
+      ],
+      "p_value": 0.0,
+      "no_advantage": true,
+      "p_holm": 0.0
+    },
+    "A|recall_2|exact": {
+      "n_bridge_absent": 5947,
+      "n_comparison": 1458,
+      "mean_bridge_absent": -0.3194,
+      "mean_comparison": -0.4026,
+      "difference": 0.0832,
+      "ci95": [
+        0.0616,
+        0.1056
+      ],
+      "p_value": 0.0,
+      "excludes_zero": true,
+      "meets_margin": true,
+      "supported": true,
+      "p_holm": 0.0
+    },
+    "B|recall_2|exact": {
+      "n": 1458,
+      "mean_advantage": -0.4026,
+      "ci95": [
+        -0.4228,
+        -0.3817
+      ],
+      "p_value": 0.0,
+      "no_advantage": true,
+      "p_holm": 0.0
+    },
+    "A|recall_5|exact": {
+      "n_bridge_absent": 5947,
+      "n_comparison": 1458,
+      "mean_bridge_absent": -0.3822,
+      "mean_comparison": -0.5168,
+      "difference": 0.1346,
+      "ci95": [
+        0.1116,
+        0.1566
+      ],
+      "p_value": 0.0,
+      "excludes_zero": true,
+      "meets_margin": true,
+      "supported": true,
+      "p_holm": 0.0
+    },
+    "B|recall_5|exact": {
+      "n": 1458,
+      "mean_advantage": -0.5168,
+      "ci95": [
+        -0.537,
+        -0.4962
+      ],
+      "p_value": 0.0,
+      "no_advantage": true,
+      "p_holm": 0.0
+    },
+    "A|ndcg_cut_10|exact": {
+      "n_bridge_absent": 5947,
+      "n_comparison": 1458,
+      "mean_bridge_absent": -0.4035,
+      "mean_comparison": -0.5086,
+      "difference": 0.105,
+      "ci95": [
+        0.085,
+        0.1249
+      ],
+      "p_value": 0.0,
+      "excludes_zero": true,
+      "meets_margin": true,
+      "supported": true,
+      "p_holm": 0.0
+    },
+    "B|ndcg_cut_10|exact": {
+      "n": 1458,
+      "mean_advantage": -0.5086,
+      "ci95": [
+        -0.5264,
+        -0.4906
+      ],
+      "p_value": 0.0,
+      "no_advantage": true,
+      "p_holm": 0.0
+    }
+  },
+  "family_size": 12,
+  "B": 10000,
+  "seed": 20260820,
+  "margin": 0.02
+}
