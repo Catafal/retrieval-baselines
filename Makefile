@@ -50,17 +50,17 @@ reproduce-002-lexical:
 reproduce-003-controls:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.run_controls
 
-clean:
-	rm -rf data/*/rg_corpus.txt
-
 # Experiment 003's section 9 pool control, as amended by 003-amendment-4. Writes
 # results/003/pool-control.json. Does NOT touch the five arms' summary.json files — see
 # src/rb/experiments/graph/run_pool_control.py for why they are left as published.
 reproduce-003-pool-control:
-	python -m rb.experiments.graph.run_pool_control
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.run_pool_control
 
 # Experiment 003's registered analysis (section 7). Rescores from the committed per_query.jsonl
 # rather than re-running retrieval, so it is cheap and needs no model. Writes
 # results/003/analysis.json and results/003/headroom-control.json.
 reproduce-003-analysis:
-	python -m rb.experiments.graph.analysis
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis
+
+clean:
+	rm -rf data/*/rg_corpus.txt

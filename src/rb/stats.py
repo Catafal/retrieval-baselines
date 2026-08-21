@@ -65,8 +65,11 @@ def paired_bootstrap(
     # tests/test_stats.py::test_percentile_bounds_pin_exact_values_on_a_known_distribution.
     lo, hi = means[int(0.025 * rounds)], means[int(0.975 * rounds) - 1]
 
-    # NOT routed through `percentile_ci` below, though it computes the identical indices
-    # (verified equal at n = 1000, 2000, 10000). NB-26's council ruled that refactoring the
+    # NOT routed through `percentile_ci` below. The two agree at the round counts this repo
+    # registers (n = 1000, 2000, 10000, where 0.975 * n is integral) and DIVERGE at arbitrary n:
+    # at n = 100 this expression cuts 3 draws above and 2 below, while `percentile_ci` cuts 2 and
+    # 2. `percentile_ci` is the more correct of the two by the derivation `_percentile_index`
+    # carries. NB-26's council ruled that refactoring the
     # module 001 and 002 publish against, inside a correctness fix scoped to 003's graph arm,
     # bundles a cosmetic change into a diff a reviewer must check for moved numbers. Left as a
     # named follow-up rather than done quietly here. See NB-26 R6.
@@ -105,6 +108,12 @@ def _percentile_index(n: int, tail: float, upper: bool) -> int:
     """
     if n <= 0:
         raise ValueError("percentile of an empty draw list is undefined")
+    # A tail at or above 0.5 cuts more than half from one end: the two bounds cross, and on the
+    # upper side `n - 1 - k` goes NEGATIVE and silently wraps to a plausible-looking draw from the
+    # wrong end of the distribution. Rejecting beats returning a number nobody can tell is wrong —
+    # this function exists so the ninth call site cannot pick a wrong answer quietly.
+    if not 0 <= tail < 0.5:
+        raise ValueError(f"tail must be in [0, 0.5); got {tail}")
     k = int(tail * n)
     return n - 1 - k if upper else k
 

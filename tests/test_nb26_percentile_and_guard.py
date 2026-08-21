@@ -107,3 +107,83 @@ def test_the_section_8_3_gate_uses_the_correct_one_sided_threshold():
         "the defective index would report 0.3333 here, and the gate would fail"
     )
     assert result["passed"] is True
+
+
+# --------------------------------------------------------------------------------------
+# CALL-SITE pins. The first mutation sweep of this branch checked `_percentile_index` and the
+# gate, and concluded "7/7 killed". An independent 18-mutation sweep then found that reverting
+# each CONVERTED CALL SITE to its hand-written expression left the whole suite green — including
+# the three sites whose published four-decimal figures actually moved. The rule being tested and
+# the sites using it are different things, and only the former had been pinned.
+# --------------------------------------------------------------------------------------
+
+def test_percentile_rejects_a_tail_that_cannot_describe_a_bound():
+    """KILLS: weakening the `0 <= tail < 0.5` guard.
+
+    At tail >= 0.5 the upper index `n - 1 - k` goes negative and WRAPS, returning a plausible
+    float from the wrong end of the distribution rather than raising. A silent wrong answer is
+    the failure this function exists to prevent.
+    """
+    with pytest.raises(ValueError, match="tail must be"):
+        _percentile_index(10, 0.5, upper=True)
+    with pytest.raises(ValueError, match="tail must be"):
+        percentile_ci([float(i) for i in range(10)], tail=0.6)
+    with pytest.raises(ValueError, match="tail must be"):
+        upper_percentile([float(i) for i in range(10)], tail=1.2)
+
+
+def test_prediction_a_contrast_uses_the_shared_percentile_rule(monkeypatch):
+    """KILLS: reverting analysis._contrast's `percentile_ci(draws)` to the hand-written indices.
+
+    B is lowered to 1,000 because at the registered 10,000 the 9749th and 9750th bootstrap draws
+    are equal to four decimals on every fixture tried — which is precisely why this call site
+    survived the branch's first sweep while the RULE it calls was pinned. The index logic is the
+    same at any round count; 1,000 is where the difference is observable.
+    """
+    from rb.experiments.graph import analysis
+
+    monkeypatch.setattr(analysis, "B", 1000)
+    diffs = {"a0": 0.5, "a1": 1.5, "a2": 2.5, "a3": 3.5, "n0": 0.0, "n1": 0.5, "n2": 1.0, "n3": 1.5}
+    classes = {"a0": 0, "a1": 0, "a2": 1, "a3": 1, "n0": 2, "n1": 2, "n2": 2, "n3": 2}
+    out = analysis._contrast(diffs, classes)
+    assert out["ci95"][1] == 2.375, "the hand-written upper index gives 2.5 here"
+
+
+def test_prediction_b_advantage_uses_the_shared_percentile_rule(monkeypatch):
+    """KILLS: reverting analysis.advantage's `percentile_ci(draws)` to the hand-written indices.
+
+    This is the site behind `B|recall_2|stripped` and `B|ndcg_cut_10|stripped` — two of the three
+    published figures that moved. It was eight lines inline in `run()`'s double loop and so could
+    not be pinned at all; NB-26's review is why it is a named function.
+    """
+    from rb.experiments.graph import analysis
+
+    monkeypatch.setattr(analysis, "B", 1000)
+    out = analysis.advantage([0.0, 1.0, 2.0, 3.0])
+    assert out["ci95"][1] == 2.5, "the hand-written upper index gives 2.75 here"
+
+
+def test_extraction_bootstrap_ci_uses_the_shared_percentile_rule():
+    """KILLS: reverting extraction_score.bootstrap_ci to the hand-written indices.
+
+    The site behind `precision_ci`, the third published figure that moved (0.725 -> 0.7249).
+    """
+    from rb.experiments.graph.extraction_score import bootstrap_ci
+
+    counts = [{"tp": i + 1, "fp": 4 - i, "fn": i, "gold": 5, "pred": 5} for i in range(4)]
+    out = bootstrap_ci(counts, "precision", b=1000)
+    assert out["ci95"][1] == 0.7, "the hand-written upper index gives 0.75 here"
+
+
+def test_module_docstring_names_the_function_that_actually_gates():
+    """KILLS: reverting extraction_score's module docstring to name `graph_connectivity`.
+
+    D2 was a prose defect: the docstring a reviewer reads first named a function that gated
+    nothing and no longer exists. Prose stating which code path is authoritative is checkable,
+    so it is checked.
+    """
+    from rb.experiments.graph import extraction_score, run_controls
+
+    assert "bridge_reachability" in extraction_score.__doc__
+    assert "graph_connectivity" not in extraction_score.__doc__
+    assert "bridge_reachability" in run_controls.gate.__code__.co_names

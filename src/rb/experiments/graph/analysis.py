@@ -133,6 +133,25 @@ def headroom(graph, bm25, shared, classes) -> dict:
     return result
 
 
+def advantage(named: list[float]) -> dict:
+    """
+    §7's prediction B: the negative control, on coverage-2 queries alone.
+
+    Extracted from `run()` rather than left inline. It was eight lines in the middle of a
+    double loop, which is why the percentile call site inside it had no test of its own — NB-26's
+    review found the reverting mutation surviving the whole suite. A named function with one
+    argument can be pinned directly.
+    """
+    rng = random.Random(SEED)
+    draws = sorted(sum(named[rng.randrange(len(named))] for _ in named) / len(named)
+                   for _ in range(B))
+    lo, hi = percentile_ci(draws)
+    return {"n": len(named), "mean_advantage": round(sum(named) / len(named), 4),
+            "ci95": [round(lo, 4), round(hi, 4)],
+            "p_value": round(bootstrap_p_value(draws, B), 6),
+            "no_advantage": bool(hi <= 0 or (lo <= 0 <= hi))}
+
+
 def run() -> dict:
     qrels = datasets.load_qrels("hotpotqa")
     graph, bm25 = _per_query("graph", qrels), _per_query("bm25", qrels)
@@ -148,16 +167,9 @@ def run() -> dict:
             results[key] = r
             pvals[key] = r["p_value"]
             # Prediction B: the negative control on coverage 2 alone.
-            named = [diffs[q] for q in shared if classes[definition].get(q) == 2]
-            rng = random.Random(SEED)
-            dr = sorted(sum(named[rng.randrange(len(named))] for _ in named) / len(named)
-                        for _ in range(B))
-            lo, hi = percentile_ci(dr)
-            pb = bootstrap_p_value(dr, B)
             bkey = f"B|{measure}|{definition}"
-            results[bkey] = {"n": len(named), "mean_advantage": round(sum(named) / len(named), 4),
-                             "ci95": [round(lo, 4), round(hi, 4)], "p_value": round(pb, 6),
-                             "no_advantage": bool(hi <= 0 or (lo <= 0 <= hi))}
+            results[bkey] = advantage([diffs[q] for q in shared
+                                       if classes[definition].get(q) == 2])
             pvals[bkey] = results[bkey]["p_value"]
 
     # Holm over the family §7 declares, via the SHARED implementation. There used to be a

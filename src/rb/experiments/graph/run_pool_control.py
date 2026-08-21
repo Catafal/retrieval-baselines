@@ -33,18 +33,12 @@ OUT = ROOT / "results" / "003"
 def measure() -> dict:
     """Every field of the §9 control, measured. See pool.construction_counts for what changed."""
     ctx = pool.load_distractor_context()
-    corpus = datasets.load_corpus("hotpotqa")
     titles = datasets.load_titles("hotpotqa")
     qrels = datasets.load_qrels("hotpotqa")
-
-    counts = pool.construction_counts(titles, ctx, qrels)
-    pool_corpus, _ = pool.build(corpus, titles, ctx)
-    return controls.pool_construction(
-        questions=counts["questions"], passages=len(pool_corpus),
-        title_slots=counts["title_slots"],
-        unresolved=counts["unresolved"], collisions=counts["collisions"],
-        gold_titles_matched=counts["gold_titles_matched"],
-        gold_queries=counts["gold_queries"])
+    # Splatted rather than hand-mapped: the keys of `construction_counts` are the parameters of
+    # `pool_construction`. run.py builds the identical control the identical way, and a field
+    # added to one must not need remembering in the other.
+    return controls.pool_construction(**pool.construction_counts(titles, ctx, qrels))
 
 
 def main() -> None:

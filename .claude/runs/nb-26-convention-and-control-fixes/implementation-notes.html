@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>{{FEATURE}} · Implementation Notes</title>
+  <title>NB-26 · Implementation Notes</title>
   <style>
     body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
            margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
@@ -100,6 +100,27 @@
     import <code>rb.stats</code>. Correct convention, independent copy. Out of scope here; the obvious
     site of the next drift.</div>
 
+  <h2>Corrections after review</h2>
+
+  <div class="deviation"><span class="tag t-dev">Corrected</span> <strong>Both Makefile targets were broken and I never ran them.</strong>
+    They used bare <code>python</code> without <code>PYTHONPATH=src</code>, so
+    <code>make reproduce-003-pool-control</code> failed outright — a newly published artifact whose
+    named command did not run, in the round about exactly that. Fixed, moved above
+    <code>clean:</code>, and both executed for real.</div>
+
+  <div class="deviation"><span class="tag t-dev">Corrected</span> <strong>"Mutation sweep 7/7 killed" was an overclaim.</strong>
+    I mutated the percentile RULE and the gate, not the three reporting CALL SITES — the ones whose
+    published figures moved. An independent sweep reverted each and the suite stayed green. The
+    first attempt to pin them was itself degenerate at B=10,000, where the 9749th and 9750th draws
+    are equal to four decimals; the tests now lower B to 1,000, where the difference is observable.</div>
+
+  <div class="deviation"><span class="tag t-dev">Corrected</span> <strong>The ordering claim was false.</strong>
+    The measurement moved before <code>build()</code>; the control EVALUATION did not, so
+    <code>build()</code> still raised first and only <code>gold_titles_matched</code> could reach
+    the failure path. <code>construction_counts</code> now returns <code>passages</code> too, so the
+    control is evaluated before <code>build()</code> is called at all — which also collapsed the
+    seven-line hand-mapped call site, duplicated in two files, to one splat.</div>
+
   <h2>What moved</h2>
   <table>
     <tr><th>Artifact</th><th>Field</th><th>Before</th><th>After</th></tr>
@@ -108,8 +129,11 @@
     <tr><td>extraction-diagnostic.json</td><td>precision_ci hi</td><td>0.725</td><td>0.7249</td></tr>
   </table>
   <p>100 other contrast fields unchanged. <code>overall</code> identical.
-     <code>headroom-control.json</code> identical. <code>gate-and-seed.json</code> identical including
-     <code>seed_match_rate 0.8232</code> and <code>passed: true</code>.
+     <code>headroom-control.json</code> identical. <code>gate-and-seed.json</code> identical in every measured field including
+     <code>seed_match_rate 0.8232</code>, <code>random_pair_rate_p95 0.0652</code> and
+     <code>passed: true</code> — only the wall-clock <code>seconds</code> fields differ, which this
+     repo commits into artifacts and which therefore makes byte-identity claims unprovable by
+     construction.
      <strong class="done">Decision flips: 0.</strong></p>
 
   <h2>Progress</h2>
@@ -122,9 +146,11 @@
     <tr><td>D3 — pre-existing vacuous test repaired</td><td class="done">done</td></tr>
     <tr><td>D4 — empty-string guard added</td><td class="done">done</td></tr>
     <tr><td>Artifacts regenerated and diffed</td><td class="done">done</td></tr>
-    <tr><td>Mutation sweep — 7/7 killed</td><td class="done">done</td></tr>
+    <tr><td>Mutation sweep — first pass claimed 7/7; an independent 18-mutation sweep found 5
+        survivors, incl. all three reporting call sites</td><td>corrected</td></tr>
     <tr><td>Suite — 353 passed</td><td class="done">done</td></tr>
-    <tr><td>Review passes</td><td>pending</td></tr>
+    <tr><td>Review passes — thermo-nuclear returned BLOCK</td><td class="done">done</td></tr>
+    <tr><td>Blockers fixed: Makefile targets, call-site pins, R8 items, ordering claim</td><td class="done">done</td></tr>
   </table>
 </body>
 </html>

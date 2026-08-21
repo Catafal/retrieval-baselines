@@ -31,9 +31,18 @@ Three of the control's seven published fields were therefore assertions, inside 
 could only ever observe zero.
 
 `gold_titles_matched` is redefined from "`len(qrels)`" to **the number of judged queries whose
-every gold document id is present in the pooled corpus.** That is the property the field's name
-always claimed and the property that makes the pool an exactly-identified subset of BEIR's corpus.
-Nothing in the repository tested it before.
+every gold document id is present in the pooled corpus.** Nothing in the repository tested that
+before.
+
+**What this control can and cannot detect — stated plainly, because the honest scope is narrower
+than the field's name suggests.** The distractor pool is built from each question's ten candidate
+passages, and HotpotQA's distractor setting includes that question's two supporting passages among
+those ten. So gold reachability holds *by construction*: this control cannot fail on that property
+and should not be read as evidence for it. What it does retain power over is the layer beneath —
+title-to-BEIR-id resolution. It fires if a pooled title fails to resolve, if a corpus title
+collision makes the index pick a different `doc_id` than qrels references, or if the HotpotQA and
+BEIR title surfaces disagree. That is a real class of indexing bug and is what §9 exists to catch.
+The previous version could not catch even that, because it compared a value to itself.
 
 `title_index()` keeps its raise. `build()` keeps its raise. Those remain the enforcement; the
 amendment only makes the counts observable so the control can fail on its own terms.

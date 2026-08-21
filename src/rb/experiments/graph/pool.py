@@ -173,10 +173,17 @@ def construction_counts(corpus_titles: dict[str, str], context: dict[str, list[s
     block reporting `"passed": true`, in a repository whose premise is that its controls halt
     the run.
 
-    It is deliberately NON-RAISING and is called BEFORE `build()`. `build()` and `title_index`
-    keep their own raises as defence in depth, but they raise before they could ever return a
-    nonzero count — which is why relocating the literal would not have fixed anything. Only a
-    path that observes the counts without exploding can let the control fail on its own terms.
+    It is deliberately NON-RAISING, and it returns EVERY input the control needs — including
+    `passages`, which it already knows: the pooled document ids are `resolved.values()`, the same
+    set `build()` returns. Returning it is what lets the caller evaluate the control BEFORE
+    calling `build()` at all. That ordering is the whole point. `build()` and `title_index` raise
+    on an unresolved title or a duplicate, so a control evaluated after them could never report
+    `passed: false` for those two fields — it would be pre-empted by an exception, which is why
+    relocating the literal would not have fixed anything either.
+
+    The keys are named to match `controls.pool_construction`'s parameters so the caller can splat
+    them. A hand-mapped call site is where a newly added field gets forgotten in one of the two
+    places that build this control.
 
     `gold_titles_matched` is the real intersection its name always claimed: judged queries whose
     EVERY gold document id is present in the pooled corpus. That property is what makes the pool
@@ -193,6 +200,7 @@ def construction_counts(corpus_titles: dict[str, str], context: dict[str, list[s
     matched = sum(1 for docs in qrels.values() if docs and all(d in pool_doc_ids for d in docs))
     return {
         "questions": len(context),
+        "passages": len(pool_doc_ids),
         "title_slots": slots,
         "unresolved": len(unresolved),
         "collisions": len(collisions),

@@ -35,21 +35,19 @@ def load_pool():
     queries = datasets.load_queries("hotpotqa")
     qrels = datasets.load_qrels("hotpotqa")
 
-    # MEASURED, all of it. This used to pass `unresolved=0, collisions=0` as literals and the
-    # same `len(qrels)` expression as both sides of the gold-title check, so three of the
-    # control's published fields were assertions and one of its four checks was `x == x`.
+    # MEASURED, all of it, and EVALUATED BEFORE build(). This used to pass `unresolved=0,
+    # collisions=0` as literals and the same `len(qrels)` expression as both sides of the
+    # gold-title check, so three of the control's published fields were assertions and one of its
+    # four checks was `x == x`. The ordering matters as much as the measurement: build() raises on
+    # an unresolved title, so a control evaluated after it could never report those fields failing.
     # See protocols/003-amendment-4-pool-control.md.
-    # BEFORE build(), deliberately: build() raises on an unresolved title, so a control run
-    # after it could only ever see zero and would be measuring its own control flow.
-    counts = pool.construction_counts(titles, ctx, qrels)
-    pool_corpus, _ = pool.build(corpus, titles, ctx)
-    check = controls.pool_construction(
-        questions=counts["questions"], passages=len(pool_corpus),
-        title_slots=counts["title_slots"],
-        unresolved=counts["unresolved"], collisions=counts["collisions"],
-        gold_titles_matched=counts["gold_titles_matched"], gold_queries=counts["gold_queries"])
+    check = controls.pool_construction(**pool.construction_counts(titles, ctx, qrels))
     if not check["passed"]:
         raise RuntimeError(f"pool_construction failed: {check}. Nothing is scored on a broken pool.")
+
+    # Only now. build()'s and title_index()'s own raises are defence in depth behind a control
+    # that has already had its chance to fail on its own terms.
+    pool_corpus, _ = pool.build(corpus, titles, ctx)
 
     queries = {q: t for q, t in queries.items() if q in qrels}
     return pool_corpus, queries, qrels, check

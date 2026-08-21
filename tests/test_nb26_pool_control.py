@@ -77,3 +77,34 @@ def test_counts_are_measured_before_build_would_raise():
     """
     counts = _counts({"d1": "A"}, {"q1": ["A", "MISSING"]}, {})
     assert counts["unresolved"] == 1  # returned, not raised
+
+
+def test_counts_are_restricted_to_pooled_titles():
+    """KILLS: dropping the `if t in titles` filter in construction_counts.
+
+    The control must describe the POOL, not the whole corpus. `build()` filters the corpus to
+    pooled titles before indexing; `construction_counts` repeats that filter, and the two are kept
+    in step by nothing but vigilance. Unfiltered, this would index all 5,233,329 BEIR titles rather
+    than the 73,700 pooled slots, and report collisions from documents the pool never contains —
+    failing a control the pool did not violate.
+
+    Here "Shared" is duplicated in the corpus but is NOT pooled, so it must not be counted.
+    """
+    corpus_titles = {"d1": "A", "d2": "B", "d3": "Shared", "d4": "Shared"}
+    counts = _counts(corpus_titles, {"q1": ["A", "B"]}, {})
+    assert counts["collisions"] == 0, "a duplicate outside the pool is not a pool collision"
+
+
+def test_passages_is_measured_from_the_resolved_documents():
+    """KILLS: hardcoding `passages`.
+
+    `passages` is what lets the control be evaluated BEFORE `build()` — it is the size of the
+    resolved document set, which construction_counts already knows. Hardcoding it would reinstate
+    the original defect (a published field that is a literal) on the one field whose measurement
+    makes the ordering possible.
+    """
+    counts = _counts({"d1": "A", "d2": "B", "d3": "C"}, {"q1": ["A", "B"]}, {})
+    assert counts["passages"] == 2, "only A and B are pooled; C is not a pool passage"
+
+    counts3 = _counts({"d1": "A", "d2": "B", "d3": "C"}, {"q1": ["A", "B", "C"]}, {})
+    assert counts3["passages"] == 3, "the count must track the pool, not a constant"
