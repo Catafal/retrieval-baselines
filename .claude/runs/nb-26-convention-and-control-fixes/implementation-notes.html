@@ -136,6 +136,34 @@
      construction.
      <strong class="done">Decision flips: 0.</strong></p>
 
+  <h2>End-to-end reproduction of the scored arm</h2>
+
+  <p>The four fixes touch <code>pool.py</code> and <code>run.py</code>, which are on the retrieval
+     path, so "nothing downstream changed" was checked rather than argued. First statically: the
+     pre-NB-26 <code>pool.py</code> and the current one were loaded side by side and both built
+     corpora hashed — identical SHA over all 66,581 documents and the full title→doc-id map, with
+     <code>retriever.py</code>, <code>build.py</code> and <code>extractor.py</code> untouched.</p>
+
+  <p>Then empirically. The graph arm was re-scored from scratch at commit <code>3c556ef</code> —
+     <code>fit()</code> calls <code>extract_many</code> directly, so this re-derived spaCy
+     extraction over all 66,581 passages, rebuilt the 285,013-node graph and re-ran personalized
+     PageRank for all 7,405 queries. Nothing was replayed from the entity cache. 909s.</p>
+
+  <table>
+    <tr><th>Artifact</th><th>Committed</th><th>Re-run</th></tr>
+    <tr><td><code>per_query.jsonl</code> sha256</td><td>725c40c2…</td><td class="done">725c40c2… identical</td></tr>
+    <tr><td>Recall@2</td><td>0.2148</td><td class="done">0.2148</td></tr>
+    <tr><td>Recall@5 / nDCG@10</td><td>0.3132 / 0.3161</td><td class="done">0.3132 / 0.3161</td></tr>
+    <tr><td>nodes / docs / nnz</td><td>285,013 / 66,581 / 613,431</td><td class="done">identical</td></tr>
+  </table>
+
+  <p>Only <code>build_seconds</code> (525.8 → 533.2), <code>cost.total_seconds</code>
+     (346.809 → 350.523) and <code>environment.git_commit</code> differed.
+     <code>summary.json</code> was <strong>reverted rather than committed</strong>: overwriting
+     <code>git_commit</code> would claim the arm was scored on this branch, misstating when the
+     scored run happened relative to the pre-registration tag. The reproduction is recorded here
+     instead.</p>
+
   <h2>Progress</h2>
   <table>
     <tr><th>Item</th><th>State</th></tr>
@@ -151,6 +179,8 @@
     <tr><td>Suite — 353 passed</td><td class="done">done</td></tr>
     <tr><td>Review passes — thermo-nuclear returned BLOCK</td><td class="done">done</td></tr>
     <tr><td>Blockers fixed: Makefile targets, call-site pins, R8 items, ordering claim</td><td class="done">done</td></tr>
+    <tr><td>Re-sweep — 13/13 mutations killed</td><td class="done">done</td></tr>
+    <tr><td>Graph arm re-scored from scratch — per_query.jsonl byte-identical</td><td class="done">done</td></tr>
   </table>
 </body>
 </html>
