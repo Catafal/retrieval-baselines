@@ -1,0 +1,23 @@
+{
+  "gate_8_3": {
+    "gold_pairs_scored": 7405,
+    "observed_share_rate": 0.6778,
+    "random_pair_rate_p95": 0.0652,
+    "random_pair_median": 0.0604,
+    "resamples": 1000,
+    "seed": 20260820,
+    "passed": true
+  },
+  "seed_match": {
+    "queries": 7405,
+    "with_a_linked_entity": 6096,
+    "seed_match_rate": 0.8232
+  },
+  "graph": {
+    "documents": 66581,
+    "documents_with_an_entity": 65987,
+    "distinct_surface_entities": 291837,
+    "mean_entities_per_document": 9.25
+  },
+  "seconds": 30.6
+}
