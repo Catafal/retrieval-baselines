@@ -1,0 +1,48 @@
+{
+  "status": "DEFECT CONFIRMED. The graph arm's published numbers are contaminated by an implementation fault and must not be read as evidence about graph retrieval.",
+  "how_it_was_found": "Asked whether the arm was properly built after it scored far below HippoRAG's own deliberately-weakened ablation (21.3 R@2 against their REBEL variant's 43.9, where BM25 is ~55).",
+  "evidence": {
+    "1_walk_adds_nothing": {
+      "ppr_arm_recall_2": 0.2132,
+      "no_walk_specificity_weighted_recall_2": 0.2307,
+      "no_walk_raw_count_recall_2": 0.1927,
+      "reading": "Full PPR performs WORSE than scoring by matched query entities with zero propagation."
+    },
+    "2_oracle_seed_does_not_rescue_it": {
+      "gold_pairs_tested": 300,
+      "pairs_sharing_an_entity": 0.677,
+      "partner_doc_at_rank_1": 0.107,
+      "partner_doc_in_top_10": 0.247,
+      "reading": "Seeded with the anchor gold document's OWN entities, the walk finds the partner a quarter of the time despite a path existing two-thirds of the time. Linking is not the bottleneck; the walk is."
+    },
+    "3_entity_count_bias": {
+      "corpus_mean_entities_per_doc": 9.25,
+      "mean_entities_of_top1_result": 13.42,
+      "mean_entities_of_gold_docs": 8.29,
+      "reading": "score = incidence @ rank sums entity mass, so entity-rich documents win regardless of relevance. Gold documents are slightly BELOW corpus average."
+    },
+    "4_empty_results_are_minor": {
+      "empty_share": 0.161, "recall_2_all": 0.2132, "recall_2_non_empty": 0.2541
+    },
+    "5_reference_comparison_on_a_toy_graph_with_a_known_answer": {
+      "mass_on_informative_bridge_ours": 0.067, "mass_on_informative_bridge_networkx": 0.156,
+      "hub_over_bridge_ratio_ours": 3.19, "hub_over_bridge_ratio_networkx": 1.29,
+      "reading": "Our walk under-weights the informative rare edge by 2.5x and ranks the only correct bridge target outside the top 4."
+    },
+    "6_graph_shape": {
+      "median_entity_document_frequency": 1,
+      "largest_hub": {"entity": "american", "documents": 13376, "share_of_corpus": 0.201},
+      "reading": "Most entities connect nothing; connectivity is carried by generic nationality terms."
+    }
+  },
+  "root_cause": {
+    "primary": "personalized_pagerank is not a personalized PageRank. incidence.T @ (incidence @ rank) is A = B^T B, an UNNORMALISED co-occurrence matrix whose diagonal equals each entity's document frequency. Neither hop is degree-normalised, so the iteration is damped power iteration toward a degree-dominated eigenvector rather than a random walk. The single global rescale fixes total magnitude and not the direction mass flows.",
+    "secondary": "score_documents sums a document's entity mass without normalising by entity count, giving a length bias measured at 1.45x."
+  },
+  "classification": {
+    "verdict": "BUG FIX, not a method change",
+    "reasoning": "protocol-003 section 2 registers 'retrieval by graph traversal, following HippoRAG's shape', and HippoRAG's shape is Personalized PageRank. The code's own docstring claims PPR. It is not PPR. Making it PPR brings the implementation into line with what was registered rather than changing what was registered.",
+    "caveat": "This classification is consequential and is Sir's call, not the assistant's, because a wrong call here converts a legitimate correction into tuning-after-seeing-results."
+  },
+  "what_is_NOT_yet_known": "Whether a correct PPR changes the conclusion. The corrected arm may still lose to BM25, and may still show the registered per-class differential. Nobody has run it."
+}
