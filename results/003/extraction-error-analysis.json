@@ -1,0 +1,10 @@
+{
+  "status": "ERROR ANALYSIS, computed after the primary diagnostic. Descriptive only: it characterises the errors, it is NOT a competing metric and no relaxed-match score is promoted to a headline. The registered primary remains exact-string set match.",
+  "false_positives": 286,
+  "fp_substring_or_superstring_of_a_gold_entity": 237,
+  "fp_boundary_share": 0.8287,
+  "fp_containing_the_prepended_title": 36,
+  "fp_that_are_a_gold_entity_with_a_leading_article": 82,
+  "false_negatives": 322,
+  "reading": "83% of false positives are a substring or superstring of a gold entity, so the extractor is overwhelmingly LOCATING the right things and DISAGREEING about span boundaries rather than missing entities. Under exact-string set matching a leading article costs twice - one false positive and one false negative - so the primary number understates how often spaCy found the entity. It does NOT understate the graph's problem: 'the american revolutionary war' and 'american revolutionary war' are different nodes, so the boundary disagreement is a real linking failure, which is what section 2b registered before the run."
+}

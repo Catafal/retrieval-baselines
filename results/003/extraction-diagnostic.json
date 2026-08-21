@@ -1,0 +1,65 @@
+{
+  "passages": 100,
+  "micro": {
+    "precision": 0.6836,
+    "recall": 0.6574,
+    "f1": 0.6703,
+    "tp": 618,
+    "fp": 286,
+    "fn": 322
+  },
+  "precision_ci": {
+    "metric": "precision",
+    "point": 0.6836,
+    "ci95": [
+      0.6377,
+      0.725
+    ],
+    "resamples": 10000,
+    "seed": 20260820,
+    "unit": "passage"
+  },
+  "recall_ci": {
+    "metric": "recall",
+    "point": 0.6574,
+    "ci95": [
+      0.6142,
+      0.6988
+    ],
+    "resamples": 10000,
+    "seed": 20260820,
+    "unit": "passage"
+  },
+  "note": "Diagnostic, not a gate. Gold annotated by one rater who is also the author of the extractor; no inter-annotator agreement exists. No threshold was pre-registered because none could be justified in advance.",
+  "cost": {
+    "seconds": 2.458,
+    "passages": 100
+  },
+  "manifest": {
+    "extractor": "spacy-ner",
+    "spacy_version": "3.8.13",
+    "model": "en_core_web_sm",
+    "model_version": "3.8.0",
+    "disabled_components": [
+      "parser",
+      "lemmatizer",
+      "tagger",
+      "attribute_ruler"
+    ],
+    "whitelist": [
+      "EVENT",
+      "FAC",
+      "GPE",
+      "LANGUAGE",
+      "LAW",
+      "LOC",
+      "NORP",
+      "ORG",
+      "PERSON",
+      "PRODUCT",
+      "WORK_OF_ART"
+    ]
+  },
+  "published_ontonotes_ents_f": 0.8433,
+  "published_reference_note": "spaCy's own OntoNotes figure, measured by Explosion on newswire. Reported as CONTEXT only: this corpus is Wikipedia intros and the annotation scheme differs, so it is a figure measured under different conditions and gates nothing."
+}
