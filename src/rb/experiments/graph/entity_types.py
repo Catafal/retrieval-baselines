@@ -73,3 +73,9 @@ def filter_entities(entities, kept=WHITELIST):
     filtering is the whole point of this function existing rather than being inlined.
     """
     return [(text, label) for text, label in entities if label in kept]
+
+
+# Enforced at import, not left as a function nobody calls. A whitelist edit that creates an
+# overlap or a gap now fails the moment the module loads, rather than at some later scored run
+# where the symptom would be a number rather than an error.
+assert_partition()

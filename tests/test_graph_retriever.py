@@ -123,10 +123,20 @@ class _StubbedGraph(gr.GraphRetriever):
         self._stub_queries = query_entities
 
     def fit(self, corpus):
+        """
+        Builds the SAME fitted state the real fit() does, key for key.
+
+        This stub is a large part of why bug 2 stayed invisible: by overriding `_seed` it
+        excluded the real extractor-and-whitelist path from every test in this file. It is kept
+        because the walk still needs exercising without a model download, but it now mirrors
+        the real state exactly — when the real fit() gained `doc_id_set` and `degrees`, this
+        broke loudly instead of drifting silently, which is the behaviour wanted.
+        """
         nodes, doc_ids, inc = kg.build(self._stub_docs)
         self._fitted = {"nodes": nodes, "node_index": {n: i for i, n in enumerate(nodes)},
-                        "doc_ids": doc_ids, "incidence": inc,
-                        "specificity": kg.node_specificity(inc), "entities": self._stub_docs}
+                        "doc_ids": doc_ids, "doc_id_set": frozenset(doc_ids), "incidence": inc,
+                        "specificity": kg.node_specificity(inc), "degrees": kg.degrees(inc),
+                        "entities": self._stub_docs}
         return {"documents": len(doc_ids), "nodes": len(nodes)}
 
     def _seed(self, query):

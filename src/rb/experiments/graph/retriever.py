@@ -58,8 +58,13 @@ class GraphRetriever:
             "nodes": nodes,
             "node_index": {n: i for i, n in enumerate(nodes)},
             "doc_ids": doc_ids,
+            "doc_id_set": frozenset(doc_ids),
             "incidence": incidence,
             "specificity": kg.node_specificity(incidence),
+            # Computed once. `degrees` is a pure function of the incidence matrix, which does
+            # not change between queries, so recomputing it per query was an O(nnz) pass whose
+            # only effect was to make the arm's reported query cost wrong.
+            "degrees": kg.degrees(incidence),
             "entities": entities,
         }
         return {
@@ -86,7 +91,13 @@ class GraphRetriever:
         that asymmetry enters the walk."""
         f = self._fitted
         seed = np.zeros(len(f["nodes"]), dtype=np.float64)
-        for text, _label in _query_entities(query):
+        # THE SAME whitelist filter the document side uses, via the same function.
+        # It previously did not, and the asymmetry was real: 8.0% of linked seeds entered
+        # through the unfiltered path and 1.85% of queries were seeded ONLY by excluded types.
+        # entity_types.py's docstring asserted the two sides were treated alike; nothing
+        # enforced it. Routed through node_strings rather than given a second filter of its
+        # own, because a second filter is how the two sides drift apart again.
+        for text in node_strings(_query_entities(query)):
             i = f["node_index"].get(normalise(text))
             if i is not None:
                 seed[i] += f["specificity"][i] if self.use_specificity else 1.0
@@ -97,9 +108,20 @@ class GraphRetriever:
         if self._fitted is None:
             raise RuntimeError("fit(corpus) must be called before retrieve()")
         f = self._fitted
+        # Refuse a corpus this arm was not fitted on. Every document identity below comes from
+        # the fitted state, so a caller that fits on one snapshot and retrieves against another
+        # would be silently scored against the wrong document set. Raising beats re-fitting:
+        # scoring the wrong corpus is the failure being prevented, and a silent re-fit would
+        # hide it.
+        if corpus and set(corpus) != f["doc_id_set"]:
+            raise RuntimeError(
+                f"retrieve() was given {len(corpus)} documents but the arm was fitted on "
+                f"{len(f['doc_id_set'])}. Refusing to score against a corpus it was not built from."
+            )
         out: dict[str, dict[str, float]] = {}
         for qid in sorted(queries):
-            rank = kg.personalized_pagerank(f["incidence"], self._seed(queries[qid]), self.damping)
+            rank = kg.personalized_pagerank(f["incidence"], self._seed(queries[qid]),
+                                            self.damping, deg=f["degrees"])
             scores = kg.score_documents(f["incidence"], rank)
             # A query whose entities match no node retrieves nothing. That is the honest
             # outcome — the graph cannot reach anything from a seed it does not have — and it
