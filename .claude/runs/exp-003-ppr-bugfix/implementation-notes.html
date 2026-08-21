@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>PPR bug fix · Implementation Notes</title>
+<style>
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;max-width:880px;margin:40px auto;padding:0 24px;color:#292524;line-height:1.55}
+h1{border-bottom:3px solid #0181c9;padding-bottom:8px}
+h2{margin-top:36px;color:#0181c9;border-bottom:1px solid #e5e5e5;padding-bottom:4px}
+code{background:#f5f5f4;padding:1px 5px;border-radius:4px;font-size:.9em}
+.decision{background:#f0f9ff;border-left:4px solid #0181c9;padding:12px 16px;margin:14px 0}
+.deviation{background:#fffbeb;border-left:4px solid #d97706;padding:12px 16px;margin:14px 0}
+.tradeoff{background:#f5f3ff;border-left:4px solid #7c3aed;padding:12px 16px;margin:14px 0}
+.open{background:#fef2f2;border-left:4px solid #dc2626;padding:12px 16px;margin:14px 0}
+.tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 8px;border-radius:10px;color:#fff}
+.t-dec{background:#0181c9}.t-dev{background:#d97706}.t-trade{background:#7c3aed}.t-open{background:#dc2626}
+ul{margin-top:6px}.meta{color:#78716c;font-size:.9em}.done{color:#16a34a;font-weight:600}
+table{border-collapse:collapse;width:100%;margin:10px 0}
+th,td{border:1px solid #e5e5e5;padding:6px 10px;text-align:left;font-size:.92em}th{background:#fafaf9}
+</style></head><body>
+<h1>PPR bug fix</h1>
+<p class="meta">Branch <code>main</code> · 2026-08-21 · correcting a walk that was not a walk, and
+re-running Experiment 003's graph arm.</p>
+
+<h2>The spec, in one line</h2>
+<p>Correct <code>personalized_pagerank</code>, which applied an unnormalised co-occurrence matrix
+rather than a row-stochastic transition, and re-run the arm. Classified a <strong>bug fix</strong>
+by Sir, since §2 registers "following HippoRAG's shape", HippoRAG's shape is PPR, and the code
+claimed PPR in its own docstring.</p>
+
+<h2>Design decisions</h2>
+<div class="decision"><span class="tag t-dec">Decision</span> <strong>Fix only the walk. Leave
+document scoring alone.</strong>
+Scoring sums a document's entity mass unnormalised, carrying a measured bias toward entity-rich
+documents. It is tempting to fix in the same pass. I did not: <em>summing is what HippoRAG does</em>,
+so changing it after seeing results would be a method change wearing a bug fix's clothes. A bug fix
+is "the code did not do what was registered"; this would have been "the registered method has a
+weakness". Only the first is legitimate post-tag.</div>
+
+<div class="decision"><span class="tag t-dec">Decision</span> <strong>Write amendment 3 before the
+corrected numbers existed.</strong>
+Committed while the re-run was still going, stating explicitly that the arm might still lose and
+the differential might not survive. Framing written after the outcome cannot be trusted not to fit
+it.</div>
+
+<div class="decision"><span class="tag t-dec">Decision</span> <strong>Keep the defective artifacts.</strong>
+Moved to <code>results/003/pool/graph-defective/</code> with a README, not deleted. A reader must
+see what was published, what replaced it, and by how much it moved. Silent retraction would be a
+worse fault than the bug.</div>
+
+<h2>Deviations</h2>
+<div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Iterations raised 20 → 50.</strong>
+Not a tuning choice: a correctly normalised walk converges more slowly than the globally-rescaled
+version <em>appeared</em> to, because the rescale masked non-convergence. <code>tol</code> still
+exits early, so the higher ceiling costs nothing when it is not needed.</div>
+
+<h2>Tradeoffs</h2>
+<div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>networkx as a test-only
+dependency.</strong>
+A new dependency for one comparison. Worth it: the absence of exactly this comparison is what let a
+non-PageRank pass every test. Every previous test checked a property the broken walk also satisfied.
+The dependency buys an <em>independent</em> implementation, which is the only thing that could have
+caught it.</div>
+
+<h2>Open questions</h2>
+<div class="open"><span class="tag t-open">Open</span> <strong>The scoring bias got WORSE, and it is
+now the dominant defect.</strong>
+Top-1 results averaged 1.45x the corpus entity count before the fix and <strong>1.68x</strong> after
+— because a correctly normalised walk spreads mass more evenly, so summing rewards entity count more.
+Gold documents sit at 0.90x. This is very likely what holds Recall@2 down.
+<br><br>Deciding whether to address it is <em>yours</em>, and it is not obviously a bug: HippoRAG
+sums too. But HippoRAG's edges are OpenIE triples, so their graph has no comparable hub structure —
+the interaction between co-occurrence edges and summed scoring may be a genuine finding rather than
+a fault.</div>
+
+<h2>Build / verification</h2>
+<ul>
+<li>Corrected walk agrees with <code>networkx.pagerank</code> to <strong>2e-6</strong>; the previous
+one put 2.5x less mass on the informative rare edge.</li>
+<li><strong>300 tests pass.</strong> Three new: reference agreement, hub-discounting, dangling mass.</li>
+<li>Re-run: 894s (514s build, 285,013 nodes).</li>
+<li>Also fixed a test of mine scoped too broadly — the measure-shape regression globbed every
+<code>summary.json</code> including 003's, which correctly carry five measures.</li>
+</ul>
+
+<h2>Results</h2>
+<table>
+<tr><th>metric</th><th>defective</th><th>corrected</th><th>delta</th><th>BM25</th></tr>
+<tr><td>Recall@2 <em>(primary)</em></td><td>0.2132</td><td>0.2110</td><td>−0.0022</td><td>0.5490</td></tr>
+<tr><td>Recall@5</td><td>0.2861</td><td>0.3076</td><td>+0.0215</td><td>0.6948</td></tr>
+<tr><td>Recall@10</td><td>0.3382</td><td>0.3816</td><td>+0.0434</td><td>0.7863</td></tr>
+<tr><td>Recall@100</td><td>0.3980</td><td><strong>0.5108</strong></td><td><strong>+0.1128</strong></td><td>0.9150</td></tr>
+<tr><td>nDCG@10</td><td>0.2955</td><td>0.3110</td><td>+0.0155</td><td>0.7197</td></tr>
+</table>
+<p><strong>The bug was real and it was not the explanation.</strong> Deep recall improved 28%
+relative at R@100 — the walk genuinely was broken. But Recall@2, the registered primary, did not
+move. The failure at the top of the ranking lives somewhere else, and the entity-count evidence
+points at summed scoring.</p>
+<p><strong>The registered claim survived and strengthened.</strong> Clause A's differential went
+from +0.0534 to <strong>+0.0710</strong> on the primary metric, supported in all six cells,
+Holm-corrected. A conclusion that survives correcting a genuine defect in the arm it depends on is
+better evidenced than one that was never tested that way.</p>
+
+<h2>Progress</h2>
+<table>
+<tr><th>Slice</th><th>What</th><th>Status</th></tr>
+<tr><td>1</td><td>Diagnose: six lines of evidence, root cause identified</td><td class="done">✓ done</td></tr>
+<tr><td>2</td><td>Correct the walk; verify against networkx reference</td><td class="done">✓ done</td></tr>
+<tr><td>3</td><td>Add the test that should have existed</td><td class="done">✓ done</td></tr>
+<tr><td>4</td><td>Amendment 3, written before the numbers existed</td><td class="done">✓ done</td></tr>
+<tr><td>5</td><td>Re-run the arm; preserve the defective artifacts</td><td class="done">✓ done</td></tr>
+<tr><td>6</td><td>Recompute the registered clauses — differential survived, strengthened</td><td class="done">✓ done</td></tr>
+<tr><td>7</td><td>Decide whether summed scoring is addressed</td><td>Sir's call</td></tr>
+</table>
+</body></html>

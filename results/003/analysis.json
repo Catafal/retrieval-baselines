@@ -2,23 +2,23 @@
   "queries": 7405,
   "overall": {
     "ndcg_cut_10": {
-      "graph": 0.2955,
+      "graph": 0.311,
       "bm25": 0.7197
     },
     "recall_10": {
-      "graph": 0.3382,
+      "graph": 0.3816,
       "bm25": 0.7863
     },
     "recall_100": {
-      "graph": 0.398,
+      "graph": 0.5108,
       "bm25": 0.915
     },
     "recall_2": {
-      "graph": 0.2132,
+      "graph": 0.211,
       "bm25": 0.549
     },
     "recall_5": {
-      "graph": 0.2861,
+      "graph": 0.3076,
       "bm25": 0.6948
     }
   },
@@ -26,12 +26,12 @@
     "A|recall_2|stripped": {
       "n_bridge_absent": 5455,
       "n_comparison": 1950,
-      "mean_bridge_absent": -0.3217,
-      "mean_comparison": -0.3751,
-      "difference": 0.0534,
+      "mean_bridge_absent": -0.3192,
+      "mean_comparison": -0.3903,
+      "difference": 0.071,
       "ci95": [
-        0.0334,
-        0.073
+        0.0507,
+        0.0909
       ],
       "p_value": 0.0,
       "excludes_zero": true,
@@ -41,10 +41,10 @@
     },
     "B|recall_2|stripped": {
       "n": 1950,
-      "mean_advantage": -0.3751,
+      "mean_advantage": -0.3903,
       "ci95": [
-        -0.3926,
-        -0.3574
+        -0.4074,
+        -0.3726
       ],
       "p_value": 0.0,
       "no_advantage": true,
@@ -53,12 +53,12 @@
     "A|recall_5|stripped": {
       "n_bridge_absent": 5455,
       "n_comparison": 1950,
-      "mean_bridge_absent": -0.3852,
-      "mean_comparison": -0.4744,
-      "difference": 0.0891,
+      "mean_bridge_absent": -0.3551,
+      "mean_comparison": -0.4772,
+      "difference": 0.1221,
       "ci95": [
-        0.0681,
-        0.1097
+        0.1011,
+        0.1433
       ],
       "p_value": 0.0,
       "excludes_zero": true,
@@ -68,10 +68,10 @@
     },
     "B|recall_5|stripped": {
       "n": 1950,
-      "mean_advantage": -0.4744,
+      "mean_advantage": -0.4772,
       "ci95": [
-        -0.4923,
-        -0.4562
+        -0.4954,
+        -0.4592
       ],
       "p_value": 0.0,
       "no_advantage": true,
@@ -80,12 +80,12 @@
     "A|ndcg_cut_10|stripped": {
       "n_bridge_absent": 5455,
       "n_comparison": 1950,
-      "mean_bridge_absent": -0.4064,
-      "mean_comparison": -0.474,
-      "difference": 0.0676,
+      "mean_bridge_absent": -0.3846,
+      "mean_comparison": -0.4761,
+      "difference": 0.0915,
       "ci95": [
-        0.0489,
-        0.0861
+        0.0729,
+        0.1097
       ],
       "p_value": 0.0,
       "excludes_zero": true,
@@ -95,10 +95,10 @@
     },
     "B|ndcg_cut_10|stripped": {
       "n": 1950,
-      "mean_advantage": -0.474,
+      "mean_advantage": -0.4761,
       "ci95": [
-        -0.4894,
-        -0.4578
+        -0.4912,
+        -0.4607
       ],
       "p_value": 0.0,
       "no_advantage": true,
@@ -107,12 +107,12 @@
     "A|recall_2|exact": {
       "n_bridge_absent": 5947,
       "n_comparison": 1458,
-      "mean_bridge_absent": -0.3194,
-      "mean_comparison": -0.4026,
-      "difference": 0.0832,
+      "mean_bridge_absent": -0.3187,
+      "mean_comparison": -0.4163,
+      "difference": 0.0976,
       "ci95": [
-        0.0616,
-        0.1056
+        0.0757,
+        0.1199
       ],
       "p_value": 0.0,
       "excludes_zero": true,
@@ -122,10 +122,10 @@
     },
     "B|recall_2|exact": {
       "n": 1458,
-      "mean_advantage": -0.4026,
+      "mean_advantage": -0.4163,
       "ci95": [
-        -0.4228,
-        -0.3817
+        -0.4362,
+        -0.3957
       ],
       "p_value": 0.0,
       "no_advantage": true,
@@ -134,12 +134,12 @@
     "A|recall_5|exact": {
       "n_bridge_absent": 5947,
       "n_comparison": 1458,
-      "mean_bridge_absent": -0.3822,
-      "mean_comparison": -0.5168,
-      "difference": 0.1346,
+      "mean_bridge_absent": -0.356,
+      "mean_comparison": -0.5147,
+      "difference": 0.1588,
       "ci95": [
-        0.1116,
-        0.1566
+        0.1354,
+        0.1814
       ],
       "p_value": 0.0,
       "excludes_zero": true,
@@ -149,10 +149,10 @@
     },
     "B|recall_5|exact": {
       "n": 1458,
-      "mean_advantage": -0.5168,
+      "mean_advantage": -0.5147,
       "ci95": [
-        -0.537,
-        -0.4962
+        -0.5346,
+        -0.4942
       ],
       "p_value": 0.0,
       "no_advantage": true,
@@ -161,12 +161,12 @@
     "A|ndcg_cut_10|exact": {
       "n_bridge_absent": 5947,
       "n_comparison": 1458,
-      "mean_bridge_absent": -0.4035,
-      "mean_comparison": -0.5086,
-      "difference": 0.105,
+      "mean_bridge_absent": -0.3845,
+      "mean_comparison": -0.5073,
+      "difference": 0.1228,
       "ci95": [
-        0.085,
-        0.1249
+        0.1028,
+        0.1424
       ],
       "p_value": 0.0,
       "excludes_zero": true,
@@ -176,10 +176,10 @@
     },
     "B|ndcg_cut_10|exact": {
       "n": 1458,
-      "mean_advantage": -0.5086,
+      "mean_advantage": -0.5073,
       "ci95": [
-        -0.5264,
-        -0.4906
+        -0.5247,
+        -0.4895
       ],
       "p_value": 0.0,
       "no_advantage": true,
