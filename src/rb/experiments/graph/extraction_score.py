@@ -10,7 +10,7 @@ A DIAGNOSTIC, NOT A GATE. No threshold on precision or recall is pre-registered,
 none could be justified in advance — there is no published figure for spaCy NER against
 Wikipedia intros under this annotation scheme. A number with no pre-committable decision
 rule is a measurement in search of one, so it is reported with its limitations and it
-gates nothing. What gates the arm is `graph_connectivity` below, which needs no gold set.
+gates nothing. What gates the arm is `bridge_reachability` below, which needs no gold set.
 """
 
 import random
@@ -18,6 +18,7 @@ import re
 import statistics
 
 from rb.experiments.graph.entity_types import WHITELIST, filter_entities
+from rb.stats import percentile_ci, upper_percentile
 
 # Normalisation, fixed here rather than left to the annotator (rule card item 9). Case and
 # punctuation only: no stemming, no canonicalisation, no abbreviation expansion. "U.S." and
@@ -76,49 +77,10 @@ def bootstrap_ci(counts: list[dict], metric: str = "precision",
         sample = [counts[rng.randrange(n)] for _ in range(n)]
         draws.append(micro(sample)[metric])
     draws.sort()
+    lo, hi = percentile_ci(draws)
     return {"metric": metric, "point": micro(counts)[metric],
-            "ci95": [round(draws[int(0.025 * b)], 4), round(draws[int(0.975 * b)], 4)],
+            "ci95": [round(lo, 4), round(hi, 4)],
             "resamples": b, "seed": seed, "unit": "passage"}
-
-
-def doc_coverage(entities_by_doc: dict[str, list[str]]) -> tuple[int, int]:
-    """(documents, documents with at least one entity).
-
-    Canonical because two callers need it — the §8.3 gate below and run_controls.graph_summary
-    — and they had independent copies. Two implementations of one count is how the numbers in
-    two published artifacts drift apart with nothing noticing, which is the same reasoning that
-    collapsed the two Holm implementations in rb.stats.
-    """
-    return len(entities_by_doc), sum(1 for e in entities_by_doc.values() if e)
-
-
-def graph_connectivity(entities_by_doc: dict[str, list[str]]) -> dict:
-    """
-    The GATE — computed from the extractor's own output, no gold set involved.
-
-    A graph arm can only retrieve by propagating along shared nodes. If almost no entity
-    string occurs in two documents, the graph is a pile of disconnected islands and the arm
-    cannot work for reasons that have nothing to do with extraction accuracy. That is a
-    precondition rather than a quality judgement, which is why it can gate when precision
-    cannot.
-
-    Returns the two observed quantities; the threshold comes from `permutation_null` below,
-    not from a number picked by hand.
-    """
-    per_doc = {d: {normalise(e) for e in ents if normalise(e)} for d, ents in entities_by_doc.items()}
-    counts: dict[str, int] = {}
-    for ents in per_doc.values():
-        for e in ents:
-            counts[e] = counts.get(e, 0) + 1
-    shared = sum(1 for e, n in counts.items() if n >= 2)
-    documents, populated = doc_coverage(per_doc)
-    return {
-        "documents": documents,
-        "documents_with_an_entity": populated,
-        "distinct_entities": len(counts),
-        "entities_in_2plus_documents": shared,
-        "shared_fraction": round(shared / len(counts), 4) if counts else 0.0,
-    }
 
 
 def bridge_reachability(entities_by_doc: dict[str, list[str]],
@@ -167,7 +129,11 @@ def bridge_reachability(entities_by_doc: dict[str, list[str]],
                 hits += shares(a, c)
             draws.append(hits / len(pairs))
         draws.sort()
-    null_hi = draws[int(0.95 * b)] if draws else 0.0
+    # ONE-SIDED, and this one decides rather than reports: `passed` below is
+    # `observed > null_hi`. Written by hand as `draws[int(0.95 * b)]` it left only 4.9% of draws
+    # above the threshold instead of 5%, so the gate was fractionally easier to pass than it
+    # claimed. `upper_percentile` derives the index from the tail being cut. See NB-26 D3.
+    null_hi = upper_percentile(draws) if draws else 0.0
     return {
         "gold_pairs_scored": len(pairs),
         "observed_share_rate": round(observed, 4),

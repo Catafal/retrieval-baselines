@@ -1,0 +1,15 @@
+{
+  "status": "POOL CONSTRUCTION CONTROL, protocols/003-graph-arm.md section 9, as amended by 003-amendment-4. Supersedes the `pool_control` block inside each arm's summary.json, which was written before unresolved/collisions/gold_titles_matched were measured. Those summaries are left untouched on purpose; see this module's docstring.",
+  "control": {
+    "questions": 7405,
+    "passages": 66581,
+    "title_slots": 73700,
+    "unresolved_titles": 0,
+    "title_collisions": 0,
+    "gold_titles_matched": 7405,
+    "gold_queries": 7405,
+    "mismatched": {},
+    "passed": true
+  },
+  "seconds": 21.0
+}

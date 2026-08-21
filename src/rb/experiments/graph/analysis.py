@@ -11,7 +11,7 @@ import random
 from pathlib import Path
 
 from rb import datasets, metrics
-from rb.stats import bootstrap_p_value, holm_adjusted
+from rb.stats import bootstrap_p_value, holm_adjusted, percentile_ci
 from rb.experiments.graph import coverage as cov
 from rb.experiments.graph.measures import GRAPH_MEASURES, PRIMARY_MEASURE, SECONDARY_MEASURES
 
@@ -68,7 +68,10 @@ def _contrast(diffs: dict[str, float], classes: dict[str, int]) -> dict:
         n = [named[rng.randrange(len(named))] for _ in named]
         draws.append(mean(a) - mean(n))
     draws.sort()
-    lo, hi = draws[int(0.025 * B)], draws[int(0.975 * B)]
+    # Shared rule, not a hand-written index. Both bounds here used to be written out, and the
+    # upper one omitted the `-1` that rb.stats derives, so it cut one fewer draw than the lower
+    # bound did and every published upper bound sat one draw too high. See NB-26 D3.
+    lo, hi = percentile_ci(draws)
     p = bootstrap_p_value(draws, B)
     return {
         "n_bridge_absent": len(absent), "n_comparison": len(named),
@@ -149,7 +152,7 @@ def run() -> dict:
             rng = random.Random(SEED)
             dr = sorted(sum(named[rng.randrange(len(named))] for _ in named) / len(named)
                         for _ in range(B))
-            lo, hi = dr[int(0.025 * B)], dr[int(0.975 * B)]
+            lo, hi = percentile_ci(dr)
             pb = bootstrap_p_value(dr, B)
             bkey = f"B|{measure}|{definition}"
             results[bkey] = {"n": len(named), "mean_advantage": round(sum(named) / len(named), 4),

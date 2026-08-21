@@ -68,7 +68,11 @@ def graph_summary(entities_by_doc: dict[str, list[str]]) -> dict:
     SURFACE FORMS, not normalised nodes — that is what the published figure counted, and it is
     why this number (291,837) exceeds the graph's node count (285,013).
     """
-    documents, populated = es.doc_coverage(entities_by_doc)
+    # Inlined. `es.doc_coverage` existed to stop two callers keeping independent copies of this
+    # count; NB-26's D2 deleted the other caller (`graph_connectivity`, the discarded gate), so
+    # the shared helper's own justification went with it and a one-caller wrapper was left behind.
+    documents = len(entities_by_doc)
+    populated = sum(1 for e in entities_by_doc.values() if e)
     return {
         "documents": documents,
         "documents_with_an_entity": populated,
@@ -88,7 +92,13 @@ def seed_match_rate(entities_by_doc: dict[str, list[str]]) -> dict:
     """
     queries = datasets.load_queries("hotpotqa")
     qrels = datasets.load_qrels("hotpotqa")
-    nodes = {es.normalise(e) for ents in entities_by_doc.values() for e in ents}
+    # GUARDED, exactly as build.build guards it. 882 of 616,096 surface forms normalise to the
+    # empty string, so the unguarded form put "" in this set (285,014 nodes) while the real graph
+    # has no such node (285,013). The diagnostic would then credit a link the retriever cannot
+    # make. Measured at zero affected queries — no query entity normalises to empty — so the
+    # published 0.8232 is unchanged; the defect was that the diagnostic's node set differed from
+    # the graph's BY CONSTRUCTION. See NB-26 D4.
+    nodes = {n for ents in entities_by_doc.values() for n in map(es.normalise, ents) if n}
     matched = 0
     scored = 0
     for qid in sorted(qrels):

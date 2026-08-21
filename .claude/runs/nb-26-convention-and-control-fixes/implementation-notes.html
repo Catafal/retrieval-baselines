@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{FEATURE}} · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>NB-26 — convention and control fixes in 003's graph arm</h1>
+  <p class="meta">Branch <code>nb-26-convention-and-control-fixes</code> · 2026-08-21 · four
+     defects from the third audit of Experiment 003, after a four-seat council review.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Make four things true in 003's graph arm — a pool control that can fail (D1), a module
+     docstring that names the real gate (D2), one derived percentile rule instead of four
+     hand-written indices (D3), and a diagnostic whose node set is the graph's node set (D4) —
+     then regenerate every artifact whose value changes and disclose exactly what moved.</p>
+
+  <h2>Design decisions</h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>The percentile rule is derived, not copied.</strong>
+    The spec risked shipping <code>percentile_at</code> as "copy the <code>-1</code> for calls above the
+    median", which the skeptic seat flagged as a latent bug for any future caller. Instead
+    <code>_percentile_index(n, tail, upper)</code> encodes the definition: a bound excludes
+    <code>k = int(tail * n)</code> draws beyond it and returns the outermost survivor. Verified to
+    reproduce the existing convention exactly at n = 1000, 2000, 10000, and to derive the one-sided
+    gate index (949, not 950) with no special case.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>D1 measures before it builds.</strong>
+    <code>construction_counts</code> derives the pooled document ids itself rather than taking them
+    from <code>build()</code>, so it can run <em>before</em> it. Load-bearing: <code>build()</code>
+    raises on an unresolved title, so a control called afterwards could only ever observe zero and
+    would be measuring its own control flow. I wired it after <code>build()</code> on the first pass
+    and caught it on re-read.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>D2's deletion cascaded, and the cascade was followed.</strong>
+    Deleting <code>graph_connectivity</code> left <code>doc_coverage</code> with one caller, falsifying
+    its own docstring ("Canonical because two callers need it"). Rather than patch the prose, the
+    helper was inlined and deleted — its justification had evaporated. Leaving a freshly-false
+    docstring behind while fixing a false docstring would be absurd.</div>
+
+  <h2>Deviations</h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>I converted <code>paired_bootstrap</code>, then reverted it.</strong>
+    Mid-implementation I routed <code>rb.stats.paired_bootstrap</code> through the new
+    <code>percentile_ci</code> — provably identical indices — before recognising R6 had put
+    <code>rb/stats.py</code>'s own sites explicitly out of scope. Reverted; a comment now records why
+    the file contains a shared rule its own function does not use. Overturning a council decision
+    silently mid-build is the exact failure this pipeline exists to prevent.</div>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Option (c&#8242;) instead of the spec's (b).</strong>
+    The spec proposed rewriting the five published <code>summary.json</code> control blocks in place.
+    <code>graph-defective/README.md</code> says that artifact is "kept, not deleted... a reader must be
+    able to see what was published" — so the corrected control is published as a new standalone
+    artifact beside the old ones. Nothing published is mutated.</div>
+
+  <h2>Tradeoffs</h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Duplication in <code>rb/stats.py</code>, accepted.</strong>
+    The module defines <code>percentile_ci</code> while three of its own functions keep equivalent
+    hand-written expressions. Ugly and deliberate: converting them refactors the module 001 and 002
+    publish against, inside a diff a reviewer must check for moved numbers. Named follow-up rather
+    than a quiet change.</div>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>The gate test needed a hand-searched fixture.</strong>
+    A value-pinning test would have been cheaper, but the first mutation sweep showed the gate site
+    SURVIVING every test. A fixture was searched until the two candidate indices produced a different
+    <em>verdict</em> (40 docs, 60 gold pairs, 20 sharing → observed 0.3333 against thresholds 0.3167
+    / 0.3333). Costlier to build; pins the decision rather than a decimal.</div>
+
+  <h2>Open questions</h2>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Can <code>gold_titles_matched</code> ever fail on real data?</strong>
+    The skeptic raised a structural-tautology risk one level up: the pool is built from the same
+    questions whose gold documents it contains, so the intersection may be 100% by construction. The
+    fix makes the measurement real either way, but whether the control has power on this dataset is
+    unresolved. Flagged, not answered.</div>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong><code>rescore.py</code> keeps a forked <code>bootstrap_ci</code>.</strong>
+    It writes <code>ranked_ci95</code> into every <code>results/001/*/summary.json</code> and does not
+    import <code>rb.stats</code>. Correct convention, independent copy. Out of scope here; the obvious
+    site of the next drift.</div>
+
+  <h2>What moved</h2>
+  <table>
+    <tr><th>Artifact</th><th>Field</th><th>Before</th><th>After</th></tr>
+    <tr><td>analysis.json</td><td>B|recall_2|stripped hi</td><td>-0.369</td><td>-0.3692</td></tr>
+    <tr><td>analysis.json</td><td>B|ndcg_cut_10|stripped hi</td><td>-0.4549</td><td>-0.455</td></tr>
+    <tr><td>extraction-diagnostic.json</td><td>precision_ci hi</td><td>0.725</td><td>0.7249</td></tr>
+  </table>
+  <p>100 other contrast fields unchanged. <code>overall</code> identical.
+     <code>headroom-control.json</code> identical. <code>gate-and-seed.json</code> identical including
+     <code>seed_match_rate 0.8232</code> and <code>passed: true</code>.
+     <strong class="done">Decision flips: 0.</strong></p>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Item</th><th>State</th></tr>
+    <tr><td>D1 — control measures all seven fields</td><td class="done">done</td></tr>
+    <tr><td>D1 — amendment 4 registered</td><td class="done">done</td></tr>
+    <tr><td>D2 — dead gate deleted, docstring corrected</td><td class="done">done</td></tr>
+    <tr><td>D3 — four graph-arm sites converted</td><td class="done">done</td></tr>
+    <tr><td>D3 — pre-existing vacuous test repaired</td><td class="done">done</td></tr>
+    <tr><td>D4 — empty-string guard added</td><td class="done">done</td></tr>
+    <tr><td>Artifacts regenerated and diffed</td><td class="done">done</td></tr>
+    <tr><td>Mutation sweep — 7/7 killed</td><td class="done">done</td></tr>
+    <tr><td>Suite — 353 passed</td><td class="done">done</td></tr>
+    <tr><td>Review passes</td><td>pending</td></tr>
+  </table>
+</body>
+</html>

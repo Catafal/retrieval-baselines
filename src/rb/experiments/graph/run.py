@@ -32,16 +32,22 @@ def load_pool():
     ctx = pool.load_distractor_context()
     corpus = datasets.load_corpus("hotpotqa")
     titles = datasets.load_titles("hotpotqa")
-    pool_corpus, _ = pool.build(corpus, titles, ctx)
-    _, slots = pool.pool_titles(ctx)
-
     queries = datasets.load_queries("hotpotqa")
     qrels = datasets.load_qrels("hotpotqa")
 
+    # MEASURED, all of it. This used to pass `unresolved=0, collisions=0` as literals and the
+    # same `len(qrels)` expression as both sides of the gold-title check, so three of the
+    # control's published fields were assertions and one of its four checks was `x == x`.
+    # See protocols/003-amendment-4-pool-control.md.
+    # BEFORE build(), deliberately: build() raises on an unresolved title, so a control run
+    # after it could only ever see zero and would be measuring its own control flow.
+    counts = pool.construction_counts(titles, ctx, qrels)
+    pool_corpus, _ = pool.build(corpus, titles, ctx)
     check = controls.pool_construction(
-        questions=len(ctx), passages=len(pool_corpus), title_slots=slots,
-        unresolved=0, collisions=0,
-        gold_titles_matched=len(qrels), gold_queries=len(qrels))
+        questions=counts["questions"], passages=len(pool_corpus),
+        title_slots=counts["title_slots"],
+        unresolved=counts["unresolved"], collisions=counts["collisions"],
+        gold_titles_matched=counts["gold_titles_matched"], gold_queries=counts["gold_queries"])
     if not check["passed"]:
         raise RuntimeError(f"pool_construction failed: {check}. Nothing is scored on a broken pool.")
 

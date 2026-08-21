@@ -105,13 +105,6 @@ def test_bootstrap_is_deterministic_under_its_seed():
 
 # --- the connectivity gate ------------------------------------------------------------
 
-def test_connectivity_counts_entities_shared_across_documents():
-    r = es.graph_connectivity({"d1": ["Paris", "Lyon"], "d2": ["Paris"], "d3": []})
-    assert r["distinct_entities"] == 2
-    assert r["entities_in_2plus_documents"] == 1
-    assert r["documents_with_an_entity"] == 2
-
-
 def test_gold_pairs_that_share_entities_beat_random_pairs():
     """Real bridging structure: each gold pair shares a private entity, random pairs do not."""
     docs, pairs = {}, []

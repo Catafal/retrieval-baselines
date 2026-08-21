@@ -13,7 +13,7 @@
     "point": 0.6836,
     "ci95": [
       0.6377,
-      0.725
+      0.7249
     ],
     "resamples": 10000,
     "seed": 20260820,
@@ -32,7 +32,7 @@
   },
   "note": "Diagnostic, not a gate. Gold annotated by one rater who is also the author of the extractor; no inter-annotator agreement exists. No threshold was pre-registered because none could be justified in advance.",
   "cost": {
-    "seconds": 1.999,
+    "seconds": 2.53,
     "passages": 100
   },
   "manifest": {
