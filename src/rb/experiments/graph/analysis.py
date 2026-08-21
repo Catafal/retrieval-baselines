@@ -51,7 +51,11 @@ def _contrast(diffs: dict[str, float], classes: dict[str, int]) -> dict:
     sampling could have produced differently: resampling the pooled set would let the class
     sizes wander and inflate the interval with variation the design does not have.
     """
-    absent = [diffs[q] for q in diffs if classes.get(q, 2) <= 1]
+    # An unclassified query belongs to NEITHER arm. Previously spelled three
+    # different ways in this file (.get(q, 2), .get(q), .get(q, -1)); one of them
+    # would have silently swept unclassified queries into a class had a default
+    # ever been hit.
+    absent = [diffs[q] for q in diffs if classes.get(q) in (0, 1)]
     named = [diffs[q] for q in diffs if classes.get(q) == 2]
     if not absent or not named:
         return {"error": "a class is empty"}
@@ -94,8 +98,8 @@ def headroom(graph, bm25, shared, classes) -> dict:
     """
     m = PRIMARY_MEASURE
     out = {}
-    for label, keep in (("bridge_absent", lambda c: c <= 1), ("comparison", lambda c: c == 2)):
-        qs = [q for q in shared if keep(classes.get(q, -1))]
+    for label, keep in (("bridge_absent", (0, 1)), ("comparison", (2,))):
+        qs = [q for q in shared if classes.get(q) in keep]
         if not qs:
             continue
         b = metrics.mean([bm25[q][m] for q in qs])
@@ -116,9 +120,13 @@ def headroom(graph, bm25, shared, classes) -> dict:
     if {"bridge_absent", "comparison"} <= set(out):
         result["raw_differential"] = round(
             out["bridge_absent"]["raw_deficit"] - out["comparison"]["raw_deficit"], 4)
-        result["normalised_differential"] = round(
-            out["bridge_absent"]["headroom_normalised_deficit"]
-            - out["comparison"]["headroom_normalised_deficit"], 4)
+        # Only when BOTH normalised deficits are defined. A class whose BM25 baseline is at
+        # ceiling has zero headroom, so its normalised deficit is undefined rather than zero,
+        # and differencing None against a float would crash where it should simply be absent.
+        na = out["bridge_absent"]["headroom_normalised_deficit"]
+        nc = out["comparison"]["headroom_normalised_deficit"]
+        if na is not None and nc is not None:
+            result["normalised_differential"] = round(na - nc, 4)
     return result
 
 
@@ -160,16 +168,20 @@ def run() -> dict:
     overall = {m: {"graph": round(metrics.mean([graph[q][m] for q in shared]), 4),
                    "bm25": round(metrics.mean([bm25[q][m] for q in shared]), 4)}
                for m in sorted(GRAPH_MEASURES)}
+    # Returns the PAIR explicitly. This used to smuggle the headroom control through the
+    # results dict under a leading-underscore key that __main__ had to remember to pop, and a
+    # caller who forgot would have leaked it into the published analysis.json. A tuple makes
+    # the second artifact part of the signature instead of a naming convention.
     return {"queries": len(shared), "overall": overall, "contrasts": results,
-            "family_size": len(pvals), "B": B, "seed": SEED, "margin": MARGIN,
-            "_headroom": headroom(graph, bm25, shared, classes[cov.PRIMARY])}
+            "family_size": len(pvals), "B": B, "seed": SEED, "margin": MARGIN}, \
+        headroom(graph, bm25, shared, classes[cov.PRIMARY])
 
 
 if __name__ == "__main__":
-    r = run()
+    r, head = run()
     # Written as its own artifact because §7 requires it reported alongside every delta, and
     # because it previously existed as a file with no code behind it.
-    (OUT / "headroom-control.json").write_text(json.dumps(r.pop("_headroom"), indent=2) + "\n")
+    (OUT / "headroom-control.json").write_text(json.dumps(head, indent=2) + "\n")
     (OUT / "analysis.json").write_text(json.dumps(r, indent=2) + "\n")
     print(json.dumps(r["overall"], indent=2))
     for k, v in r["contrasts"].items():

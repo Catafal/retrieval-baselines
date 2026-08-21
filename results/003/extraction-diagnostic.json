@@ -32,7 +32,7 @@
   },
   "note": "Diagnostic, not a gate. Gold annotated by one rater who is also the author of the extractor; no inter-annotator agreement exists. No threshold was pre-registered because none could be justified in advance.",
   "cost": {
-    "seconds": 2.458,
+    "seconds": 1.999,
     "passages": 100
   },
   "manifest": {

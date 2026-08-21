@@ -81,6 +81,17 @@ def bootstrap_ci(counts: list[dict], metric: str = "precision",
             "resamples": b, "seed": seed, "unit": "passage"}
 
 
+def doc_coverage(entities_by_doc: dict[str, list[str]]) -> tuple[int, int]:
+    """(documents, documents with at least one entity).
+
+    Canonical because two callers need it — the §8.3 gate below and run_controls.graph_summary
+    — and they had independent copies. Two implementations of one count is how the numbers in
+    two published artifacts drift apart with nothing noticing, which is the same reasoning that
+    collapsed the two Holm implementations in rb.stats.
+    """
+    return len(entities_by_doc), sum(1 for e in entities_by_doc.values() if e)
+
+
 def graph_connectivity(entities_by_doc: dict[str, list[str]]) -> dict:
     """
     The GATE — computed from the extractor's own output, no gold set involved.
@@ -100,9 +111,10 @@ def graph_connectivity(entities_by_doc: dict[str, list[str]]) -> dict:
         for e in ents:
             counts[e] = counts.get(e, 0) + 1
     shared = sum(1 for e, n in counts.items() if n >= 2)
+    documents, populated = doc_coverage(per_doc)
     return {
-        "documents": len(per_doc),
-        "documents_with_an_entity": sum(1 for e in per_doc.values() if e),
+        "documents": documents,
+        "documents_with_an_entity": populated,
         "distinct_entities": len(counts),
         "entities_in_2plus_documents": shared,
         "shared_fraction": round(shared / len(counts), 4) if counts else 0.0,

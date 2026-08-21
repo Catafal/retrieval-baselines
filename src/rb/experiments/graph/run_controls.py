@@ -68,16 +68,13 @@ def graph_summary(entities_by_doc: dict[str, list[str]]) -> dict:
     SURFACE FORMS, not normalised nodes — that is what the published figure counted, and it is
     why this number (291,837) exceeds the graph's node count (285,013).
     """
-    docs = len(entities_by_doc)
-    if not docs:
-        return {"documents": 0, "documents_with_an_entity": 0,
-                "distinct_surface_entities": 0, "mean_entities_per_document": 0.0}
+    documents, populated = es.doc_coverage(entities_by_doc)
     return {
-        "documents": docs,
-        "documents_with_an_entity": sum(1 for e in entities_by_doc.values() if e),
+        "documents": documents,
+        "documents_with_an_entity": populated,
         "distinct_surface_entities": len({e for v in entities_by_doc.values() for e in v}),
         "mean_entities_per_document": round(
-            sum(len(v) for v in entities_by_doc.values()) / docs, 2),
+            sum(len(v) for v in entities_by_doc.values()) / documents, 2) if documents else 0.0,
     }
 
 
