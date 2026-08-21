@@ -15,21 +15,21 @@
     }
   },
   "ranked": {
-    "ndcg_cut_10": 0.311,
-    "recall_10": 0.3816,
-    "recall_100": 0.5108,
-    "recall_2": 0.211,
-    "recall_5": 0.3076
+    "ndcg_cut_10": 0.3161,
+    "recall_10": 0.3866,
+    "recall_100": 0.5147,
+    "recall_2": 0.2148,
+    "recall_5": 0.3132
   },
   "cost": {
-    "total_seconds": 358.75,
+    "total_seconds": 346.809,
     "usd": 0.0
   },
   "environment": {
     "python": "3.14.3",
     "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O",
     "machine": "arm64",
-    "git_commit": "ee07fd21829d5ae7e0372747d477470790fda59c",
+    "git_commit": "3163259f61bd4bd6b336902a26eaa91240ef0b7a",
     "dataset_checksums": {
       "hotpotqa": {
         "bytes": 654025350,
@@ -50,7 +50,7 @@
     }
   },
   "retriever_manifest": {
-    "build_seconds": 513.6,
+    "build_seconds": 525.8,
     "pool_control": {
       "questions": 7405,
       "passages": 66581,

@@ -311,3 +311,49 @@ def test_graph_summary_reports_documents_with_no_entities():
 def test_graph_summary_is_defined_on_an_empty_corpus():
     """No ZeroDivisionError on the degenerate input."""
     assert rc.graph_summary({})["documents"] == 0
+
+
+# ---------------------------------------------- D6: the headroom control's missing producer
+
+def test_headroom_normalises_by_remaining_room():
+    """KILLS: reporting the raw deficit as if it were the normalised one.
+
+    The whole point of the control is that a class where BM25 already scores well has less
+    room left, so an identical raw deficit means something different there. Two classes with
+    the SAME raw deficit and DIFFERENT baselines must get different normalised figures.
+    """
+    from rb.experiments.graph import analysis as an
+    graph = {"a": {"recall_2": 0.4}, "b": {"recall_2": 0.7}}
+    bm25 = {"a": {"recall_2": 0.5}, "b": {"recall_2": 0.8}}
+    out = an.headroom(graph, bm25, ["a", "b"], {"a": 1, "b": 2})
+    absent, comparison = out["per_class"]["bridge_absent"], out["per_class"]["comparison"]
+    assert absent["raw_deficit"] == pytest.approx(comparison["raw_deficit"])
+    # Same raw deficit, but 0.5 headroom vs 0.2 — the normalised figures must diverge.
+    assert absent["headroom_normalised_deficit"] != comparison["headroom_normalised_deficit"]
+    assert absent["headroom_normalised_deficit"] == pytest.approx(-0.2)
+    assert comparison["headroom_normalised_deficit"] == pytest.approx(-0.5)
+
+
+def test_headroom_splits_classes_on_coverage_two():
+    """KILLS: an off-by-one in the class boundary.
+
+    Coverage 0 and 1 are bridge-absent; only coverage 2 is the comparison control.
+    """
+    from rb.experiments.graph import analysis as an
+    graph = {q: {"recall_2": 0.5} for q in "abc"}
+    bm25 = {q: {"recall_2": 0.5} for q in "abc"}
+    out = an.headroom(graph, bm25, list("abc"), {"a": 0, "b": 1, "c": 2})
+    assert out["per_class"]["bridge_absent"]["n"] == 2
+    assert out["per_class"]["comparison"]["n"] == 1
+
+
+def test_headroom_differential_is_the_gap_between_the_two_classes():
+    """KILLS: subtracting in the wrong direction, which would flip the reported sign."""
+    from rb.experiments.graph import analysis as an
+    graph = {"a": {"recall_2": 0.4}, "b": {"recall_2": 0.1}}
+    bm25 = {"a": {"recall_2": 0.5}, "b": {"recall_2": 0.5}}
+    out = an.headroom(graph, bm25, ["a", "b"], {"a": 1, "b": 2})
+    assert out["raw_differential"] == pytest.approx(
+        out["per_class"]["bridge_absent"]["raw_deficit"]
+        - out["per_class"]["comparison"]["raw_deficit"])
+    assert out["raw_differential"] > 0  # graph does relatively better where the bridge is absent

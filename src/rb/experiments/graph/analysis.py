@@ -77,6 +77,51 @@ def _contrast(diffs: dict[str, float], classes: dict[str, int]) -> dict:
     }
 
 
+def headroom(graph, bm25, shared, classes) -> dict:
+    """
+    §7's headroom control: is the differential a mechanism, or just more room to improve?
+
+    WHY THIS LIVES HERE NOW. The committed headroom-control.json had NO producer anywhere in
+    the source tree — a third artifact in this experiment written by code that no longer
+    exists, and its own status field calls it "required by protocol section 7". It was also
+    stale, carrying the pre-PPR-fix differential. Rebuilt here rather than in a new module
+    because `run()` already assembles every input it needs: this is another view of the same
+    per-query data, not a separate computation.
+
+    NORMALISED BY HEADROOM, because a class where BM25 already scores well has less room left,
+    so a smaller raw deficit there could mean either a better graph or a lower ceiling. The
+    normalised figure is what separates those two readings.
+    """
+    m = PRIMARY_MEASURE
+    out = {}
+    for label, keep in (("bridge_absent", lambda c: c <= 1), ("comparison", lambda c: c == 2)):
+        qs = [q for q in shared if keep(classes.get(q, -1))]
+        if not qs:
+            continue
+        b = metrics.mean([bm25[q][m] for q in qs])
+        g = metrics.mean([graph[q][m] for q in qs])
+        out[label] = {
+            "n": len(qs),
+            "bm25_recall_2": round(b, 4),
+            "graph_recall_2": round(g, 4),
+            "raw_deficit": round(g - b, 4),
+            "headroom": round(1.0 - b, 4),
+            "headroom_normalised_deficit": round((g - b) / (1.0 - b), 4) if b < 1 else None,
+        }
+    result = {
+        "status": "HEADROOM CONTROL, required by protocol section 7 and reported alongside every delta.",
+        "measure": m,
+        "per_class": out,
+    }
+    if {"bridge_absent", "comparison"} <= set(out):
+        result["raw_differential"] = round(
+            out["bridge_absent"]["raw_deficit"] - out["comparison"]["raw_deficit"], 4)
+        result["normalised_differential"] = round(
+            out["bridge_absent"]["headroom_normalised_deficit"]
+            - out["comparison"]["headroom_normalised_deficit"], 4)
+    return result
+
+
 def run() -> dict:
     qrels = datasets.load_qrels("hotpotqa")
     graph, bm25 = _per_query("graph", qrels), _per_query("bm25", qrels)
@@ -116,11 +161,15 @@ def run() -> dict:
                    "bm25": round(metrics.mean([bm25[q][m] for q in shared]), 4)}
                for m in sorted(GRAPH_MEASURES)}
     return {"queries": len(shared), "overall": overall, "contrasts": results,
-            "family_size": len(pvals), "B": B, "seed": SEED, "margin": MARGIN}
+            "family_size": len(pvals), "B": B, "seed": SEED, "margin": MARGIN,
+            "_headroom": headroom(graph, bm25, shared, classes[cov.PRIMARY])}
 
 
 if __name__ == "__main__":
     r = run()
+    # Written as its own artifact because §7 requires it reported alongside every delta, and
+    # because it previously existed as a file with no code behind it.
+    (OUT / "headroom-control.json").write_text(json.dumps(r.pop("_headroom"), indent=2) + "\n")
     (OUT / "analysis.json").write_text(json.dumps(r, indent=2) + "\n")
     print(json.dumps(r["overall"], indent=2))
     for k, v in r["contrasts"].items():

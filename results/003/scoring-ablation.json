@@ -1,0 +1,17 @@
+{
+  "sum": {
+    "ndcg_cut_10": 0.3161,
+    "recall_10": 0.3866,
+    "recall_100": 0.5147,
+    "recall_2": 0.2148,
+    "recall_5": 0.3132
+  },
+  "mean": {
+    "ndcg_cut_10": 0.3028,
+    "recall_10": 0.3483,
+    "recall_100": 0.4752,
+    "recall_2": 0.2161,
+    "recall_5": 0.2941
+  },
+  "note": "ABLATION ONLY. The registered arm keeps SUMMED scoring, which is what HippoRAG does; substituting mean after seeing results would be a method change. Reported so a reader can see how much of the arm's failure is the scoring function."
+}
