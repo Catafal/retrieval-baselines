@@ -176,6 +176,49 @@
   <p>Full suite: <strong>337 passed</strong> (315 pre-existing + 22 new), pytest's own exit code
      used as the gate rather than a piped tail.</p>
 
+  <h2>Results</h2>
+  <p><strong>The registered conclusion is unchanged.</strong> All six prediction-A cells remain
+     supported (CI excludes zero, margin met); all six prediction-B negative-control cells still
+     show no advantage.</p>
+  <table>
+    <tr><th>Quantity</th><th>Before</th><th>After</th></tr>
+    <tr><td>graph R@2</td><td>0.2148</td><td>0.2148 — the 3 dedup-affected queries did not change rank</td></tr>
+    <tr><td>p_value (all 12 cells)</td><td>0.0 <em>(impossible)</em></td><td>0.0002</td></tr>
+    <tr><td>p_holm</td><td>0.0</td><td>0.0024</td></tr>
+    <tr><td>A|recall_2|stripped differential</td><td>+0.0710</td><td>+0.0716</td></tr>
+    <tr><td>headroom raw differential</td><td>0.0534 <em>(stale)</em></td><td>0.0716</td></tr>
+    <tr><td>headroom normalised differential</td><td>0.2435 <em>(stale)</em></td><td>0.2864</td></tr>
+  </table>
+  <p>Worth stating in the entry: <strong>none of the six fixes flattered the arm that is
+     losing.</strong> That was worth checking, since the graph arm is the inconvenient result.</p>
+
+  <h2>What the two review passes changed</h2>
+  <div class="deviation">
+    <span class="tag t-dev">Review</span> <strong>The ponytail pass found a latent crash in code
+    I had just written.</strong> <code>headroom()</code> differenced a <code>None</code>
+    normalised deficit against a float whenever a class sat at ceiling. Unreachable on current
+    data, real in the code. It also found the class lookup spelled three different ways in one
+    file — two of which would have swept an unclassified query into a class.
+  </div>
+  <div class="deviation">
+    <span class="tag t-dev">Review</span> <strong>The thermo-nuclear pass found an untested
+    boundary.</strong> <code>run()</code> smuggled the headroom control through its results dict
+    under a leading-underscore key that <code>__main__</code> had to remember to pop; a caller
+    who forgot leaks it into the published artifact. Now an explicit pair, with the first
+    integration test on <code>run()</code> itself. It also caught <code>graph_summary()</code>
+    duplicating <code>graph_connectivity()</code>'s document counts, now collapsed into
+    <code>doc_coverage()</code>, and the tests being grouped by defect rather than by module.
+  </div>
+  <div class="open">
+    <span class="tag t-open">Caught</span> <strong>The mutation sweep caught one of MY OWN tests
+    being vacuous — twice.</strong> The unclassified-query test tripped <code>_contrast</code>'s
+    own "a class is empty" guard, so it returned the same result with or without the defect:
+    exactly NB-24's failure shape, reproduced by someone who had just written a file-level
+    docstring warning about it. Fixed by populating both arms so the unclassified query has
+    somewhere wrong to go. This is the strongest evidence in the whole change that the sweep is
+    doing work the test suite cannot do by passing.
+  </div>
+
   <h2>Open questions for the spec author</h2>
 
   <div class="open">
@@ -211,8 +254,11 @@
     <tr><td>D4 — query seed dedup</td><td class="done">done</td></tr>
     <tr><td>D5 — one Holm implementation</td><td class="done">done</td></tr>
     <tr><td>Tests + mutation sweep (11/11 killed)</td><td class="done">done</td></tr>
-    <tr><td>D6 — graph arm re-run</td><td>running</td></tr>
-    <tr><td>D6 — recompute analysis.json + headroom-control.json</td><td>pending re-run</td></tr>
+    <tr><td>D6 — graph arm re-run</td><td class="done">done — R@2 0.2148, unchanged</td></tr>
+    <tr><td>D6 — recompute analysis.json + headroom-control.json</td><td class="done">done</td></tr>
+    <tr><td>Sixth defect — headroom-control.json had no producer</td><td class="done">done</td></tr>
+    <tr><td>Thermo-nuclear review + ponytail review, acted on</td><td class="done">done</td></tr>
+    <tr><td>Verified <code>make reproduce-003-controls</code> reproduces committed artifacts</td><td class="done">done</td></tr>
   </table>
 </body>
 </html>
