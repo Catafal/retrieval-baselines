@@ -1,0 +1,45 @@
+{
+  "corpus": "HotpotQA distractor pool, 66,581 passages, 7,405 queries, identical candidate set",
+  "arms": {
+    "dense-bge": {
+      "recall_2": 0.6957,
+      "recall_5": 0.8163,
+      "ndcg_cut_10": 0.8269,
+      "seconds": 537
+    },
+    "bm25": {
+      "recall_2": 0.549,
+      "recall_5": 0.6948,
+      "ndcg_cut_10": 0.7197,
+      "seconds": 97
+    },
+    "dense-minilm": {
+      "recall_2": 0.5136,
+      "recall_5": 0.6334,
+      "ndcg_cut_10": 0.661,
+      "seconds": 147
+    },
+    "graph": {
+      "recall_2": 0.2132,
+      "recall_5": 0.2861,
+      "ndcg_cut_10": 0.2955,
+      "seconds": 765
+    }
+  },
+  "registered_predictions_amendment_2": {
+    "1_both_dense_lose_to_bm25": {
+      "verdict": "FAILED",
+      "detail": "MiniLM loses (0.5136 vs 0.5490) but BGE WINS by 0.147 recall@2 (0.6957 vs 0.5490). The amendment named this as the most interesting available outcome."
+    },
+    "2_both_dense_beat_the_graph_arm": {
+      "verdict": "HELD",
+      "detail": "MiniLM 0.5136 and BGE 0.6957 against the graph arm's 0.2132."
+    },
+    "3_bge_above_minilm": {
+      "verdict": "HELD",
+      "detail": "0.6957 vs 0.5136 recall@2."
+    }
+  },
+  "why_prediction_3_matters": "The amendment registered in advance that a failure of 3 without 1 or 2 would invalidate the comparison rather than the argument. 3 HELD, so the encoder really was stronger here and the failure of 1 is a real result rather than an artifact of a weak encoder.",
+  "the_confound_that_must_be_stated": "This does NOT establish that restricting to the distractor pool flipped the dense-vs-BM25 verdict. 002 measured dense losing to BM25 on HotpotQA at full 5.2M scale using MiniLM, and MiniLM still loses here (0.5136 vs 0.5490) - consistent with 002. BGE was never run on HotpotQA at full scale, because 002 amendment 2 excluded it at 5.75 hours of embedding. So the gap between 002's HotpotQA result and BGE's win here cannot be attributed to the corpus restriction rather than to the encoder. Separating them needs BGE at full corpus scale, which no protocol here registers."
+}
