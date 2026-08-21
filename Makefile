@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -36,6 +36,19 @@ reproduce-002-lexical:
 	PYTHONPATH=src $(PY) -m rb.experiments.ladder.run --dataset quora --rung lexical-factorial
 	PYTHONPATH=src $(PY) -m rb.experiments.ladder.run --dataset hotpotqa --rung coordination
 	PYTHONPATH=src $(PY) -m rb.experiments.ladder.run --dataset hotpotqa --rung lexical-factorial
+
+# Experiment 003's two closure controls (§8.2 diagnostic, §8.3 gate) plus the seed-match
+# rate and the graph summary. Minutes on a warm entity cache; ~10 minutes cold.
+#
+# Separate target for the same reason 002 has one: `reproduce` is a published promise about
+# 001 and must not silently become a long job. The SCORED arms are deliberately absent — they
+# take hours and are gated on the pre-registration tag, so they are run deliberately and by
+# hand, not from a target anyone could trigger by accident.
+#
+# To verify this reproduces the committed artifacts, delete data/003-pool-entities.json first:
+# a warm cache replays its own contents and would pass even against a broken extractor.
+reproduce-003-controls:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.run_controls
 
 clean:
 	rm -rf data/*/rg_corpus.txt

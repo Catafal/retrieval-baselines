@@ -97,8 +97,17 @@ class GraphRetriever:
         # entity_types.py's docstring asserted the two sides were treated alike; nothing
         # enforced it. Routed through node_strings rather than given a second filter of its
         # own, because a second filter is how the two sides drift apart again.
-        for text in node_strings(_query_entities(query)):
-            i = f["node_index"].get(normalise(text))
+        #
+        # DEDUPLICATED ON THE GRAPH'S OWN KEY, the normalised string. `node_strings` dedupes by
+        # SURFACE FORM, so "U.S." and "U.S" survive it as two entries and then normalise to one
+        # node — which used to add that node's specificity twice, while a document containing
+        # both counts it once (build.build dedupes after normalise). The same document/query
+        # asymmetry as the whitelist bug, one layer down. Measured at 3 of 7,405 queries. Fixed
+        # here rather than in `node_strings`, which is deliberately surface-form-level and is
+        # shared with the §8.2 diagnostic, where collapsing surface forms would change what the
+        # extraction score measures.
+        for node in {normalise(text) for text in node_strings(_query_entities(query))}:
+            i = f["node_index"].get(node)
             if i is not None:
                 seed[i] += f["specificity"][i] if self.use_specificity else 1.0
         return seed
