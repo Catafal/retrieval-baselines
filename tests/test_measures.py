@@ -76,10 +76,18 @@ def test_primary_and_secondary_measures_are_all_in_the_set():
     assert PRIMARY_MEASURE not in SECONDARY_MEASURES
 
 
+# 001 and 002 only. Experiment 003 deliberately carries five measures (see
+# graph/measures.py), so globbing every summary.json makes this assertion fail on
+# artifacts that are correct — which it did, the first time 003 wrote one. The point of
+# the test is that adding measures for a NEW experiment must not change the shape of
+# artifacts ALREADY PUBLISHED, and that is what the scope now says.
+_PUBLISHED_DIRS = ("001", "002")
+
+
 @pytest.mark.parametrize("path", sorted(
-    p for p in (ROOT / "results").rglob("summary.json")
+    p for d in _PUBLISHED_DIRS for p in (ROOT / "results" / d).rglob("summary.json")
 ))
-def test_every_committed_summary_still_has_exactly_the_published_measures(path):
+def test_published_001_002_summaries_still_have_exactly_the_published_measures(path):
     """
     The regression guarantee, checked against every artifact 001 and 002 actually
     committed rather than against a representative one. If the measure set had been
@@ -88,6 +96,16 @@ def test_every_committed_summary_still_has_exactly_the_published_measures(path):
     """
     ranked = json.loads(path.read_text())["ranked"]
     assert set(ranked) == metrics.MEASURES, f"{path.relative_to(ROOT)} changed shape"
+
+
+@pytest.mark.parametrize("path", sorted(
+    (ROOT / "results" / "003").rglob("summary.json")
+))
+def test_003_summaries_carry_the_experiment_measure_set(path):
+    """The other half of the same guarantee: 003's own artifacts must carry all five, or
+    the scoping change above would silently hide a 003 arm that lost its extra cutoffs."""
+    ranked = json.loads(path.read_text())["ranked"]
+    assert set(ranked) == GRAPH_MEASURES, f"{path.relative_to(ROOT)} is missing 003's measures"
 
 
 # --- the run_rung path, which is where the measure set reaches an artifact ----------

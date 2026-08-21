@@ -25,3 +25,8 @@ pyarrow
 # `python -m spacy download en_core_web_sm` and its version is asserted at load.
 spacy==3.8.13
 
+# Test-only. tests/test_graph_retriever.py compares experiment 003's personalized
+# PageRank against an independent reference implementation. The absence of such a
+# comparison is what let a walk that was not a PageRank pass every other test.
+networkx
+

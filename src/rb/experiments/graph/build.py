@@ -70,30 +70,72 @@ def node_specificity(incidence) -> np.ndarray:
     return np.divide(1.0, df, out=np.zeros_like(df), where=df > 0)
 
 
-def personalized_pagerank(incidence, seed_weights: np.ndarray, damping: float = 0.5,
-                          iterations: int = 20, tol: float = 1e-10) -> np.ndarray:
+def degrees(incidence) -> np.ndarray:
     """
-    PPR over the entity graph induced by co-occurrence, restarting at the query's entities.
+    Weighted degree of each entity in the co-occurrence graph, WITHOUT the self-loop.
 
-    `damping` is 0.5, the value HippoRAG reports tuning to. Kept rather than re-tuned: tuning
-    a hyperparameter on the corpus being measured is how a result gets manufactured, and no
-    tuning run is registered in this protocol.
+    The adjacency implied by two hops is A = B^T B, whose diagonal is each entity's own
+    document frequency — an entity co-occurring with ITSELF once per document it appears in.
+    That is not a co-occurrence with another entity and it must not count toward degree, or a
+    hub both receives more mass and leaks less of what it holds.
 
-    One step of the walk is entities -> documents -> entities, both hops sparse, so the
-    entity-entity matrix is never formed. Iteration stops on convergence rather than always
-    running the full count, which matters because this runs once per query.
+    Computed as row sums of B^T B minus that diagonal, without ever forming the square matrix.
+    """
+    df = np.asarray(incidence.sum(axis=0)).ravel()          # documents per entity = diagonal
+    row_sums = incidence.T @ (incidence @ np.ones(incidence.shape[1]))
+    return row_sums - df
+
+
+def personalized_pagerank(incidence, seed_weights: np.ndarray, damping: float = 0.5,
+                          iterations: int = 50, tol: float = 1e-10,
+                          deg: np.ndarray | None = None) -> np.ndarray:
+    """
+    Personalized PageRank over the entity graph induced by co-occurrence.
+
+    CORRECTED 2026-08-21. The first version was not a PageRank at all: it applied
+    `B^T (B rank)` and rescaled the whole vector to sum 1. That is damped power iteration on
+    an UNNORMALISED co-occurrence matrix, which converges toward a degree-dominated
+    eigenvector rather than a random walk, and it made the arm score below a baseline that
+    did no propagation whatsoever. See protocols/003-amendment-3-ppr-correction.md.
+
+    What makes it a walk is that mass leaving a node is divided by that node's degree, so a
+    hub's individual edges are discounted precisely because it has many. Two corrections:
+
+      1. Divide by degree before propagating   -> the transition is row-stochastic.
+      2. Subtract the self-loop term           -> A = B^T B has diagonal df(entity), an
+                                                  entity co-occurring with itself, which is
+                                                  stickiness proportional to popularity.
+
+    A @ x is still never materialised: it is B^T (B x) minus the diagonal contribution.
+
+    `damping` is the RESTART probability, matching HippoRAG's stated convention, and stays
+    at the 0.5 they report tuning to. Iterations raised 20 -> 50 because a correctly
+    normalised walk converges more slowly than the rescaled version appeared to; `tol` still
+    exits early once it settles, so the extra ceiling costs nothing when it is not needed.
     """
     total = seed_weights.sum()
     if total <= 0:
         return np.zeros(incidence.shape[1], dtype=np.float64)
     restart = seed_weights / total
+    if deg is None:
+        deg = degrees(incidence)
+    df = np.asarray(incidence.sum(axis=0)).ravel()
+    # Entities with no co-occurrence partner are dangling: a walk arriving there has nowhere
+    # to go. Their mass returns to the restart vector rather than being silently dropped,
+    # which would leak probability and quietly renormalise the result.
+    dangling = deg <= 0
+    safe_deg = np.where(dangling, 1.0, deg)
+
     rank = restart.copy()
     for _ in range(iterations):
-        spread = incidence.T @ (incidence @ rank)      # entities -> docs -> entities
-        s = spread.sum()
-        if s > 0:
-            spread /= s
+        weighted = rank / safe_deg
+        weighted[dangling] = 0.0
+        spread = incidence.T @ (incidence @ weighted) - df * weighted
+        spread += rank[dangling].sum() * restart      # dangling mass restarts
         nxt = damping * restart + (1.0 - damping) * spread
+        s = nxt.sum()
+        if s > 0:
+            nxt /= s                                   # guard against float drift only
         if np.abs(nxt - rank).sum() < tol:
             return nxt
         rank = nxt

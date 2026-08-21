@@ -50,6 +50,60 @@ def test_node_specificity_prefers_the_rarer_entity():
     assert spec[nodes.index("ghana")] > spec[nodes.index("shirley temple")]
 
 
+def test_the_walk_agrees_with_a_reference_pagerank():
+    """
+    The test that would have caught the original defect, and did not exist.
+
+    The first implementation applied B^T (B rank) and rescaled the vector to sum 1, which is
+    damped power iteration on an unnormalised co-occurrence matrix rather than a random walk.
+    It passed every test we had, because every test checked properties the broken version
+    also satisfied - mass reaches a bridged document, an unconnected document scores zero,
+    the seed dominates. None compared against an INDEPENDENT implementation of the thing the
+    docstring claimed to be.
+
+    networkx is a test-only dependency for exactly this reason.
+    """
+    nx = pytest.importorskip("networkx")
+    docs = {f"d{i}": [f"e{i}", "american"] for i in range(10)}
+    docs["d0"] = ["e0", "american", "bridge"]
+    docs["d10"] = ["bridge", "e99"]
+    nodes, _ids, inc = kg.build(docs)
+    i0 = nodes.index("e0")
+    seed = np.zeros(len(nodes)); seed[i0] = 1.0
+    ours = kg.personalized_pagerank(inc, seed, damping=0.5)
+
+    adjacency = (inc.T @ inc).toarray().astype(float)
+    np.fill_diagonal(adjacency, 0.0)          # the self-loop the corrected walk subtracts
+    ref = nx.pagerank(nx.from_numpy_array(adjacency), alpha=0.5, personalization={i0: 1.0})
+    ref = np.array([ref[i] for i in range(len(nodes))])
+
+    assert np.abs(ours - ref).max() < 1e-4, "the walk no longer agrees with a reference PPR"
+
+
+def test_degree_normalisation_discounts_a_hub_relative_to_a_rare_edge():
+    """The property the defect destroyed, stated directly rather than via a reference: a
+    generic entity in every document must not outrank an informative rare one by as much as
+    an unnormalised walk makes it."""
+    docs = {f"d{i}": [f"e{i}", "american"] for i in range(10)}
+    docs["d0"] = ["e0", "american", "bridge"]
+    docs["d10"] = ["bridge", "e99"]
+    nodes, _ids, inc = kg.build(docs)
+    seed = np.zeros(len(nodes)); seed[nodes.index("e0")] = 1.0
+    rank = kg.personalized_pagerank(inc, seed)
+    hub = rank[nodes.index("american")] / rank[nodes.index("bridge")]
+    assert hub < 2.0, f"hub outranks the informative edge by {hub:.2f}x; unnormalised was 3.19x"
+
+
+def test_dangling_entities_do_not_leak_probability():
+    """An entity alone in its document has no co-occurrence partner. Its mass must return to
+    the restart vector, not vanish - silent leakage would renormalise the result and hide it."""
+    docs = {"d0": ["a", "b"], "d1": ["solo"]}
+    nodes, _ids, inc = kg.build(docs)
+    seed = np.zeros(len(nodes)); seed[nodes.index("solo")] = 1.0
+    rank = kg.personalized_pagerank(inc, seed)
+    assert abs(rank.sum() - 1.0) < 1e-6
+
+
 def test_the_entity_entity_matrix_is_never_materialised():
     """A hub entity makes incidence.T @ incidence dense enough to exhaust memory, so the
     walk must stay two sparse products against the incidence matrix."""
