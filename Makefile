@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -73,6 +73,12 @@ reproduce-003-2wiki-analysis:
 # Replaces a file that previously had no producer and carried a retracted figure.
 reproduce-003-arms-summary:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.arms_summary
+
+# The oracle-extractor ceiling: corpus titles as entities, a perfect extractor AND linker.
+# A DIAGNOSTIC, not a registered arm -- it uses gold titles a real system does not have.
+# Writes results/003/oracle-entity-graph.json, which previously had no producer at all.
+reproduce-003-oracle:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.oracle
 
 clean:
 	rm -rf data/*/rg_corpus.txt

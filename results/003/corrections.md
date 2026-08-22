@@ -181,6 +181,36 @@ hardest case, where neither title anchors the query.
 by the run: 0.2734 against BM25's 0.5164. The topology argument does not rescue an arm whose
 binding constraint is that it cannot link 41.1% of queries to any node at all.
 
+### C10 — an orphaned artifact that already answers the question the entry defers
+
+Found by a pre-publication review seat that cloned the repository and read `results/003/` before
+running anything, which is exactly the reader the entry invites.
+
+`results/003/oracle-entity-graph.json` was committed with **no producing code anywhere in the
+repository**, no Makefile target, and no mention in any protocol, amendment, correction record or
+entry. Seventeenth defect, fifth of this exact class, and the first one found by someone other than
+the author.
+
+The substance is worse than the bookkeeping. The artifact reports the graph arm's ceiling under a
+**perfect extractor and a perfect linker** — corpus document titles as entities, no NER, no
+whitelist, no normalisation mismatch, no span-segmentation failure:
+
+| | oracle extractor | spaCy arm | BM25 |
+|---|---|---|---|
+| R@2 | **0.3344** | 0.2148 | 0.5490 |
+| queries retrieving nothing | **1,397 (18.9%)** | 1,309 (17.7%) | — |
+
+So solving extraction entirely moves the arm from 0.2148 to 0.3344 and leaves it roughly 21 R@2
+points behind BM25, still returning nothing for about one query in five. The entry's forward
+pointer to experiment 004 — swap the extractor — was written as though extraction were the binding
+constraint. On this evidence it is not the only one, and publishing that pointer without this
+number beside it would have overstated what 004 can buy.
+
+Reconstructed by `src/rb/experiments/graph/oracle.py` and `make reproduce-003-oracle`, and checked
+against the committed values before adoption. All nine reproduce exactly: R@2 0.3344, R@5 0.4464,
+nDCG@10 0.455, R@10 0.517, R@100 0.6027, 1,397 empty, 66,304 nodes, 3.08 entities per document.
+Had they not reproduced, the artifact would have been removed rather than quietly redefined.
+
 ## What NB-26 itself got wrong
 
 Listed because a corrections file that only records the code's errors and not the process's would
