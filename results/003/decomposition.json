@@ -1,0 +1,167 @@
+{
+  "status": "POST-HOC, registered in protocols/003-amendment-5-differential-decomposition.md AFTER the results were seen. Not a falsifier and not in section 7's Holm family.",
+  "cells": {
+    "recall_2|stripped": {
+      "measure": "recall_2",
+      "differential": 0.0716,
+      "graph_term": {
+        "point": 0.0065,
+        "ci95": [
+          -0.0082,
+          0.0212
+        ],
+        "excludes_zero": false
+      },
+      "bm25_term": {
+        "point": 0.0651,
+        "ci95": [
+          0.049,
+          0.0806
+        ],
+        "excludes_zero": true
+      },
+      "bm25_share_of_differential": {
+        "point": 0.9093,
+        "ci95": [
+          0.7398,
+          1.1416
+        ]
+      }
+    },
+    "recall_5|stripped": {
+      "measure": "recall_5",
+      "differential": 0.1182,
+      "graph_term": {
+        "point": -0.0155,
+        "ci95": [
+          -0.0334,
+          0.002
+        ],
+        "excludes_zero": false
+      },
+      "bm25_term": {
+        "point": 0.1338,
+        "ci95": [
+          0.119,
+          0.1482
+        ],
+        "excludes_zero": true
+      },
+      "bm25_share_of_differential": {
+        "point": 1.1315,
+        "ci95": [
+          0.9848,
+          1.3273
+        ]
+      }
+    },
+    "ndcg_cut_10|stripped": {
+      "measure": "ndcg_cut_10",
+      "differential": 0.0903,
+      "graph_term": {
+        "point": -0.011,
+        "ci95": [
+          -0.0272,
+          0.0053
+        ],
+        "excludes_zero": false
+      },
+      "bm25_term": {
+        "point": 0.1014,
+        "ci95": [
+          0.0895,
+          0.1131
+        ],
+        "excludes_zero": true
+      },
+      "bm25_share_of_differential": {
+        "point": 1.1219,
+        "ci95": [
+          0.9491,
+          1.3642
+        ]
+      }
+    },
+    "recall_2|exact": {
+      "measure": "recall_2",
+      "differential": 0.0985,
+      "graph_term": {
+        "point": 0.0151,
+        "ci95": [
+          -0.0017,
+          0.0315
+        ],
+        "excludes_zero": false
+      },
+      "bm25_term": {
+        "point": 0.0834,
+        "ci95": [
+          0.0657,
+          0.1009
+        ],
+        "excludes_zero": true
+      },
+      "bm25_share_of_differential": {
+        "point": 0.8468,
+        "ci95": [
+          0.7103,
+          1.0189
+        ]
+      }
+    },
+    "recall_5|exact": {
+      "measure": "recall_5",
+      "differential": 0.1568,
+      "graph_term": {
+        "point": 0.0035,
+        "ci95": [
+          -0.0165,
+          0.0228
+        ],
+        "excludes_zero": false
+      },
+      "bm25_term": {
+        "point": 0.1533,
+        "ci95": [
+          0.1376,
+          0.1684
+        ],
+        "excludes_zero": true
+      },
+      "bm25_share_of_differential": {
+        "point": 0.9777,
+        "ci95": [
+          0.8678,
+          1.1189
+        ]
+      }
+    },
+    "ndcg_cut_10|exact": {
+      "measure": "ndcg_cut_10",
+      "differential": 0.1216,
+      "graph_term": {
+        "point": 0.0029,
+        "ci95": [
+          -0.0156,
+          0.0207
+        ],
+        "excludes_zero": false
+      },
+      "bm25_term": {
+        "point": 0.1187,
+        "ci95": [
+          0.1065,
+          0.1307
+        ],
+        "excludes_zero": true
+      },
+      "bm25_share_of_differential": {
+        "point": 0.9759,
+        "ci95": [
+          0.848,
+          1.1498
+        ]
+      }
+    }
+  }
+}

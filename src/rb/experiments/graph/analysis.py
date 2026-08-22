@@ -152,6 +152,66 @@ def advantage(named: list[float]) -> dict:
             "no_advantage": bool(hi <= 0 or (lo <= 0 <= hi))}
 
 
+def decompose(graph, bm25, shared, classes, measure=PRIMARY_MEASURE) -> dict:
+    """
+    POST-HOC. Registered in protocols/003-amendment-5-differential-decomposition.md, AFTER the
+    results were seen. Not a falsifier, not part of §7's Holm family, and it cannot be reported
+    as though it had been predicted.
+
+    WHAT IT ANSWERS. §7's prediction A is a DIFFERENCE OF ADVANTAGES: (graph - bm25) on
+    bridge-absent queries, minus the same on coverage-2. Such a differential moves if EITHER arm
+    moves, and nothing in the protocol required saying which did. The mechanism under test — a
+    graph reaching a document the query does not name — predicts the GRAPH improves where the
+    bridge entity is absent. A rising BM25 on coverage-2 produces the identical differential while
+    meaning the opposite.
+
+    So the same quantity is split into the two class swings it is the difference of:
+
+        differential = (graph_absent - graph_cov2) - (bm25_absent - bm25_cov2)
+                       \_______ graph term _______/   \_______ bm25 term _______/
+
+    Same stratified bootstrap, same B, same seed as `_contrast`, so the decomposition and the
+    registered contrast are the same resampling procedure read two ways.
+    """
+    absent = [q for q in shared if classes.get(q) in (0, 1)]
+    named = [q for q in shared if classes.get(q) == 2]
+    if not absent or not named:
+        return {"error": "a class is empty"}
+    mean = lambda xs: sum(xs) / len(xs)
+
+    def terms(a_ids, c_ids):
+        gt = mean([graph[q][measure] for q in a_ids]) - mean([graph[q][measure] for q in c_ids])
+        bt = mean([bm25[q][measure] for q in a_ids]) - mean([bm25[q][measure] for q in c_ids])
+        return gt, -bt, gt - bt
+
+    g_point, b_point, total = terms(absent, named)
+    rng = random.Random(SEED)
+    g_draws, b_draws, share = [], [], []
+    for _ in range(B):
+        a = [absent[rng.randrange(len(absent))] for _ in absent]
+        c = [named[rng.randrange(len(named))] for _ in named]
+        gt, bt, tot = terms(a, c)
+        g_draws.append(gt)
+        b_draws.append(bt)
+        if tot != 0:
+            share.append(bt / tot)
+    g_draws.sort(); b_draws.sort(); share.sort()
+    g_lo, g_hi = percentile_ci(g_draws)
+    b_lo, b_hi = percentile_ci(b_draws)
+    s_lo, s_hi = percentile_ci(share) if share else (None, None)
+    return {
+        "measure": measure,
+        "differential": round(total, 4),
+        "graph_term": {"point": round(g_point, 4), "ci95": [round(g_lo, 4), round(g_hi, 4)],
+                       "excludes_zero": bool(g_lo > 0 or g_hi < 0)},
+        "bm25_term": {"point": round(b_point, 4), "ci95": [round(b_lo, 4), round(b_hi, 4)],
+                      "excludes_zero": bool(b_lo > 0 or b_hi < 0)},
+        "bm25_share_of_differential": {
+            "point": round(b_point / total, 4) if total else None,
+            "ci95": [round(s_lo, 4), round(s_hi, 4)] if share else None},
+    }
+
+
 def run() -> dict:
     qrels = datasets.load_qrels("hotpotqa")
     graph, bm25 = _per_query("graph", qrels), _per_query("bm25", qrels)
@@ -187,17 +247,32 @@ def run() -> dict:
     # results dict under a leading-underscore key that __main__ had to remember to pop, and a
     # caller who forgot would have leaked it into the published analysis.json. A tuple makes
     # the second artifact part of the signature instead of a naming convention.
-    return {"queries": len(shared), "overall": overall, "contrasts": results,
-            "family_size": len(pvals), "B": B, "seed": SEED, "margin": MARGIN}, \
-        headroom(graph, bm25, shared, classes[cov.PRIMARY])
+    # THREE artifacts, returned explicitly. The third is post-hoc and is kept OUT of `contrasts`
+    # and out of `family_size` so it cannot be mistaken for part of the registered family.
+    decomposition = {
+        f"{m}|{d}": decompose(graph, bm25, shared, classes[d], m)
+        for d in (cov.PRIMARY, cov.SENSITIVITY)
+        for m in (PRIMARY_MEASURE, *SECONDARY_MEASURES)
+    }
+    return ({"queries": len(shared), "overall": overall, "contrasts": results,
+             "family_size": len(pvals), "B": B, "seed": SEED, "margin": MARGIN},
+            headroom(graph, bm25, shared, classes[cov.PRIMARY]),
+            decomposition)
 
 
 if __name__ == "__main__":
-    r, head = run()
+    r, head, decomposition = run()
     # Written as its own artifact because §7 requires it reported alongside every delta, and
     # because it previously existed as a file with no code behind it.
     (OUT / "headroom-control.json").write_text(json.dumps(head, indent=2) + "\n")
     (OUT / "analysis.json").write_text(json.dumps(r, indent=2) + "\n")
+    # Its own file, never merged into analysis.json: a post-hoc statistic sitting inside the
+    # registered artifact is how it gets read as registered.
+    (OUT / "decomposition.json").write_text(json.dumps({
+        "status": (
+            "POST-HOC, registered in protocols/003-amendment-5-differential-decomposition.md "
+            "AFTER the results were seen. Not a falsifier and not in section 7's Holm family."),
+        "cells": decomposition}, indent=2) + "\n")
     print(json.dumps(r["overall"], indent=2))
     for k, v in r["contrasts"].items():
         if k.startswith("A|"):

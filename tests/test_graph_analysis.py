@@ -97,8 +97,9 @@ def test_unclassified_queries_join_neither_arm():
     assert contrast["n_comparison"] == 1
 
 
-def test_run_returns_the_two_artifacts_separately_and_leaks_neither(monkeypatch, tmp_path):
-    """KILLS: smuggling the headroom control through the results dict.
+def test_run_returns_the_three_artifacts_separately_and_leaks_none(monkeypatch, tmp_path):
+    """KILLS: smuggling the headroom control -- or the post-hoc decomposition -- through the
+    results dict.
 
     The only path that wires headroom()'s real inputs into run(), and the only path that keeps
     it OUT of the published analysis.json, was exercised by nothing but a live invocation. It
@@ -119,10 +120,17 @@ def test_run_returns_the_two_artifacts_separately_and_leaks_neither(monkeypatch,
     monkeypatch.setattr(an, "_classes", lambda definition: classes)
     monkeypatch.setattr(an, "B", 200)  # keep the bootstrap quick
 
-    results, head = an.run()
+    results, head, decomposition = an.run()
 
-    # The pair is explicit, and neither artifact carries the other.
+    # The triple is explicit, and no artifact carries another.
     assert "_headroom" not in results
+    # AMENDMENT 5. The decomposition is post-hoc. It must not appear inside `contrasts` and must
+    # not inflate `family_size`, or Holm would be correcting over a family section 7 never
+    # registered and a reader would read an after-the-fact statistic as a pre-registered one.
+    assert "decomposition" not in results
+    assert results["family_size"] == len(results["contrasts"]) == 12
+    assert all(not k.startswith(("A|", "B|")) for k in decomposition)
+    assert set(decomposition) and all("|" in k for k in decomposition)
     assert "per_class" not in results
     assert "contrasts" not in head
     assert results["queries"] == 4
