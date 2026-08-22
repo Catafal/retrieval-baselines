@@ -22,6 +22,7 @@ That is stated first so it cannot be mistaken for a defence offered late.
 | NB-24 | 4 defects (whitelist asymmetry, three contract gaps) | the 6 below |
 | NB-25 | 6 defects | the 4 below |
 | NB-26 | 4 defects | see "what NB-26 itself got wrong" |
+| amendment 6 | — | 2 more (C8, C9), found by checking whether the repo's prose had been updated |
 
 The pattern is the finding. Each pass found what the previous pass's own fixes walked past, and in
 two cases a pass was corrected by an adversarial reviewer rather than by its own author.
@@ -125,6 +126,60 @@ node set without the guard `build.build` uses, so `""` was a node in the diagnos
 the graph — measured impact zero queries, published 0.8232 correct.
 
 ---
+
+## Correction from the second-corpus run (amendment 6)
+
+### C8 — `arms-summary.json` had no producer, and published a retracted number
+
+Found while checking whether the repository's prose had been updated for the second corpus. It had
+not, and the check turned up something worse.
+
+`results/003/arms-summary.json` was published with **no producing code anywhere in the repository**
+— `grep` for its name across `src/`, `scripts/`, the `Makefile` and every protocol returns nothing
+— and it stated `graph.recall_2 = **0.2132**`. That is the figure from the DEFECTIVE walk that
+`003-amendment-3` retracted. The live corrected figure is **0.2148**, and 0.2132 survives only in
+`results/003/pool/graph-defective/`, which exists precisely so a reader can see what was withdrawn.
+
+So a published artifact restated a retracted number, with no command able to regenerate or refute
+it. This is the fifteenth defect and the fourth instance of the same class. All three prior audits
+missed it, each for the same reason: they searched the graph arm's source tree, and this file is
+produced by nothing that lives there. Searching for *code without artifacts* does not find
+*artifacts without code*, and searching the module tree does not find a file that no module writes.
+
+Fixed by `src/rb/experiments/graph/arms_summary.py` and `make reproduce-003-arms-summary`, which
+derives the table from each arm's committed `summary.json` and now covers both corpora. The
+defective run is named in a `superseded_runs` block rather than sitting in the table as a fifth arm.
+
+| field | before | after |
+|---|---|---|
+| `arms.graph.recall_2` | 0.2132 *(retracted)* | **0.2148** |
+| `arms.graph.recall_5` | 0.2861 *(retracted)* | **0.3132** |
+| `arms.graph.ndcg_cut_10` | 0.2955 *(retracted)* | **0.3161** |
+
+### C9 — a structural exclusion that the amendment failed to carry forward
+
+Not a wrong number; a wrong process, and it belongs here for that reason.
+
+`NB-5`, the entry specification written before any of this ran, excluded 2WikiMultiHopQA from
+experiment 003 **on structural grounds**, and measured why:
+
+> 2Wiki ... has **no coverage-0 class at all** (measured: 507 coverage-1, 493 coverage-2). It
+> cannot test "the bridge entity is absent from the query"; it can only test "does the graph work
+> where topology favours it." The reason 2Wiki is excluded is structural, not budgetary.
+
+Amendment 6 added 2Wiki without carrying that exclusion forward, and the run then measured a
+coverage distribution of **1 / 6,603 / 3,221** — confirming the spec exactly. It was first reported
+as a limitation found after scoring and *not anticipated*. That description was wrong: it was
+anticipated, in this experiment's own specification, and not re-read before the corpus was added.
+
+**What survives.** Prediction C contrasts coverage ≤ 1 against coverage 2, which on 2Wiki is
+coverage-1 against coverage-2 — one gold title named and one hidden, against both named. That is
+the classic bridge contrast and it remains testable. What is lost is the coverage-0 stratum, the
+hardest case, where neither title anchors the query.
+
+**What did not survive.** NB-5's own expectation that "2Wiki is where the graph wins" was refuted
+by the run: 0.2734 against BM25's 0.5164. The topology argument does not rescue an arm whose
+binding constraint is that it cannot link 41.1% of queries to any node at all.
 
 ## What NB-26 itself got wrong
 

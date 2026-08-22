@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -68,6 +68,11 @@ reproduce-003-analysis:
 # HotpotQA artifacts. Writes results/003/2wiki/analysis.json.
 reproduce-003-2wiki-analysis:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis2wiki
+
+# The cross-arm table for both corpora. Derived from each arm's committed summary.json.
+# Replaces a file that previously had no producer and carried a retracted figure.
+reproduce-003-arms-summary:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.arms_summary
 
 clean:
 	rm -rf data/*/rg_corpus.txt

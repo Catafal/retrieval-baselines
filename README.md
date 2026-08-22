@@ -11,7 +11,7 @@ code are not comparable no matter what the prose claims.
 |---|---|---|
 | 001 | ripgrep, literal word-bounded matching | see `protocols/001-grep-baseline.md` |
 | 002 | lexical factorial, dense, hybrid (the ladder) | lexical factorial, dense and hybrid all measured on all three datasets, see `protocols/002-ladder.md` and `protocols/002-amendment-1-dense.md` |
-| 003 | knowledge graph | not started |
+| 003 | knowledge graph (spaCy NER + personalized PageRank) | measured on **two** corpora — HotpotQA and 2WikiMultiHopQA — with four arms each. See `protocols/003-graph-arm.md` and amendments 1–6, and `results/003/corrections.md` for every figure that moved after publication |
 
 ## Shared instrument, per-experiment arms
 

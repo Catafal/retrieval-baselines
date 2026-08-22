@@ -1,45 +1,82 @@
 {
-  "corpus": "HotpotQA distractor pool, 66,581 passages, 7,405 queries, identical candidate set",
-  "arms": {
-    "dense-bge": {
-      "recall_2": 0.6957,
-      "recall_5": 0.8163,
-      "ndcg_cut_10": 0.8269,
-      "seconds": 537
+  "status": "Cross-arm comparison, both corpora. Derived from each arm's committed summary.json; no retrieval is re-run. Supersedes the previous arms-summary.json, which had no producer and carried the retracted pre-PPR-fix graph figure (0.2132). See results/003/corrections.md.",
+  "corpora": {
+    "hotpotqa": {
+      "description": "HotpotQA distractor pool, 66,581 passages, 7,405 queries",
+      "arms": {
+        "bm25": {
+          "recall_2": 0.549,
+          "recall_5": 0.6948,
+          "ndcg_cut_10": 0.7197,
+          "recall_10": 0.7863,
+          "recall_100": 0.915,
+          "queries_scored": 7405
+        },
+        "graph": {
+          "recall_2": 0.2148,
+          "recall_5": 0.3132,
+          "ndcg_cut_10": 0.3161,
+          "recall_10": 0.3866,
+          "recall_100": 0.5147,
+          "queries_scored": 7405
+        },
+        "dense-minilm": {
+          "recall_2": 0.5136,
+          "recall_5": 0.6334,
+          "ndcg_cut_10": 0.661,
+          "recall_10": 0.7003,
+          "recall_100": 0.8381,
+          "queries_scored": 7405
+        },
+        "dense-bge": {
+          "recall_2": 0.6957,
+          "recall_5": 0.8163,
+          "ndcg_cut_10": 0.8269,
+          "recall_10": 0.8693,
+          "recall_100": 0.953,
+          "queries_scored": 7405
+        }
+      }
     },
-    "bm25": {
-      "recall_2": 0.549,
-      "recall_5": 0.6948,
-      "ndcg_cut_10": 0.7197,
-      "seconds": 97
-    },
-    "dense-minilm": {
-      "recall_2": 0.5136,
-      "recall_5": 0.6334,
-      "ndcg_cut_10": 0.661,
-      "seconds": 147
-    },
-    "graph": {
-      "recall_2": 0.2132,
-      "recall_5": 0.2861,
-      "ndcg_cut_10": 0.2955,
-      "seconds": 765
+    "2wiki": {
+      "description": "2WikiMultiHopQA distractor pool, 43,487 passages, 9,825 two-gold questions (amendment 6)",
+      "arms": {
+        "bm25": {
+          "recall_2": 0.5164,
+          "recall_5": 0.6372,
+          "ndcg_cut_10": 0.6611,
+          "recall_10": 0.7022,
+          "recall_100": 0.8018,
+          "queries_scored": 9825
+        },
+        "graph": {
+          "recall_2": 0.2734,
+          "recall_5": 0.339,
+          "ndcg_cut_10": 0.3452,
+          "recall_10": 0.3731,
+          "recall_100": 0.4353,
+          "queries_scored": 9825
+        },
+        "dense-minilm": {
+          "recall_2": 0.4766,
+          "recall_5": 0.5708,
+          "ndcg_cut_10": 0.6103,
+          "recall_10": 0.626,
+          "recall_100": 0.7483,
+          "queries_scored": 9825
+        },
+        "dense-bge": {
+          "recall_2": 0.6557,
+          "recall_5": 0.7303,
+          "ndcg_cut_10": 0.7739,
+          "recall_10": 0.7617,
+          "recall_100": 0.8479,
+          "queries_scored": 9825
+        }
+      }
     }
   },
-  "registered_predictions_amendment_2": {
-    "1_both_dense_lose_to_bm25": {
-      "verdict": "FAILED",
-      "detail": "MiniLM loses (0.5136 vs 0.5490) but BGE WINS by 0.147 recall@2 (0.6957 vs 0.5490). The amendment named this as the most interesting available outcome."
-    },
-    "2_both_dense_beat_the_graph_arm": {
-      "verdict": "HELD",
-      "detail": "MiniLM 0.5136 and BGE 0.6957 against the graph arm's 0.2132."
-    },
-    "3_bge_above_minilm": {
-      "verdict": "HELD",
-      "detail": "0.6957 vs 0.5136 recall@2."
-    }
-  },
-  "why_prediction_3_matters": "The amendment registered in advance that a failure of 3 without 1 or 2 would invalidate the comparison rather than the argument. 3 HELD, so the encoder really was stronger here and the failure of 1 is a real result rather than an artifact of a weak encoder.",
-  "the_confound_that_must_be_stated": "This does NOT establish that restricting to the distractor pool flipped the dense-vs-BM25 verdict. 002 measured dense losing to BM25 on HotpotQA at full 5.2M scale using MiniLM, and MiniLM still loses here (0.5136 vs 0.5490) - consistent with 002. BGE was never run on HotpotQA at full scale, because 002 amendment 2 excluded it at 5.75 hours of embedding. So the gap between 002's HotpotQA result and BGE's win here cannot be attributed to the corpus restriction rather than to the encoder. Separating them needs BGE at full corpus scale, which no protocol here registers."
+  "superseded_runs": {
+    "graph-defective": "results/003/pool/graph-defective/ \u2014 pre-amendment-3 walk, kept deliberately; see that directory's README."
+  }
 }
