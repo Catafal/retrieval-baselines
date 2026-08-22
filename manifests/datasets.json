@@ -1,4 +1,8 @@
 {
+  "2wiki_dev": {
+    "bytes": 30056098,
+    "sha256": "c0d8b60b9026b728fb07ad74c5252a0f188f6942e8ba5c02df4dfa369502ea8d"
+  },
   "hotpotqa": {
     "bytes": 654025350,
     "sha256": "c62459dbc91d31329584507b1fa564b3b1abcee58800967113054ee0f5a15c62"
