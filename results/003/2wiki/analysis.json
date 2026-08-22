@@ -26,22 +26,30 @@
     "coverage_0": {
       "n": 1,
       "graph_recall_2": 0.0,
-      "bm25_recall_2": 0.0
+      "bm25_recall_2": 0.0,
+      "graph_retrieved_nothing": 0,
+      "graph_empty_rate": 0.0
     },
     "coverage_1": {
       "n": 6603,
       "graph_recall_2": 0.1895,
-      "bm25_recall_2": 0.447
+      "bm25_recall_2": 0.447,
+      "graph_retrieved_nothing": 3248,
+      "graph_empty_rate": 0.4919
     },
     "bridge_absent": {
       "n": 6604,
       "graph_recall_2": 0.1894,
-      "bm25_recall_2": 0.4469
+      "bm25_recall_2": 0.4469,
+      "graph_retrieved_nothing": 3248,
+      "graph_empty_rate": 0.4918
     },
     "coverage_2": {
       "n": 3221,
       "graph_recall_2": 0.4457,
-      "bm25_recall_2": 0.659
+      "bm25_recall_2": 0.659,
+      "graph_retrieved_nothing": 787,
+      "graph_empty_rate": 0.2443
     }
   },
   "prediction_c_and_e": {

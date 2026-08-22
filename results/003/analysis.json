@@ -186,6 +186,36 @@
       "p_holm": 0.0024
     }
   },
+  "per_class_profile": {
+    "coverage_0": {
+      "n": 1821,
+      "graph_recall_2": 0.1952,
+      "bm25_recall_2": 0.4868,
+      "graph_retrieved_nothing": 302,
+      "graph_empty_rate": 0.1658
+    },
+    "coverage_1": {
+      "n": 3634,
+      "graph_recall_2": 0.2272,
+      "bm25_recall_2": 0.5543,
+      "graph_retrieved_nothing": 756,
+      "graph_empty_rate": 0.208
+    },
+    "coverage_2": {
+      "n": 1950,
+      "graph_recall_2": 0.21,
+      "bm25_recall_2": 0.5969,
+      "graph_retrieved_nothing": 251,
+      "graph_empty_rate": 0.1287
+    },
+    "bridge_absent": {
+      "n": 5455,
+      "graph_recall_2": 0.2165,
+      "bm25_recall_2": 0.5318,
+      "graph_retrieved_nothing": 1058,
+      "graph_empty_rate": 0.194
+    }
+  },
   "family_size": 12,
   "B": 10000,
   "seed": 20260820,

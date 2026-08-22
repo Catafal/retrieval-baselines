@@ -85,6 +85,9 @@ def run() -> dict:
     shared = sorted(set(graph) & set(bm25))
     gold = {q: [titles.get(d, "") for d in sorted(docs)] for q, docs in qrels.items()}
 
+    empty_ids = {json.loads(l)["query_id"]
+                 for l in (OUT / "graph" / "per_query.jsonl").read_text().splitlines()
+                 if not json.loads(l)["retrieved"]}
     results, pvals = {}, {}
     per_class = {}
     for definition in (cov.PRIMARY, cov.SENSITIVITY):
@@ -111,10 +114,15 @@ def run() -> dict:
                               ("bridge_absent", (0, 1)), ("coverage_2", (2,))):
                 qs = [q for q in shared if classes.get(q) in keep]
                 if qs:
+                    e = sum(1 for q in qs if q in empty_ids)
                     per_class[lbl] = {
                         "n": len(qs),
                         "graph_recall_2": round(metrics.mean([graph[q]["recall_2"] for q in qs]), 4),
-                        "bm25_recall_2": round(metrics.mean([bm25[q]["recall_2"] for q in qs]), 4)}
+                        "bm25_recall_2": round(metrics.mean([bm25[q]["recall_2"] for q in qs]), 4),
+                        # See analysis.per_class_profile: recall without the empty rate cannot
+                        # distinguish a bad ranking from an absent one.
+                        "graph_retrieved_nothing": e,
+                        "graph_empty_rate": round(e / len(qs), 4)}
 
     keys = sorted(pvals)
     for k, adj in zip(keys, holm_adjusted([pvals[k] for k in keys])):

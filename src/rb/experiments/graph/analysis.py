@@ -212,6 +212,45 @@ def decompose(graph, bm25, shared, classes, measure=PRIMARY_MEASURE) -> dict:
     }
 
 
+def per_class_profile(graph, bm25, shared, classes, empty_qids) -> dict:
+    """
+    Per-coverage-class recall AND empty-retrieval rate, for both arms.
+
+    WHY THIS EXISTS. The entry quotes the graph arm's R@2 by coverage class (0.1952 / 0.2272 /
+    0.2100) and those numbers were in no committed artifact: `headroom()` only ever pools
+    coverage {0,1} against {2} and never splits 0 from 1. A reader could not spot-check them from
+    any file. That is the defect class this experiment has now closed four times, so it is not
+    being left open a fifth.
+
+    THE EMPTY RATE IS THE POINT. A query whose entities link to no node retrieves nothing and
+    scores zero by arithmetic rather than by ranking. Reporting recall per class without it
+    leaves the reader unable to tell a bad ranking from an absent one — and on 2Wiki the two
+    classes differ by roughly a factor of two, which is the mechanism the entry names.
+    """
+    out = {}
+    for label, keep in (("coverage_0", (0,)), ("coverage_1", (1,)),
+                        ("coverage_2", (2,)), ("bridge_absent", (0, 1))):
+        qs = [q for q in shared if classes.get(q) in keep]
+        if not qs:
+            continue
+        empty = sum(1 for q in qs if q in empty_qids)
+        out[label] = {
+            "n": len(qs),
+            "graph_recall_2": round(metrics.mean([graph[q]["recall_2"] for q in qs]), 4),
+            "bm25_recall_2": round(metrics.mean([bm25[q]["recall_2"] for q in qs]), 4),
+            "graph_retrieved_nothing": empty,
+            "graph_empty_rate": round(empty / len(qs), 4),
+        }
+    return out
+
+
+def empty_query_ids(arm: str) -> set[str]:
+    """Queries for which `arm` returned an empty ranking."""
+    return {json.loads(line)["query_id"]
+            for line in (OUT / "pool" / arm / "per_query.jsonl").read_text().splitlines()
+            if not json.loads(line)["retrieved"]}
+
+
 def run() -> dict:
     qrels = datasets.load_qrels("hotpotqa")
     graph, bm25 = _per_query("graph", qrels), _per_query("bm25", qrels)
@@ -249,12 +288,15 @@ def run() -> dict:
     # the second artifact part of the signature instead of a naming convention.
     # THREE artifacts, returned explicitly. The third is post-hoc and is kept OUT of `contrasts`
     # and out of `family_size` so it cannot be mistaken for part of the registered family.
+    profile = per_class_profile(graph, bm25, shared, classes[cov.PRIMARY],
+                                empty_query_ids("graph"))
     decomposition = {
         f"{m}|{d}": decompose(graph, bm25, shared, classes[d], m)
         for d in (cov.PRIMARY, cov.SENSITIVITY)
         for m in (PRIMARY_MEASURE, *SECONDARY_MEASURES)
     }
     return ({"queries": len(shared), "overall": overall, "contrasts": results,
+             "per_class_profile": profile,
              "family_size": len(pvals), "B": B, "seed": SEED, "margin": MARGIN},
             headroom(graph, bm25, shared, classes[cov.PRIMARY]),
             decomposition)
