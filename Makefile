@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -62,6 +62,12 @@ reproduce-003-pool-control:
 # results/003/decomposition.json (POST-HOC -- its own file, never merged into analysis.json).
 reproduce-003-analysis:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis
+
+# Experiment 003's SECOND corpus (2WikiMultiHopQA), amendment 6. Adjudicates predictions C, D
+# and E from the committed per_query.jsonl; does not re-run retrieval and does not touch the
+# HotpotQA artifacts. Writes results/003/2wiki/analysis.json.
+reproduce-003-2wiki-analysis:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis2wiki
 
 clean:
 	rm -rf data/*/rg_corpus.txt

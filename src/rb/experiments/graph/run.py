@@ -18,12 +18,26 @@ import time
 from pathlib import Path
 
 from rb import controls, datasets
-from rb.experiments.graph import pool
+from rb.experiments.graph import pool, pool2wiki
 from rb.experiments.graph.measures import GRAPH_MEASURES
 from rb.retriever import run_rung
 
 ROOT = Path(__file__).resolve().parents[4]
 OUT = ROOT / "results" / "003"
+
+
+def load_pool_2wiki():
+    """The 2Wiki candidate set — protocols/003-amendment-6-second-corpus.md.
+
+    Separate from `load_pool` rather than branching inside it. The two corpora resolve documents
+    by different routes (BEIR ids inherited vs ids minted from titles) and share no step, so a
+    shared function would be two functions wearing one name.
+    """
+    corpus, titles, queries, qrels = pool2wiki.build()
+    check = pool2wiki.control()
+    if not check["passed"]:
+        raise RuntimeError(f"2wiki pool control failed: {check}. Nothing is scored on a broken pool.")
+    return corpus, titles, queries, qrels, check
 
 
 def load_pool():
@@ -83,12 +97,16 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--arm", required=True,
                     choices=["bm25", "graph", "dense-minilm", "dense-bge"])
+    ap.add_argument("--dataset", default="hotpotqa", choices=["hotpotqa", "2wiki"])
     ap.add_argument("--top-k", type=int, default=100)
     args = ap.parse_args()
 
     t0 = time.perf_counter()
-    corpus, queries, qrels, check = load_pool()
-    print(f"pool: {len(corpus):,} passages, {len(queries):,} queries "
+    if args.dataset == "2wiki":
+        corpus, _titles, queries, qrels, check = load_pool_2wiki()
+    else:
+        corpus, queries, qrels, check = load_pool()
+    print(f"pool[{args.dataset}]: {len(corpus):,} passages, {len(queries):,} queries "
           f"({time.perf_counter()-t0:.0f}s)", flush=True)
 
     retriever, needs_fit = _arm(args.arm)
@@ -100,9 +118,11 @@ def main() -> None:
         print(f"built in {build_seconds:.0f}s: "
               f"{build_manifest.get('nodes'):,} nodes", flush=True)
 
-    out_dir = OUT / "pool" / args.arm
+    # 2Wiki writes under its own subtree so the published HotpotQA artifacts cannot be overwritten
+    # by a run of the second corpus.
+    out_dir = OUT / "pool" / args.arm if args.dataset == "hotpotqa" else OUT / "2wiki" / args.arm
     summary = run_rung(
-        retriever, "hotpotqa-distractor-pool", corpus, queries, qrels, out_dir,
+        retriever, f"{args.dataset}-distractor-pool", corpus, queries, qrels, out_dir,
         top_k=args.top_k, measures=GRAPH_MEASURES,
         extra_manifest=lambda: {
             # Build cost separately from query cost: the protocol requires it, because the

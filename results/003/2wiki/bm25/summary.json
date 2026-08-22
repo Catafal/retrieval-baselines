@@ -1,0 +1,70 @@
+{
+  "dataset": "2wiki-distractor-pool",
+  "retriever": "lexical(idf,tf_sat,len_norm)",
+  "queries_scored": 9825,
+  "queries_available": 9825,
+  "subsampled": false,
+  "seed": null,
+  "corpus_documents": 43487,
+  "controls": {
+    "gold_presence": {
+      "gold_documents": 16468,
+      "missing_from_corpus": 0,
+      "examples": [],
+      "passed": true
+    }
+  },
+  "ranked": {
+    "ndcg_cut_10": 0.6611,
+    "recall_10": 0.7022,
+    "recall_100": 0.8018,
+    "recall_2": 0.5164,
+    "recall_5": 0.6372
+  },
+  "cost": {
+    "total_seconds": 48.937,
+    "usd": 0.0
+  },
+  "environment": {
+    "python": "3.14.3",
+    "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "git_commit": "fe4c52c5eb92e668e15a707d4f23b07749105e05",
+    "dataset_checksums": {
+      "2wiki_dev": {
+        "bytes": 30056098,
+        "sha256": "c0d8b60b9026b728fb07ad74c5252a0f188f6942e8ba5c02df4dfa369502ea8d"
+      },
+      "hotpotqa": {
+        "bytes": 654025350,
+        "sha256": "c62459dbc91d31329584507b1fa564b3b1abcee58800967113054ee0f5a15c62"
+      },
+      "hotpotqa_distractor": {
+        "bytes": 27452575,
+        "sha256": "c20b638ca82b21d04fe12e14ff417ad05153d4d215a65de54497fca4e972f7c6"
+      },
+      "quora": {
+        "bytes": 15853968,
+        "sha256": "56aacd9dcc4d9c093b63f175afdda0e21cbc8442ecf6c717d09de7b358d77531"
+      },
+      "scifact": {
+        "bytes": 2816079,
+        "sha256": "536e14446a0ba56ed1398ab1055f39fe852686ecad24a6306c80c490fa8e0165"
+      }
+    }
+  },
+  "retriever_manifest": {
+    "build_seconds": 0.0,
+    "pool_control": {
+      "questions": 9825,
+      "passages": 43487,
+      "title_slots": 98250,
+      "variant_titles": 1242,
+      "gold_titles": 16468,
+      "gold_titles_matched": 9825,
+      "gold_queries": 9825,
+      "mismatched": {},
+      "passed": true
+    }
+  }
+}

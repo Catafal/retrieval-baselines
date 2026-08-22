@@ -1,0 +1,221 @@
+{
+  "queries": 9825,
+  "overall": {
+    "ndcg_cut_10": {
+      "graph": 0.3452,
+      "bm25": 0.6611
+    },
+    "recall_10": {
+      "graph": 0.3731,
+      "bm25": 0.7022
+    },
+    "recall_100": {
+      "graph": 0.4353,
+      "bm25": 0.8018
+    },
+    "recall_2": {
+      "graph": 0.2734,
+      "bm25": 0.5164
+    },
+    "recall_5": {
+      "graph": 0.339,
+      "bm25": 0.6372
+    }
+  },
+  "per_class_recall_2": {
+    "coverage_0": {
+      "n": 1,
+      "graph_recall_2": 0.0,
+      "bm25_recall_2": 0.0
+    },
+    "coverage_1": {
+      "n": 6603,
+      "graph_recall_2": 0.1895,
+      "bm25_recall_2": 0.447
+    },
+    "bridge_absent": {
+      "n": 6604,
+      "graph_recall_2": 0.1894,
+      "bm25_recall_2": 0.4469
+    },
+    "coverage_2": {
+      "n": 3221,
+      "graph_recall_2": 0.4457,
+      "bm25_recall_2": 0.659
+    }
+  },
+  "prediction_c_and_e": {
+    "C|recall_2|stripped": {
+      "n_bridge_absent": 6604,
+      "n_comparison": 3221,
+      "difference": -0.2562,
+      "ci95": [
+        -0.2711,
+        -0.2418
+      ],
+      "p_value": 0.0002,
+      "excludes_zero": true,
+      "meets_margin": false,
+      "supported": false,
+      "p_holm": 0.0024
+    },
+    "E|recall_2|stripped": {
+      "n": 3221,
+      "mean_advantage": -0.2133,
+      "ci95": [
+        -0.2274,
+        -0.1989
+      ],
+      "p_value": 0.0002,
+      "no_advantage": true,
+      "p_holm": 0.0024
+    },
+    "C|recall_5|stripped": {
+      "n_bridge_absent": 6604,
+      "n_comparison": 3221,
+      "difference": -0.2347,
+      "ci95": [
+        -0.2506,
+        -0.2186
+      ],
+      "p_value": 0.0002,
+      "excludes_zero": true,
+      "meets_margin": false,
+      "supported": false,
+      "p_holm": 0.0024
+    },
+    "E|recall_5|stripped": {
+      "n": 3221,
+      "mean_advantage": -0.3303,
+      "ci95": [
+        -0.3448,
+        -0.3159
+      ],
+      "p_value": 0.0002,
+      "no_advantage": true,
+      "p_holm": 0.0024
+    },
+    "C|ndcg_cut_10|stripped": {
+      "n_bridge_absent": 6604,
+      "n_comparison": 3221,
+      "difference": -0.2538,
+      "ci95": [
+        -0.2696,
+        -0.2381
+      ],
+      "p_value": 0.0002,
+      "excludes_zero": true,
+      "meets_margin": false,
+      "supported": false,
+      "p_holm": 0.0024
+    },
+    "E|ndcg_cut_10|stripped": {
+      "n": 3221,
+      "mean_advantage": -0.3056,
+      "ci95": [
+        -0.3189,
+        -0.292
+      ],
+      "p_value": 0.0002,
+      "no_advantage": true,
+      "p_holm": 0.0024
+    },
+    "C|recall_2|exact": {
+      "n_bridge_absent": 6631,
+      "n_comparison": 3194,
+      "difference": -0.2587,
+      "ci95": [
+        -0.2733,
+        -0.2442
+      ],
+      "p_value": 0.0002,
+      "excludes_zero": true,
+      "meets_margin": false,
+      "supported": false,
+      "p_holm": 0.0024
+    },
+    "E|recall_2|exact": {
+      "n": 3194,
+      "mean_advantage": -0.212,
+      "ci95": [
+        -0.2265,
+        -0.1976
+      ],
+      "p_value": 0.0002,
+      "no_advantage": true,
+      "p_holm": 0.0024
+    },
+    "C|recall_5|exact": {
+      "n_bridge_absent": 6631,
+      "n_comparison": 3194,
+      "difference": -0.2365,
+      "ci95": [
+        -0.2522,
+        -0.2206
+      ],
+      "p_value": 0.0002,
+      "excludes_zero": true,
+      "meets_margin": false,
+      "supported": false,
+      "p_holm": 0.0024
+    },
+    "E|recall_5|exact": {
+      "n": 3194,
+      "mean_advantage": -0.3298,
+      "ci95": [
+        -0.3444,
+        -0.3156
+      ],
+      "p_value": 0.0002,
+      "no_advantage": true,
+      "p_holm": 0.0024
+    },
+    "C|ndcg_cut_10|exact": {
+      "n_bridge_absent": 6631,
+      "n_comparison": 3194,
+      "difference": -0.2563,
+      "ci95": [
+        -0.2718,
+        -0.2406
+      ],
+      "p_value": 0.0002,
+      "excludes_zero": true,
+      "meets_margin": false,
+      "supported": false,
+      "p_holm": 0.0024
+    },
+    "E|ndcg_cut_10|exact": {
+      "n": 3194,
+      "mean_advantage": -0.304,
+      "ci95": [
+        -0.3178,
+        -0.291
+      ],
+      "p_value": 0.0002,
+      "no_advantage": true,
+      "p_holm": 0.0024
+    }
+  },
+  "prediction_d_crossover": {
+    "twowiki_deficit_r2": -0.243,
+    "hotpotqa_deficit_r2": -0.3342,
+    "shrink_points": 9.12,
+    "registered_threshold_points": 10.0,
+    "supported": false
+  },
+  "graph_no_seed": {
+    "queries": 4035,
+    "rate": 0.4107
+  },
+  "hotpotqa_reference": {
+    "graph_own_class_difference": 0.0065,
+    "ci95": [
+      -0.0082,
+      0.0212
+    ]
+  },
+  "family_size": 12,
+  "B": 10000,
+  "seed": 20260820,
+  "margin": 0.02
+}
