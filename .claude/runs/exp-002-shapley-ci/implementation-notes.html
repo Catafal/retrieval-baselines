@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Shapley CI + length stats · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>Shapley CI + length stats (Experiment 002, Jobs 1 + partial Job 2 infra)</h1>
+  <p class="meta">Branch <code>exp-002-shapley-ci</code> · started 2026-08-19 ·
+     bootstrap over Shapley attribution, pairwise ordering, Spearman correlation
+     stat, corpus length stats, regeneration of the three committed
+     <code>lexical_factorial.json</code> files.</p>
+  <p>This is a <strong>living document</strong> capturing how the implementation interprets,
+     diverges from, or trades off against the spec. Updated as each slice lands.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Put a query-resampled bootstrap interval and pairwise ordering fractions on the
+     Shapley attribution already measured for lexical/002, add a (not-yet-wired) Spearman
+     rank correlation and a corpus length-statistics function for later use, and regenerate
+     the three existing <code>lexical_factorial.json</code> artifacts from their committed
+     per-query artifacts — without re-running retrieval and without changing the existing
+     exact Shapley point values. The full notebook spec (NB-13/14/15) also covers a
+     pre-registered out-of-sample corpus extension (Job 2); this task explicitly descopes
+     that to infrastructure-only (Spearman stat, length stats) and forbids touching the
+     dataset allowlist.</p>
+
+  <h2>Design decisions <span class="meta">(spec was ambiguous → here's the call I made)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Bootstrap function signature: <code>shapley_bootstrap(per_cell_scores, players, rounds, seed)</code>.</strong>
+    <code>per_cell_scores</code> maps each of the 8 subset-frozensets to a query-aligned list
+    of per-query nDCG@10 (same convention <code>shapley_values</code> already uses for its
+    value function, just query-level instead of scalar). Iteration over cells is sorted by
+    <code>tuple(sorted(subset))</code> rather than dict insertion order, so behaviour cannot
+    depend on caller construction order (house rule: no dict-order dependence).</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Point estimate stays the existing exact Shapley value; the bootstrap only adds <code>ci95</code> and pairwise ordering.</strong>
+    The spec's Job 1 already has an exact Shapley computation from the full data
+    (<code>shapley_from_ndcg</code>/<code>shapley_values</code>). The bootstrap's per-round
+    Shapley values are only used to build the percentile interval and the ordering
+    fractions, not to replace the point estimate — this is also what keeps the "point values
+    must come out identical" regeneration check meaningful: the point values never touch the
+    new bootstrap code path.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Length stats function lives in <code>lexical.py</code>, not <code>stats.py</code>.</strong>
+    It must use the same tokenizer the lexical scorer uses (<code>_tokenize</code>), which is
+    private to <code>lexical.py</code>. Putting a dataset/domain-specific function in the
+    generic <code>stats.py</code> module (shared across future experiments per its own
+    docstring) would import a lexical-specific tokenizer into a module that's supposed to stay
+    generic. <code>stats.py</code> keeps the two genuinely generic additions (Shapley
+    bootstrap, Spearman); <code>corpus_length_stats</code> sits next to <code>_tokenize</code>
+    in <code>lexical.py</code> instead.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>Regeneration is a new CLI rung, <code>--rung shapley-intervals</code>, calling <code>add_shapley_intervals(dataset)</code> in <code>run.py</code>.</strong>
+    Reuses <code>_load_subsampled</code>, <code>_per_query_ndcg</code> and <code>ALL_CONFIGS</code>
+    already in that module rather than a one-off script, and is testable the same way
+    <code>run_lexical_factorial</code> already is (monkeypatch <code>RESULTS</code> to
+    tmp_path). It reads each config's already-committed <code>per_query.jsonl</code>, recomputes
+    per-query nDCG, checks the recomputed per-cell means against the numbers already stored in
+    <code>configs</code> (see Deviations — this is the "must come out IDENTICAL" check the task
+    description asks for), then adds <code>shapley_ci95</code> and
+    <code>shapley_pairwise_ordering</code> to the existing JSON in place. It does not call
+    <code>retrieve()</code>, <code>build_index()</code>, or the closure control again.</div>
+
+  <h2>Deviations <span class="meta">(intentional departures from the spec/convention)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>Length stats are NOT wired into <code>lexical_factorial.json</code>.</strong>
+    Item 3 of the task ("wire both into the factorial run") names only the bootstrap interval
+    and pairwise ordering fractions ("both" = items 1 and 2). Item 5 (length stats) is asked
+    for as a standalone, tested function, matching the treatment of item 4 (Spearman — built
+    and tested, explicitly "do not use it yet"). Keeping length stats out of the regenerated
+    JSON keeps this run's write surface to exactly what item 3 named, per the "nothing more
+    than the six items" house rule. It is trivial to wire in later (one line in
+    <code>add_shapley_intervals</code>) once Job 2 needs it as a per-corpus artifact.</div>
+
+  <h2>Tradeoffs <span class="meta">(alternatives considered)</span></h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Where to put the "same query draw across all 8 cells" guarantee.</strong>
+    Considered exposing a <code>shared_draws: bool</code> toggle on <code>shapley_bootstrap</code>
+    so the pairing test could call the same function both ways. Rejected: the spec calls
+    breaking the pairing "the single most important property... it must have a test that fails
+    if it is broken" — a toggle makes the wrong behaviour reachable in production code, which is
+    exactly the failure mode being guarded against. Instead the pairing test builds its own
+    small "broken" independent-draw bootstrap inline, in the test file only, and asserts the real
+    function's intervals are narrower.</div>
+
+  <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Job 2 (pre-registered out-of-sample corpus extension) is out of scope for this branch.</strong>
+    The orchestrator prompt explicitly forbids touching the dataset allowlist and says
+    "any new corpus is out of scope for this branch." The full spec's Job 2 (protocol
+    amendment, new BEIR corpora, wiring Spearman + length stats into a cross-corpus chart) is
+    therefore not attempted here beyond building the two reusable primitives (Spearman,
+    length stats) it will need. Flagging so it isn't read as forgotten.</div>
+
+  <div class="open"><span class="tag t-open">Open — BLOCKING</span> <strong>The three committed <code>lexical_factorial.json</code> files were NOT regenerated. The "must come out identical" check caught a real, pre-existing precision gap in <code>_per_query_ndcg</code>.</strong>
+    <p><code>add_shapley_intervals</code>'s consistency check — recompute each cell's mean
+    nDCG@10 from the committed <code>per_query.jsonl</code> and compare against the committed
+    point value — failed. Root cause, confirmed by direct experiment (live <code>retrieve()</code>
+    + <code>pytrec_eval</code> vs. the <code>per_query.jsonl</code> reconstruction, on real data,
+    read-only, nothing written): <code>pytrec_eval</code> appears to compare scores at reduced
+    (roughly float32) precision internally. Two documents whose real BM25 scores differ only by
+    the 1e-9-per-rank tie-break epsilon <code>LexicalRetriever</code> applies are, to
+    <code>pytrec_eval</code>, exactly tied — and it resolves that tie with its own convention
+    (order-independent, and not always in the same direction: sometimes higher, sometimes lower
+    than our reconstruction). <code>_per_query_ndcg</code>'s reconstruction assigns each
+    document a synthetic score far enough apart that no such tie exists, so it evaluates strictly
+    by the recorded rank order — which is what the original live run's <code>pytrec_eval</code>
+    call did NOT do whenever the real scores were this close together.</p>
+    <p><b>Measured scope</b> (recomputed mean nDCG@10 per cell vs. the committed value, both
+    rounded to 4 decimals to match <code>run_rung</code>'s own rounding):</p>
+    <table>
+      <tr><th>Corpus</th><th>Cells affected</th><th>Largest diff</th><th>Likely reason</th></tr>
+      <tr><td>SciFact</td><td>2 of 8 (both <code>idf=False</code>)</td><td>0.0021</td><td>occasional raw-tf ties</td></tr>
+      <tr><td>HotpotQA</td><td>4 of 8</td><td>0.0006</td><td>occasional ties, large corpus dilutes them</td></tr>
+      <tr><td>Quora</td><td>8 of 8 (every cell)</td><td>0.0039</td><td>mean doc length ~11.7 tokens — short documents make raw-score ties common</td></tr>
+    </table>
+    <p>This is a pre-existing property of <code>_per_query_ndcg</code>, used unchanged by the
+    already-committed <code>adjacent_rung_comparisons</code> section (specifically the
+    <code>lexical(none)</code> rung, LADDER's first element) — not a defect introduced on this
+    branch. It was never visible before because nothing previously cross-checked a
+    reconstructed value against a live-computed one at 4-decimal precision. Ironically it hits
+    hardest on Quora, the corpus central to the length hypothesis this whole experiment is
+    building toward.</p>
+    <p><b>What I did instead of forcing it through:</b> left all three committed JSON files
+    untouched, and did not write shapley_ci95/shapley_pairwise_ordering to disk anywhere. I
+    computed the bootstrap and ordering fractions anyway, in memory only, using the same
+    (slightly imprecise on some queries) reconstructed data <code>add_shapley_intervals</code>
+    would use, to show what the numbers look like — see the final report for the actual
+    figures. The magnitude of the imprecision (≤0.004 in a point estimate) is small relative to
+    the ~0.05–0.10 interval widths already measured, so it is very unlikely to flip any
+    qualitative conclusion, but "very unlikely" is not "verified," which is exactly the
+    standard this task's own consistency check is holding everything else to.</p>
+    <p><b>Options for a reviewer:</b> (a) accept a documented, bounded tolerance (e.g. 0.005)
+    on this check with the root cause on record, and let me regenerate; (b) fix
+    <code>_per_query_ndcg</code> to replicate <code>pytrec_eval</code>'s tie convention exactly
+    (nontrivial — its convention isn't obviously order-independent-of-magnitude, it needs
+    reverse-engineering or an upstream source read); (c) regenerate by re-scoring from the live
+    retriever instead of the artifact (defeats the "costs seconds, not 45 minutes" reason this
+    job exists, though SciFact/Quora are cheap — only HotpotQA is expensive). I did not pick one
+    unilaterally because the task's own instruction was explicit: stop and report on any change,
+    not decide for the author.</p>
+  </div>
+
+  <h2>Build / verification</h2>
+  <ul>
+    <li>Tests: see Progress table below; full suite run at the end, must stay at 103+N pass.</li>
+    <li>Migrations / new env / new deps: none.</li>
+  </ul>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Slice</th><th>What</th><th>Status</th></tr>
+    <tr><td>1</td><td>Read spec, protocol, stats.py, run.py, lexical.py, existing tests/artifacts</td><td class="done">✓ done</td></tr>
+    <tr><td>2</td><td><code>shapley_bootstrap</code> + pairwise ordering in <code>stats.py</code>, with tests</td><td class="done">✓ done</td></tr>
+    <tr><td>3</td><td><code>spearman_correlation</code> in <code>stats.py</code>, with tests</td><td class="done">✓ done</td></tr>
+    <tr><td>4</td><td><code>corpus_length_stats</code> in <code>lexical.py</code>, with tests</td><td class="done">✓ done</td></tr>
+    <tr><td>5</td><td>Wire bootstrap + ordering into <code>run_lexical_factorial</code>/<code>add_shapley_intervals</code></td><td class="done">✓ done</td></tr>
+    <tr><td>6</td><td>Regenerate the three committed <code>lexical_factorial.json</code> files, verify point values unchanged</td><td style="color:#dc2626;font-weight:600;">✗ blocked — see Open Questions</td></tr>
+    <tr><td>7</td><td>Full suite green, commit code (not results/002, which is untouched)</td><td class="done">✓ done</td></tr>
+  </table>
+</body>
+</html>

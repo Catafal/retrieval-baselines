@@ -1,24 +1,24 @@
 {
   "status": "HEADROOM CONTROL, required by protocol section 7 and reported alongside every delta.",
+  "measure": "recall_2",
   "per_class": {
     "bridge_absent": {
       "n": 5455,
       "bm25_recall_2": 0.5318,
-      "graph_recall_2": 0.2101,
-      "raw_deficit": -0.3217,
+      "graph_recall_2": 0.2165,
+      "raw_deficit": -0.3153,
       "headroom": 0.4682,
-      "headroom_normalised_deficit": -0.6872
+      "headroom_normalised_deficit": -0.6735
     },
     "comparison": {
       "n": 1950,
       "bm25_recall_2": 0.5969,
-      "graph_recall_2": 0.2218,
-      "raw_deficit": -0.3751,
+      "graph_recall_2": 0.21,
+      "raw_deficit": -0.3869,
       "headroom": 0.4031,
-      "headroom_normalised_deficit": -0.9307
+      "headroom_normalised_deficit": -0.9599
     }
   },
-  "raw_differential": 0.0534,
-  "normalised_differential": 0.2435,
-  "reading": "The confound this control exists for is refuted rather than merely checked. If the differential were an artifact of BM25 having more room to lose in one class, normalising by headroom would shrink it. The comparison class has LESS headroom (0.403 vs 0.468), so normalising AMPLIFIES the differential from +0.053 raw to +0.244 normalised. The effect is not a ceiling artifact."
+  "raw_differential": 0.0716,
+  "normalised_differential": 0.2864
 }

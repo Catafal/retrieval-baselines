@@ -55,12 +55,49 @@ EXCLUDED = frozenset({
 SPACY_ONTONOTES_ENTS_F = 0.8433
 
 
-def assert_partition() -> None:
-    """The two sets must be disjoint and must cover spaCy's label inventory. A type in
-    neither would be silently dropped from both sides of the comparison."""
+def assert_partition(labels=None) -> None:
+    """
+    Check the whitelist partition. Two claims, checkable only in different places, and the
+    argument is what separates them.
+
+    WITHOUT `labels` — disjointness only. That is honestly all this module can verify on its
+    own: it must not import spaCy, because "frozen before spaCy was installed" is the property
+    that makes the list credible, and it stays checkable from git history only while the module
+    has no dependency on the thing it predates. Runs at import, costs nothing.
+
+    WITH `labels` — additionally that the two sets exactly cover the model's real label
+    inventory. A type in neither set is silently dropped from both sides of the §8.2
+    comparison; a type declared here but absent from the model means this list describes a
+    different artefact than the one running.
+
+    The second form is called from `extractor._nlp()`, which already loads the model and
+    already asserts the version pin. That placement is deliberate. The obvious alternative — a
+    hand-written SPACY_NER_LABELS constant checked at import — is self-defeating: an editor who
+    breaks the partition simply edits the third constant to match, because the check would only
+    compare three siblings in this file against each other and never against reality. Nor can
+    the real check live in a test that skips when spaCy is absent: this repository has no CI,
+    so a skipped test is enforced nowhere. Checking at model load puts it on the path every
+    scored run takes, with nothing to drift.
+    """
     overlap = WHITELIST & EXCLUDED
     if overlap:
         raise RuntimeError(f"a type cannot be both kept and excluded: {sorted(overlap)}")
+    if labels is None:
+        return
+    declared = WHITELIST | EXCLUDED
+    actual = frozenset(labels)
+    uncovered = actual - declared
+    if uncovered:
+        raise RuntimeError(
+            f"the model emits entity types this whitelist classifies neither way: "
+            f"{sorted(uncovered)}. A type in neither set is dropped from both sides."
+        )
+    phantom = declared - actual
+    if phantom:
+        raise RuntimeError(
+            f"this whitelist declares entity types the model never emits: "
+            f"{sorted(phantom)}. The list describes a different model than the one loaded."
+        )
 
 
 def filter_entities(entities, kept=WHITELIST):
@@ -75,7 +112,9 @@ def filter_entities(entities, kept=WHITELIST):
     return [(text, label) for text, label in entities if label in kept]
 
 
-# Enforced at import, not left as a function nobody calls. A whitelist edit that creates an
-# overlap or a gap now fails the moment the module loads, rather than at some later scored run
-# where the symptom would be a number rather than an error.
+# Enforced at import, not left as a function nobody calls. This catches the half checkable
+# here — an edit making a type both kept and excluded fails the moment the module loads. The
+# COVERAGE half needs the model's real label inventory and runs in `extractor._nlp()`; see
+# assert_partition's docstring for why it lives there rather than behind a hand-written
+# constant or a test that skips when spaCy is missing.
 assert_partition()

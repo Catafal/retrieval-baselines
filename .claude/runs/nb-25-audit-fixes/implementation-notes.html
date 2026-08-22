@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NB-25 Audit Fixes · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>NB-25 — audit fixes for Experiment 003's graph arm</h1>
+  <p class="meta">Branch <code>nb-25-audit-fixes</code> · commit <code>3163259</code> · 2026-08-21 ·
+     closing four defects found by a second read-audit, plus a fifth found by the spec council.</p>
+  <p>This is a <strong>living document</strong> capturing how the implementation interprets,
+     diverges from, or trades off against the spec. Updated as each slice lands.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Make every artifact 003 publishes regenerable by a named command, every p-value one the
+     procedure can actually produce, the whitelist's completeness enforced where it is claimed,
+     and both sides of the graph weighted by one rule — then recompute the registered analysis.</p>
+
+  <h2>Deviations from the spec <span class="meta">(the council overturned three of my own calls)</span></h2>
+
+  <div class="deviation">
+    <span class="tag t-dev">Deviation</span> <strong>D2 — the specified floor was arithmetically
+    wrong, so the floor was deleted rather than corrected.</strong>
+    <p>The spec said floor p at <code>1/B</code>. That value is impossible: the statistic is
+    <code>2 · min(c_le, c_ge) / B</code> with integer counts, so it emits only multiples of
+    <code>2/B</code>. Flooring at <code>1/B</code> would report a resolution <em>finer</em> than
+    the procedure has — reintroducing the exact defect being fixed, one order of magnitude down.
+    Two council seats derived this independently; I verified it by construction.</p>
+    <p>Rather than change the constant to <code>2/B</code>, I replaced the estimator with the
+    standard add-one form <code>2·min(c_le+1, c_ge+1)/(B+1)</code>, which <strong>cannot return
+    zero by construction</strong>. This <em>removes</em> code: the spec's <code>max(...)</code>
+    clamp and its companion <code>p_value_is_floor</code> flag both become unnecessary. A floor
+    plus a flag is two moving parts patching a biased estimator; this is one correct estimator.</p>
+  </div>
+
+  <div class="deviation">
+    <span class="tag t-dev">Deviation</span> <strong>D3 — the specified fix was self-defeating;
+    the check moved instead of gaining a constant.</strong>
+    <p>The spec proposed a hand-frozen <code>SPACY_NER_LABELS</code> constant asserted at import,
+    plus a test comparing it to the real model. The council showed this fails at the invariant it
+    exists for: an editor who breaks the partition simply edits the third constant to match,
+    because the import-time check only compares three siblings in one file against each other.
+    The only check against reality was a test that skips without spaCy — and
+    <strong>this repository has no CI</strong>, so a skipped test is enforced nowhere.</p>
+    <p>Neither the spec's constant nor the council's proposed CI-gate remedy survives that. What
+    I implemented instead is a placement change with no new state:
+    <code>assert_partition(labels=None)</code> takes the inventory as an argument, and
+    <code>extractor._nlp()</code> — which already loads the model and already asserts the version
+    pin — passes the real labels. The strongest form of the invariant now runs inside every
+    scored extraction, with nothing to drift and no skippable test.</p>
+  </div>
+
+  <div class="deviation">
+    <span class="tag t-dev">Deviation</span> <strong>D1 grew: the spec's verification requirement
+    was unsatisfiable, because the file hid a fifth defect.</strong>
+    <p><code>gate-and-seed.json</code> publishes a <code>graph</code> block whose field names
+    <code>distinct_surface_entities</code> and <code>mean_entities_per_document</code> have
+    <strong>zero occurrences anywhere in the source tree</strong>. It was written by code that no
+    longer exists — the same defect D1 was written to close, sitting inside the file D1 was
+    written to fix. A literal implementation of the spec would have emitted a file missing a
+    committed key and failed its own verification on day one.</p>
+    <p>Added <code>graph_summary()</code>, which reproduces the published values exactly
+    (66,581 / 65,987 / 291,837 / 9.25). The rule I applied: had it <em>not</em> reproduced them,
+    the block would have been removed from the artifact rather than quietly redefined — a number
+    no code can regenerate does not get published.</p>
+  </div>
+
+  <h2>Design decisions</h2>
+
+  <div class="decision">
+    <span class="tag t-dec">Decision</span> <strong>Holm collapses to one implementation via the
+    adjusted-p form, not the boolean form.</strong>
+    <p><code>holm_adjusted</code> is the primitive; <code>holm_correction</code> becomes
+    <code>[adj &lt;= alpha for adj in holm_adjusted(p)]</code>. The running maximum does by
+    construction what the old early <code>break</code> did by hand. 002 is published on the
+    boolean form, so equivalence is asserted against every committed 002 decision, not just
+    synthetic fixtures.</p>
+    <p><code>holm_adjusted</code> must return <em>input</em> order. 002's ladder passes
+    deliberately-unsorted p-values and zips the result against its own labels, so sorted output
+    would silently mislabel a published comparison. There is a test that kills that mutation.</p>
+  </div>
+
+  <div class="decision">
+    <span class="tag t-dec">Decision</span> <strong>The seed dedup lives in <code>_seed</code>,
+    not in <code>node_strings</code>.</strong>
+    <p><code>node_strings</code> is deliberately surface-form-level and is shared with the §8.2
+    diagnostic, where collapsing distinct surface forms would change what the extraction score
+    measures. Only the seeding step wants the graph's normalised key.</p>
+  </div>
+
+  <div class="decision">
+    <span class="tag t-dec">Decision</span> <strong>The Makefile target covers the controls, not
+    the scored arms.</strong>
+    <p>Following the <code>reproduce-002-lexical</code> precedent. <code>reproduce</code> is a
+    published promise about 001 and must not silently become an hours-long job; the scored arms
+    are gated on the pre-registration tag and are run deliberately, not from a target anyone
+    could trigger by accident.</p>
+  </div>
+
+  <h2>Tradeoffs</h2>
+
+  <div class="tradeoff">
+    <span class="tag t-trade">Tradeoff</span> <strong>The repository now has two bootstrap
+    p-value estimators, on purpose.</strong>
+    <p><code>stats.paired_bootstrap</code> keeps the naive zero-capable form. Switching it would
+    change numbers in a <em>published</em> entry — 002 carries 75 <code>p_value: 0.0</code>
+    entries across 27 Holm families. That is an author's decision, not a refactor's, so I
+    measured the consequence and left the call open: correcting them flips <strong>zero</strong>
+    Holm decisions, so only the reported figures move.</p>
+    <p>This is uncomfortable and I have flagged it rather than hidden it: a comment at the call
+    site names the defect, points at the corrected estimator, and records the measurement. The
+    alternative — silently fixing it — would have rewritten a published entry's numbers without
+    anyone deciding to.</p>
+  </div>
+
+  <div class="tradeoff">
+    <span class="tag t-trade">Tradeoff</span> <strong>Cosmetic findings deliberately excluded.</strong>
+    <p>Three real but cosmetic issues stay open: <code>_query_entities</code>' inner import (whose
+    stated justification is untrue — the stub replaces the function itself), <code>load_queries</code>
+    parsing each line twice, and the <code>normalise</code> name collision between
+    <code>coverage.py</code> (returns a list) and <code>extraction_score.py</code> (returns a str).
+    Bundling cosmetic edits into a correctness change makes the correctness change harder to
+    review.</p>
+  </div>
+
+  <h2>Testing — every test mutation-checked</h2>
+  <p>NB-24 wrote three tests that passed whether or not the defect was present. So passing is not
+     the bar here; <strong>failing against the defect</strong> is. All 11 mutations killed:</p>
+  <table>
+    <tr><th>Mutation</th><th>Result</th></tr>
+    <tr><td>D2 revert to naive <code>2·min/B</code></td><td class="done">killed</td></tr>
+    <tr><td>D2 use the spec's original 1/B floor</td><td class="done">killed</td></tr>
+    <tr><td>D5 drop the running maximum</td><td class="done">killed</td></tr>
+    <tr><td>D5 return sorted order instead of input order</td><td class="done">killed</td></tr>
+    <tr><td>D3 drop the coverage branch (the shipped bug)</td><td class="done">killed</td></tr>
+    <tr><td>D3 drop the phantom-type branch</td><td class="done">killed</td></tr>
+    <tr><td>D3 drop the disjointness branch</td><td class="done">killed</td></tr>
+    <tr><td>D4 revert the seed dedup</td><td class="done">killed</td></tr>
+    <tr><td>D4 collapse all seeds into one node</td><td class="done">killed</td></tr>
+    <tr><td>D1 normalise before counting surface forms</td><td class="done">killed</td></tr>
+    <tr><td>D1 rename a graph_summary key</td><td class="done">killed</td></tr>
+  </table>
+  <p>Three council-named vacuity traps were avoided explicitly:</p>
+  <ul>
+    <li><strong>D4 does not use <code>_StubbedGraph</code></strong>, which overrides
+        <code>_seed</code> wholesale with a flat <code>1.0</code> and never calls
+        <code>normalise</code> — its own docstring records that this stub is why the whitelist bug
+        stayed invisible. The tests patch <code>_query_entities</code> and call the real method.</li>
+    <li><strong>D3's failure tests pin different <code>match=</code> strings.</strong> Two tests
+        asserting a bare <code>RuntimeError</code> would both pass while only the disjointness
+        branch existed — which is precisely the shipped bug.</li>
+    <li><strong>D1's schema test asserts a hard-coded key set</strong>, not the committed file.
+        Once <code>main()</code> rewrites those artifacts, "matches the committed file" means
+        "matches whatever main() last wrote" — a tautology.</li>
+  </ul>
+  <p>Full suite: <strong>337 passed</strong> (315 pre-existing + 22 new), pytest's own exit code
+     used as the gate rather than a piped tail.</p>
+
+  <h2>Results</h2>
+  <p><strong>The registered conclusion is unchanged.</strong> All six prediction-A cells remain
+     supported (CI excludes zero, margin met); all six prediction-B negative-control cells still
+     show no advantage.</p>
+  <table>
+    <tr><th>Quantity</th><th>Before</th><th>After</th></tr>
+    <tr><td>graph R@2</td><td>0.2148</td><td>0.2148 — the 3 dedup-affected queries did not change rank</td></tr>
+    <tr><td>p_value (all 12 cells)</td><td>0.0 <em>(impossible)</em></td><td>0.0002</td></tr>
+    <tr><td>p_holm</td><td>0.0</td><td>0.0024</td></tr>
+    <tr><td>A|recall_2|stripped differential</td><td>+0.0710</td><td>+0.0716</td></tr>
+    <tr><td>headroom raw differential</td><td>0.0534 <em>(stale)</em></td><td>0.0716</td></tr>
+    <tr><td>headroom normalised differential</td><td>0.2435 <em>(stale)</em></td><td>0.2864</td></tr>
+  </table>
+  <p>Worth stating in the entry: <strong>none of the six fixes flattered the arm that is
+     losing.</strong> That was worth checking, since the graph arm is the inconvenient result.</p>
+
+  <h2>What the two review passes changed</h2>
+  <div class="deviation">
+    <span class="tag t-dev">Review</span> <strong>The ponytail pass found a latent crash in code
+    I had just written.</strong> <code>headroom()</code> differenced a <code>None</code>
+    normalised deficit against a float whenever a class sat at ceiling. Unreachable on current
+    data, real in the code. It also found the class lookup spelled three different ways in one
+    file — two of which would have swept an unclassified query into a class.
+  </div>
+  <div class="deviation">
+    <span class="tag t-dev">Review</span> <strong>The thermo-nuclear pass found an untested
+    boundary.</strong> <code>run()</code> smuggled the headroom control through its results dict
+    under a leading-underscore key that <code>__main__</code> had to remember to pop; a caller
+    who forgot leaks it into the published artifact. Now an explicit pair, with the first
+    integration test on <code>run()</code> itself. It also caught <code>graph_summary()</code>
+    duplicating <code>graph_connectivity()</code>'s document counts, now collapsed into
+    <code>doc_coverage()</code>, and the tests being grouped by defect rather than by module.
+  </div>
+  <div class="open">
+    <span class="tag t-open">Caught</span> <strong>The mutation sweep caught one of MY OWN tests
+    being vacuous — twice.</strong> The unclassified-query test tripped <code>_contrast</code>'s
+    own "a class is empty" guard, so it returned the same result with or without the defect:
+    exactly NB-24's failure shape, reproduced by someone who had just written a file-level
+    docstring warning about it. Fixed by populating both arms so the unclassified query has
+    somewhere wrong to go. This is the strongest evidence in the whole change that the sweep is
+    doing work the test suite cannot do by passing.
+  </div>
+
+  <h2>Open questions for the spec author</h2>
+
+  <div class="open">
+    <span class="tag t-open">Open</span> <strong>Does 002 get its p-values corrected?</strong>
+    <p>75 zero p-values sit in published artifacts behind the shared estimator. Zero Holm
+    decisions change if corrected. Correcting them means regenerating 002's artifacts and noting
+    a correction on a published entry; not correcting them leaves the repository with two
+    estimators and 002 carrying a defect this very change calls unacceptable for 003.</p>
+  </div>
+
+  <div class="open">
+    <span class="tag t-open">Open</span> <strong>§7 lists Holm under "how it is adjudicated", but
+    no code path lets <code>p_holm</code> gate anything.</strong>
+    <p>The decision rules read the CI and the margin only. The entry should either state plainly
+    that p and p_holm are reported for transparency and adjudicate nothing, or stop implying
+    otherwise. This is a prose decision, not a code one.</p>
+  </div>
+
+  <div class="open">
+    <span class="tag t-open">Open</span> <strong>Two 003 artifacts are untracked.</strong>
+    <p><code>scoring-ablation.json</code> and <code>oracle-entity-graph.json</code> are not in git
+    history and have no committed producer — the same defect class as D1. They are either
+    committed with a producing command, or not cited by the entry.</p>
+  </div>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Slice</th><th>Status</th></tr>
+    <tr><td>Spec written, council-reviewed (4 seats), revised</td><td class="done">done</td></tr>
+    <tr><td>D1 — entry point, Makefile target, graph_summary</td><td class="done">done</td></tr>
+    <tr><td>D2 — corrected p-value estimator</td><td class="done">done</td></tr>
+    <tr><td>D3 — partition check moved into the model loader</td><td class="done">done</td></tr>
+    <tr><td>D4 — query seed dedup</td><td class="done">done</td></tr>
+    <tr><td>D5 — one Holm implementation</td><td class="done">done</td></tr>
+    <tr><td>Tests + mutation sweep (11/11 killed)</td><td class="done">done</td></tr>
+    <tr><td>D6 — graph arm re-run</td><td class="done">done — R@2 0.2148, unchanged</td></tr>
+    <tr><td>D6 — recompute analysis.json + headroom-control.json</td><td class="done">done</td></tr>
+    <tr><td>Sixth defect — headroom-control.json had no producer</td><td class="done">done</td></tr>
+    <tr><td>Thermo-nuclear review + ponytail review, acted on</td><td class="done">done</td></tr>
+    <tr><td>Verified <code>make reproduce-003-controls</code> reproduces committed artifacts</td><td class="done">done</td></tr>
+  </table>
+</body>
+</html>

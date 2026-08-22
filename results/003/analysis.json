@@ -2,23 +2,23 @@
   "queries": 7405,
   "overall": {
     "ndcg_cut_10": {
-      "graph": 0.311,
+      "graph": 0.3161,
       "bm25": 0.7197
     },
     "recall_10": {
-      "graph": 0.3816,
+      "graph": 0.3866,
       "bm25": 0.7863
     },
     "recall_100": {
-      "graph": 0.5108,
+      "graph": 0.5147,
       "bm25": 0.915
     },
     "recall_2": {
-      "graph": 0.211,
+      "graph": 0.2148,
       "bm25": 0.549
     },
     "recall_5": {
-      "graph": 0.3076,
+      "graph": 0.3132,
       "bm25": 0.6948
     }
   },
@@ -26,164 +26,164 @@
     "A|recall_2|stripped": {
       "n_bridge_absent": 5455,
       "n_comparison": 1950,
-      "mean_bridge_absent": -0.3192,
-      "mean_comparison": -0.3903,
-      "difference": 0.071,
+      "mean_bridge_absent": -0.3153,
+      "mean_comparison": -0.3869,
+      "difference": 0.0716,
       "ci95": [
-        0.0507,
-        0.0909
+        0.0512,
+        0.0915
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "excludes_zero": true,
       "meets_margin": true,
       "supported": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "B|recall_2|stripped": {
       "n": 1950,
-      "mean_advantage": -0.3903,
+      "mean_advantage": -0.3869,
       "ci95": [
-        -0.4074,
-        -0.3726
+        -0.4044,
+        -0.369
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "no_advantage": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "A|recall_5|stripped": {
       "n_bridge_absent": 5455,
       "n_comparison": 1950,
-      "mean_bridge_absent": -0.3551,
-      "mean_comparison": -0.4772,
-      "difference": 0.1221,
+      "mean_bridge_absent": -0.3505,
+      "mean_comparison": -0.4687,
+      "difference": 0.1182,
       "ci95": [
-        0.1011,
-        0.1433
+        0.0967,
+        0.1392
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "excludes_zero": true,
       "meets_margin": true,
       "supported": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "B|recall_5|stripped": {
       "n": 1950,
-      "mean_advantage": -0.4772,
+      "mean_advantage": -0.4687,
       "ci95": [
-        -0.4954,
-        -0.4592
+        -0.4869,
+        -0.4508
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "no_advantage": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "A|ndcg_cut_10|stripped": {
       "n_bridge_absent": 5455,
       "n_comparison": 1950,
-      "mean_bridge_absent": -0.3846,
-      "mean_comparison": -0.4761,
-      "difference": 0.0915,
+      "mean_bridge_absent": -0.3799,
+      "mean_comparison": -0.4702,
+      "difference": 0.0903,
       "ci95": [
-        0.0729,
-        0.1097
+        0.0717,
+        0.1084
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "excludes_zero": true,
       "meets_margin": true,
       "supported": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "B|ndcg_cut_10|stripped": {
       "n": 1950,
-      "mean_advantage": -0.4761,
+      "mean_advantage": -0.4702,
       "ci95": [
-        -0.4912,
-        -0.4607
+        -0.4853,
+        -0.4549
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "no_advantage": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "A|recall_2|exact": {
       "n_bridge_absent": 5947,
       "n_comparison": 1458,
-      "mean_bridge_absent": -0.3187,
-      "mean_comparison": -0.4163,
-      "difference": 0.0976,
+      "mean_bridge_absent": -0.3148,
+      "mean_comparison": -0.4132,
+      "difference": 0.0985,
       "ci95": [
-        0.0757,
-        0.1199
+        0.0766,
+        0.1209
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "excludes_zero": true,
       "meets_margin": true,
       "supported": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "B|recall_2|exact": {
       "n": 1458,
-      "mean_advantage": -0.4163,
+      "mean_advantage": -0.4132,
       "ci95": [
-        -0.4362,
-        -0.3957
+        -0.4331,
+        -0.3927
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "no_advantage": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "A|recall_5|exact": {
       "n_bridge_absent": 5947,
       "n_comparison": 1458,
-      "mean_bridge_absent": -0.356,
-      "mean_comparison": -0.5147,
-      "difference": 0.1588,
+      "mean_bridge_absent": -0.3508,
+      "mean_comparison": -0.5075,
+      "difference": 0.1568,
       "ci95": [
-        0.1354,
-        0.1814
+        0.1335,
+        0.1795
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "excludes_zero": true,
       "meets_margin": true,
       "supported": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "B|recall_5|exact": {
       "n": 1458,
-      "mean_advantage": -0.5147,
+      "mean_advantage": -0.5075,
       "ci95": [
-        -0.5346,
-        -0.4942
+        -0.5278,
+        -0.487
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "no_advantage": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "A|ndcg_cut_10|exact": {
       "n_bridge_absent": 5947,
       "n_comparison": 1458,
-      "mean_bridge_absent": -0.3845,
-      "mean_comparison": -0.5073,
-      "difference": 0.1228,
+      "mean_bridge_absent": -0.3797,
+      "mean_comparison": -0.5013,
+      "difference": 0.1216,
       "ci95": [
-        0.1028,
-        0.1424
+        0.1017,
+        0.1412
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "excludes_zero": true,
       "meets_margin": true,
       "supported": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     },
     "B|ndcg_cut_10|exact": {
       "n": 1458,
-      "mean_advantage": -0.5073,
+      "mean_advantage": -0.5013,
       "ci95": [
-        -0.5247,
-        -0.4895
+        -0.5186,
+        -0.4836
       ],
-      "p_value": 0.0,
+      "p_value": 0.0002,
       "no_advantage": true,
-      "p_holm": 0.0
+      "p_holm": 0.0024
     }
   },
   "family_size": 12,

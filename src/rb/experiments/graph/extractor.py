@@ -17,7 +17,7 @@ anything is scored. A different spaCy or a different model is a different experi
 
 import functools
 
-from rb.experiments.graph.entity_types import WHITELIST
+from rb.experiments.graph.entity_types import WHITELIST, assert_partition
 
 # Fixed before the first scored run. The model version is the one whose published OntoNotes
 # per-type scores are transcribed in entity_types.py, so the reference figures there describe
@@ -49,6 +49,13 @@ def _nlp():
         raise RuntimeError(
             f"{MODEL_NAME} {got} loaded, protocol pins {MODEL_VERSION}."
         )
+    # The whitelist must partition the labels this model actually emits. Checked HERE
+    # because this is the only place spaCy is guaranteed loaded, and it is on the path
+    # of every scored run. entity_types.py cannot check it at import without importing
+    # spaCy, which would destroy the "frozen before install" property that makes the
+    # list credible. A type in neither set would be dropped from both sides of the §8.2
+    # comparison and the symptom would be a number, not an error.
+    assert_partition(nlp.get_pipe("ner").labels)
     return nlp
 
 

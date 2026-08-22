@@ -68,6 +68,14 @@ def paired_bootstrap(
     # Two-sided p-value from the bootstrap distribution itself: twice the smaller
     # tail past zero, capped at 1 so a distribution that never crosses zero (e.g.
     # two identical runs, all diffs zero) reports p=1 rather than an undefined 0.
+    #
+    # KNOWN DEFECT, DELIBERATELY NOT FIXED HERE. This naive form returns exactly 0.0
+    # when no resample crosses, and 002's committed artifacts carry 75 such zeros
+    # across 27 Holm families. `bootstrap_p_value` below is the corrected estimator
+    # and 003 uses it. This call site is NOT switched over, because doing so would
+    # change numbers in a published entry, and that is an author's decision rather
+    # than a refactor's. Measured before leaving it: correcting these p-values flips
+    # ZERO Holm decisions in 002, so only the reported figures differ. See NB-25 R6.
     below = sum(1 for m in means if m <= 0) / rounds
     above = sum(1 for m in means if m >= 0) / rounds
     p_value = min(1.0, 2 * min(below, above))
@@ -75,30 +83,67 @@ def paired_bootstrap(
     return {"mean_diff": observed, "ci95": [lo, hi], "p_value": p_value}
 
 
-def holm_correction(p_values: list[float], alpha: float = 0.05) -> list[bool]:
+def bootstrap_p_value(draws: list[float], rounds: int | None = None) -> float:
     """
-    Holm-Bonferroni step-down correction across `m` comparisons.
+    Two-sided bootstrap p-value: twice the smaller tail past zero, add-one smoothed.
 
-    Returns significance decisions in the SAME order as `p_values` was given
-    (not sorted order), so a caller can zip this directly against its own list of
-    comparison labels without re-deriving the sort.
+    WHY THE +1, AND WHY IT IS NOT A FLOOR. The naive form `2 * min(c_le, c_ge) / B`
+    returns EXACTLY ZERO whenever no resample crosses the null, and a p-value of exactly
+    zero is a claim no finite resampling procedure can make. The standard remedy
+    (Davison & Hinkley 1997; Phipson & Smyth 2010) is the add-one estimator below, which
+    cannot return zero by construction.
 
-    Step-down: sort ascending, test the smallest p-value against alpha/m, the next
-    against alpha/(m-1), and so on; the first failure and everything less
-    significant after it are non-significant. This is uniformly more powerful
-    than a flat Bonferroni correction while controlling the same family-wise
-    error rate.
+    Deliberately NOT `max(p, floor)`. A floor needs a companion flag so a reader can tell
+    "the procedure bottomed out" from "the procedure measured this" — two moving parts
+    patching a biased estimator, where this is one correct estimator and no flag. It is
+    also why the floor value would NOT have been 1/B: the counts are integers and the
+    `2 *` doubles them, so the naive statistic can only emit multiples of 2/B, and a 1/B
+    floor would report a resolution finer than the procedure actually has.
+    """
+    b = rounds if rounds is not None else len(draws)
+    if b <= 0:
+        raise ValueError("bootstrap_p_value requires at least one draw")
+    c_le = sum(1 for x in draws if x <= 0)
+    c_ge = sum(1 for x in draws if x >= 0)
+    return min(1.0, 2 * min(c_le + 1, c_ge + 1) / (b + 1))
+
+
+def holm_adjusted(p_values: list[float]) -> list[float]:
+    """
+    Holm-Bonferroni ADJUSTED p-values, in the SAME order as the input.
+
+    Input order, not sorted order, so a caller can zip these against its own comparison
+    labels. `holm_correction` depends on it and 002's ladder passes deliberately-unsorted
+    p-values, so sorted output would silently mislabel a published code path.
+
+    The running maximum is load-bearing: adjusted p-values must be non-decreasing in rank,
+    so once a comparison fails every less significant one inherits at least its value.
+    Dropping it breaks the equivalence `holm_correction` relies on.
     """
     m = len(p_values)
     order = sorted(range(m), key=lambda i: p_values[i])
-    significant = [False] * m
+    adjusted = [0.0] * m
+    running = 0.0
     for rank, idx in enumerate(order):  # rank is 0-indexed
-        threshold = alpha / (m - rank)
-        if p_values[idx] <= threshold:
-            significant[idx] = True
-        else:
-            break  # everything less significant than a failed comparison also fails
-    return significant
+        running = min(1.0, max(running, (m - rank) * p_values[idx]))
+        adjusted[idx] = running
+    return adjusted
+
+
+def holm_correction(p_values: list[float], alpha: float = 0.05) -> list[bool]:
+    """
+    Holm-Bonferroni step-down decisions across `m` comparisons, in input order.
+
+    Expressed on top of `holm_adjusted` rather than as its own loop. Rejecting where the
+    adjusted p-value is at or below alpha reproduces the step-down procedure exactly: the
+    running maximum already propagates the first failure forward, which is what the
+    previous implementation's early `break` did by hand. Verified equivalent over
+    randomised trials including ties and boundary values — see tests/test_audit_fixes.py.
+
+    One implementation rather than two. 002 consumes the decisions and 003 the adjusted
+    values; while those were separate functions they were free to drift apart untested.
+    """
+    return [adj <= alpha for adj in holm_adjusted(p_values)]
 
 
 def shapley_values(values: dict[frozenset, float], players: list[str]) -> dict[str, float]:
