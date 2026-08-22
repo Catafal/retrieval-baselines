@@ -45,19 +45,48 @@ TOP_K = 100
 def oracle_entities(corpus: dict[str, str], titles: dict[str, str]) -> dict[str, list[str]]:
     """doc_id -> the corpus titles that occur in that document's text.
 
-    Matched on the normalised string, the same key the graph itself uses, so a title that the
-    graph could not have keyed on is not credited here either.
+    Matched on the normalised string, the same key the graph itself uses, so a title the graph
+    could not have keyed on is not credited here either.
+
+    BY N-GRAM LOOKUP, not by substring scan. The obvious form -- test every title against every
+    passage -- is 66,304 x 66,581 checks and does not finish in any time worth waiting for; the
+    first version of this module was written that way and had to be killed after twelve minutes.
+    Instead each passage's word n-grams are looked up in a set of titles, which is linear in the
+    corpus and bounded by the longest title.
     """
-    by_norm = {}
-    for d, t in titles.items():
+    by_norm: dict[str, str] = {}
+    for t in titles.values():
         n = normalise(t)
         if n:
             by_norm.setdefault(n, t)
+    longest = max(len(n.split()) for n in by_norm)
+
     out = {}
     for doc, text in corpus.items():
-        nt = normalise(text)
-        out[doc] = [t for n, t in by_norm.items() if n in nt]
+        words = normalise(text).split()
+        found = {}
+        for i in range(len(words)):
+            for k in range(1, min(longest, len(words) - i) + 1):
+                cand = " ".join(words[i:i + k])
+                t = by_norm.get(cand)
+                if t is not None:
+                    found[cand] = t
+        out[doc] = list(found.values())
     return out
+
+
+def query_titles(query: str, by_norm: dict[str, str]) -> list[str]:
+    """The same oracle on the query side: titles occurring in the question text."""
+    words = normalise(query).split()
+    longest = max(len(n.split()) for n in by_norm)
+    found = {}
+    for i in range(len(words)):
+        for k in range(1, min(longest, len(words) - i) + 1):
+            cand = " ".join(words[i:i + k])
+            t = by_norm.get(cand)
+            if t is not None:
+                found[cand] = t
+    return list(found.values())
 
 
 def main() -> None:
@@ -82,10 +111,16 @@ def main() -> None:
         "entities": ents,
     }
     # The query side is linked by the same oracle: titles occurring in the question text.
+    #
+    # THE LABEL MUST BE WHITELISTED. `_seed` routes query entities through
+    # `extractor.node_strings`, which drops any entity whose label is not in WHITELIST. Labelling
+    # these "ORACLE" made every seed vector zero and every query retrieve nothing, silently -- the
+    # arm returns an empty list for an unseeded query by design, so a fully broken oracle looks
+    # exactly like a very bad one. Caught by a review seat reading the code rather than by the
+    # numbers, because the numbers never got written.
     import rb.experiments.graph.retriever as rmod
     by_norm = {normalise(t): t for t in titles.values() if normalise(t)}
-    rmod._query_entities = lambda q: [(t, "ORACLE") for n, t in by_norm.items()
-                                      if n in normalise(q)]
+    rmod._query_entities = lambda q: [(t, "ORG") for t in query_titles(q, by_norm)]
     run = arm.retrieve(corpus, queries, TOP_K)
 
     scored = metrics.score_ranked(qrels, run, GRAPH_MEASURES)

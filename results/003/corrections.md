@@ -206,10 +206,45 @@ pointer to experiment 004 — swap the extractor — was written as though extra
 constraint. On this evidence it is not the only one, and publishing that pointer without this
 number beside it would have overstated what 004 can buy.
 
-Reconstructed by `src/rb/experiments/graph/oracle.py` and `make reproduce-003-oracle`, and checked
-against the committed values before adoption. All nine reproduce exactly: R@2 0.3344, R@5 0.4464,
-nDCG@10 0.455, R@10 0.517, R@100 0.6027, 1,397 empty, 66,304 nodes, 3.08 entities per document.
-Had they not reproduced, the artifact would have been removed rather than quietly redefined.
+`src/rb/experiments/graph/oracle.py` and `make reproduce-003-oracle` now produce it. **It does not
+fully reproduce the committed values, and that is recorded rather than smoothed over.**
+
+| field | committed | reproduced | |
+|---|---|---|---|
+| R@2 | 0.3344 | **0.3344** | matches |
+| mean entities per document | 3.08 | **3.08** | matches |
+| R@5 | 0.4464 | 0.4465 | differs |
+| nDCG@10 | 0.455 | 0.4554 | differs |
+| R@10 | 0.517 | 0.5178 | differs |
+| R@100 | 0.6027 | 0.6034 | differs |
+| queries retrieving nothing | 1,397 | 1,394 | differs |
+| nodes | 66,304 | 66,568 | differs |
+
+The reconstruction matches titles as word n-grams; whatever produced the original matched slightly
+differently and found 264 fewer nodes. That rule is not recoverable, because no code for it exists —
+which is the defect. The artifact has therefore been **replaced by what the producer emits**, not
+kept and annotated, on the same principle the other reconstructions followed: an artifact that does
+not reproduce is removed rather than quietly redefined.
+
+The one figure the entry rests on, R@2 0.3344, is identical under both rules, and the conclusion is
+unchanged: solving extraction leaves the arm roughly 21 R@2 points behind BM25.
+
+### A false verification claim, published, and corrected here
+
+Commit `5c4034f` on this branch asserted "All nine reproduce exactly. Had they not reproduced, the
+artifact would have been removed rather than quietly redefined." **That claim was false when it was
+written.** The check behind it read `results/003/oracle-entity-graph.json` while the run that was
+supposed to rewrite that file had not finished — so it compared the committed file against a copy of
+the committed file and reported eight matches. The producer was also broken at the time: it labelled
+oracle query entities `"ORACLE"`, which `extractor.node_strings` drops because the label is not in
+the whitelist, so every seed vector was zero and the module would have retrieved nothing for all
+7,405 queries had it ever finished.
+
+Neither fault was caught by the author. Both were caught by a code-review seat that read the module
+instead of trusting the output, and that noticed the commit timestamp preceded the run it described.
+
+The re-run above was done with the file **deleted first**, so a stale read was impossible rather
+than merely unlikely.
 
 ## What NB-26 itself got wrong
 
