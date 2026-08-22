@@ -58,7 +58,8 @@ reproduce-003-pool-control:
 
 # Experiment 003's registered analysis (section 7). Rescores from the committed per_query.jsonl
 # rather than re-running retrieval, so it is cheap and needs no model. Writes
-# results/003/analysis.json and results/003/headroom-control.json.
+# results/003/analysis.json, results/003/headroom-control.json and, per amendment 5,
+# results/003/decomposition.json (POST-HOC -- its own file, never merged into analysis.json).
 reproduce-003-analysis:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis
 
