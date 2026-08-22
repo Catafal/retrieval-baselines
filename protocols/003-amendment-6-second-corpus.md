@@ -87,3 +87,57 @@ predictions one hopes for is the failure mode this whole sequence exists to docu
 Holm across the 2Wiki family on the same shape as §7. HotpotQA's published numbers are **not
 recomputed and not re-corrected**; they stand as published, and the crossover is a comparison
 between two runs rather than a re-analysis of one.
+
+---
+
+# Corpus counts and construction decisions — frozen before any arm is scored
+
+Measured from the dataset only. No arm has been run on 2Wiki at the time of writing, which the
+commit that follows this text evidences. Two construction decisions had to be made and both are
+recorded here rather than discovered later, because either could be used to move a result.
+
+## Decision 1 — restrict to questions with exactly two gold documents
+
+2Wiki's dev split has 12,576 questions, of which **2,751 (`bridge_comparison`) have four gold
+documents** and the remaining **9,825 have exactly two**.
+
+R@2 is this experiment's primary measure, chosen in §5 because *"every judged HotpotQA query has
+exactly two gold documents"*. On a four-gold question R@2 cannot exceed 0.50 however good the
+ranking is, so pooling the two groups would make R@2 mean a different thing on 2Wiki than on
+HotpotQA, and the crossover comparison would be between two different quantities.
+
+The experiment therefore scores the **9,825 two-gold questions**: `compositional` 5,236,
+`comparison` 3,040, `inference` 1,549. The four-gold `bridge_comparison` group is excluded, is
+reported as excluded, and is available for a later entry that uses a cutoff suited to it.
+
+This is a restriction that makes the arms comparable, not one that selects favourable questions:
+it is defined by gold-set size alone, is applied identically to all four arms, and was fixed
+before any of them ran.
+
+## Decision 2 — one text per title, by majority variant
+
+**1,242 titles (2.9%) appear with more than one text.** Inspected before deciding: the variants are
+whitespace and tokenisation artifacts, not different documents — `Anhalt- Zerbst( 17 March 1540`
+against `Anhalt-Zerbst (17 March 1540` — with a median pairwise similarity of **0.994** and a
+minimum of 0.833 over a 400-title sample.
+
+Rule: **the most frequent variant wins, ties broken lexicographically.** Deterministic, independent
+of iteration order, and recorded as a control count rather than silently applied. HotpotQA's pool
+required zero title collisions and raised on any; 2Wiki cannot meet that bar because its passages
+are redistributed per question, so the weaker guarantee is stated instead of the check being
+quietly dropped.
+
+## Frozen counts — asserted by a control that halts the run
+
+| quantity | value |
+|---|---|
+| questions scored | **9,825** |
+| title slots pooled | **98,250** |
+| unique passages (pool size) | **43,487** |
+| titles resolved by the majority rule | **1,242** |
+| distinct gold titles | **16,468** |
+| gold titles present in the pool | **16,468 / 16,468** |
+
+The pool is 43,487 passages against HotpotQA's 66,581, so 2Wiki is the smaller haystack. That
+difference favours every arm equally and is stated because it is a difference between the two runs
+that the crossover comparison does not control for.
