@@ -65,6 +65,14 @@ def paired_bootstrap(
     # tests/test_stats.py::test_percentile_bounds_pin_exact_values_on_a_known_distribution.
     lo, hi = means[int(0.025 * rounds)], means[int(0.975 * rounds) - 1]
 
+    # NOT routed through `percentile_ci` below. The two agree at the round counts this repo
+    # registers (n = 1000, 2000, 10000, where 0.975 * n is integral) and DIVERGE at arbitrary n:
+    # at n = 100 this expression cuts 3 draws above and 2 below, while `percentile_ci` cuts 2 and
+    # 2. `percentile_ci` is the more correct of the two by the derivation `_percentile_index`
+    # carries. NB-26's council ruled that refactoring the
+    # module 001 and 002 publish against, inside a correctness fix scoped to 003's graph arm,
+    # bundles a cosmetic change into a diff a reviewer must check for moved numbers. Left as a
+    # named follow-up rather than done quietly here. See NB-26 R6.
     # Two-sided p-value from the bootstrap distribution itself: twice the smaller
     # tail past zero, capped at 1 so a distribution that never crosses zero (e.g.
     # two identical runs, all diffs zero) reports p=1 rather than an undefined 0.
@@ -81,6 +89,51 @@ def paired_bootstrap(
     p_value = min(1.0, 2 * min(below, above))
 
     return {"mean_diff": observed, "ci95": [lo, hi], "p_value": p_value}
+
+
+def _percentile_index(n: int, tail: float, upper: bool) -> int:
+    """
+    Index of the percentile bound in a SORTED list of `n` draws.
+
+    ONE RULE, DERIVED, rather than a `-1` copied between call sites. A percentile bound here
+    means: exclude `tail` of the draws beyond it, and return the outermost draw that SURVIVES.
+    So `k = int(tail * n)` draws are cut, and the bound sits at index `k` from the bottom or
+    `n - 1 - k` from the top.
+
+    That derivation is why the two indices are not symmetric expressions. Written by hand as
+    `int(0.975 * n)` the upper bound lands one PAST the surviving draw, cutting one fewer than
+    the lower bound cuts, which silently widens every interval's upper side. Reproduces the
+    existing convention exactly at n = 1000, 2000 and 10000, and generalises to the one-sided
+    case that `int(0.95 * n)` got wrong: at n = 1000 that index leaves 4.9% above it, not 5%.
+    """
+    if n <= 0:
+        raise ValueError("percentile of an empty draw list is undefined")
+    # A tail at or above 0.5 cuts more than half from one end: the two bounds cross, and on the
+    # upper side `n - 1 - k` goes NEGATIVE and silently wraps to a plausible-looking draw from the
+    # wrong end of the distribution. Rejecting beats returning a number nobody can tell is wrong —
+    # this function exists so the ninth call site cannot pick a wrong answer quietly.
+    if not 0 <= tail < 0.5:
+        raise ValueError(f"tail must be in [0, 0.5); got {tail}")
+    k = int(tail * n)
+    return n - 1 - k if upper else k
+
+
+def percentile_ci(sorted_draws: list[float], tail: float = 0.025) -> tuple[float, float]:
+    """Two-sided percentile interval, cutting `tail` from each end. Input must be sorted."""
+    n = len(sorted_draws)
+    return sorted_draws[_percentile_index(n, tail, False)], sorted_draws[_percentile_index(n, tail, True)]
+
+
+def upper_percentile(sorted_draws: list[float], tail: float = 0.05) -> float:
+    """
+    One-sided upper threshold, cutting `tail` above it. Input must be sorted.
+
+    Separate from `percentile_ci` because a one-sided rejection threshold is a different
+    statistical object from an interval bound, and §8.3's gate decides on this one
+    (`passed = observed > null_hi`). Sharing `_percentile_index` is what keeps the two
+    honest about using the same rule.
+    """
+    return sorted_draws[_percentile_index(len(sorted_draws), tail, True)]
 
 
 def bootstrap_p_value(draws: list[float], rounds: int | None = None) -> float:

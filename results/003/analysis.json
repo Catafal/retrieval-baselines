@@ -44,7 +44,7 @@
       "mean_advantage": -0.3869,
       "ci95": [
         -0.4044,
-        -0.369
+        -0.3692
       ],
       "p_value": 0.0002,
       "no_advantage": true,
@@ -98,7 +98,7 @@
       "mean_advantage": -0.4702,
       "ci95": [
         -0.4853,
-        -0.4549
+        -0.455
       ],
       "p_value": 0.0002,
       "no_advantage": true,

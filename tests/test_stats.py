@@ -328,22 +328,45 @@ def test_pairwise_ties_are_reported_not_left_implicit():
     assert out["pairwise_ties"]["a=b"] == 1.0, "an exact tie must be reported as a tie"
 
 
+def _reference_bootstrap_means(a, b, rounds):
+    """Independently recomputed bootstrap means, mirroring paired_bootstrap's own draw
+    sequence, so the test below pins indices against a separately-derived list rather than
+    against the implementation it is testing."""
+    import random as _random
+
+    diffs = [x - y for x, y in zip(a, b)]
+    rng = _random.Random(20260818)  # BOOTSTRAP_SEED
+    n = len(diffs)
+    return sorted(sum(rng.choices(diffs, k=n)) / n for _ in range(rounds))
+
+
 def test_percentile_bounds_pin_exact_values_on_a_known_distribution():
     """
-    Pin the interval indices numerically.
+    Pin the interval indices numerically, on a VARYING distribution.
 
-    A reviewer showed that dropping the -1 on the upper bound — a real off-by-one
-    — passed the whole suite, because nothing asserted an exact interval against a
-    hand-computable input. This does.
+    KILLS: dropping the `-1` from the upper percentile index.
+
+    This test used to use constant-valued arms — every difference identical, so every bootstrap
+    mean was the same float and `means[949] == means[950]`. It therefore passed with and without
+    the off-by-one it was written to catch, while its docstring claimed it was the regression test
+    for exactly that bug and rb/stats.py cited it by name as such. It was vacuous for its entire
+    life; NB-26's council caught it. A fixture that cannot distinguish the two branches is not
+    evidence.
     """
     from rb.stats import paired_bootstrap
 
-    # Identical arms: every difference is zero, so every bootstrap mean is zero
-    # and both percentile bounds must be exactly zero regardless of index choice.
-    out = paired_bootstrap([1.0] * 50, [1.0] * 50, rounds=1000)
-    assert out["ci95"] == [0.0, 0.0]
+    # Continuous-enough that the two candidate upper indices land on DIFFERENT draws.
+    # The constant fixtures this replaced could not, which is why it was vacuous.
+    a = [i * 0.137 for i in range(60)]
+    b = [i * 0.041 for i in range(60)]
+    out = paired_bootstrap(a, b, rounds=1000)
+    means = _reference_bootstrap_means(a, b, rounds=1000)
 
-    # A constant non-zero difference: same argument, bounds must be exactly 0.5.
-    out2 = paired_bootstrap([1.5] * 50, [1.0] * 50, rounds=1000)
-    assert out2["ci95"][0] == pytest.approx(0.5)
-    assert out2["ci95"][1] == pytest.approx(0.5)
+    assert out["ci95"][0] == pytest.approx(means[int(0.025 * 1000)])
+    assert out["ci95"][1] == pytest.approx(means[int(0.975 * 1000) - 1])
+
+    # The guard that keeps this test honest: if the two candidate indices ever select the same
+    # draw, the fixture has gone degenerate and the assertions above prove nothing.
+    assert means[int(0.975 * 1000) - 1] != means[int(0.975 * 1000)], (
+        "fixture went degenerate: both index choices select the same draw"
+    )

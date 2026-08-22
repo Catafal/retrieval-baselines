@@ -120,14 +120,15 @@ def pool_titles(context: dict[str, list[str]]) -> tuple[set[str], int]:
     return titles, slots
 
 
-def title_index(corpus_titles: dict[str, str]) -> dict[str, str]:
+def _index_and_collisions(corpus_titles: dict[str, str]) -> tuple[dict[str, str], dict[str, list[str]]]:
     """
-    title -> doc_id over a corpus, refusing to build if a title is ambiguous.
+    The non-raising core of `title_index`: (title -> doc_id, duplicate titles).
 
-    A duplicate title would make the pool's identity depend on iteration order, which
-    is how a run stops being reproducible without anyone noticing. Measured on BEIR
-    hotpotqa restricted to the pooled titles: zero collisions. That is a property of
-    the data, so it is checked rather than assumed.
+    Split out so the same traversal can serve two callers that need OPPOSITE behaviour — the
+    build path, which must halt on a duplicate, and the control, which must be able to REPORT
+    a duplicate count. Before NB-26 the control could not: every path that computed collisions
+    raised before returning one, so `run.py` passed a hardcoded 0 and a reader saw an unmeasured
+    number inside a `"passed": true` block.
     """
     index: dict[str, str] = {}
     collisions: dict[str, list[str]] = {}
@@ -138,6 +139,19 @@ def title_index(corpus_titles: dict[str, str]) -> dict[str, str]:
             collisions.setdefault(title, [index[title]]).append(doc_id)
         else:
             index[title] = doc_id
+    return index, collisions
+
+
+def title_index(corpus_titles: dict[str, str]) -> dict[str, str]:
+    """
+    title -> doc_id over a corpus, refusing to build if a title is ambiguous.
+
+    A duplicate title would make the pool's identity depend on iteration order, which
+    is how a run stops being reproducible without anyone noticing. Measured on BEIR
+    hotpotqa restricted to the pooled titles: zero collisions. That is a property of
+    the data, so it is checked rather than assumed.
+    """
+    index, collisions = _index_and_collisions(corpus_titles)
     if collisions:
         example = sorted(collisions)[:3]
         raise RuntimeError(
@@ -145,6 +159,54 @@ def title_index(corpus_titles: dict[str, str]) -> dict[str, str]:
             f"reproducible. Examples: { {t: collisions[t] for t in example} }"
         )
     return index
+
+
+def construction_counts(corpus_titles: dict[str, str], context: dict[str, list[str]],
+                        qrels: dict[str, dict[str, int]]) -> dict:
+    """
+    The §9 control's inputs, MEASURED — every one of them, without raising.
+
+    WHY THIS EXISTS. `run.py` used to pass `unresolved=0, collisions=0` as literals and
+    `gold_titles_matched=len(qrels)` alongside `gold_queries=len(qrels)` — the same expression
+    twice, so that check was `len(qrels) == len(qrels)` and could not fail. Three of the
+    control's seven published fields were therefore asserted rather than measured, inside a
+    block reporting `"passed": true`, in a repository whose premise is that its controls halt
+    the run.
+
+    It is deliberately NON-RAISING, and it returns EVERY input the control needs — including
+    `passages`, which it already knows: the pooled document ids are `resolved.values()`, the same
+    set `build()` returns. Returning it is what lets the caller evaluate the control BEFORE
+    calling `build()` at all. That ordering is the whole point. `build()` and `title_index` raise
+    on an unresolved title or a duplicate, so a control evaluated after them could never report
+    `passed: false` for those two fields — it would be pre-empted by an exception, which is why
+    relocating the literal would not have fixed anything either.
+
+    The keys are named to match `controls.pool_construction`'s parameters so the caller can splat
+    them. A hand-mapped call site is where a newly added field gets forgotten in one of the two
+    places that build this control.
+
+    `gold_titles_matched` is the real intersection its name always claimed: judged queries whose
+    EVERY gold document id is present in the pooled corpus. That property is what makes the pool
+    an exactly-identified subset, and until now nothing in the repository tested it.
+    """
+    titles, slots = pool_titles(context)
+    index, collisions = _index_and_collisions({d: t for d, t in corpus_titles.items() if t in titles})
+    resolved, unresolved = resolve(titles, index)
+    # Derives the pooled document ids itself rather than taking them from `build()`. That is what
+    # lets this run BEFORE build(), which matters: build() raises on an unresolved title, so a
+    # control called afterwards could never observe a nonzero count and would be measuring a
+    # quantity that is zero by control flow rather than by fact.
+    pool_doc_ids = set(resolved.values())
+    matched = sum(1 for docs in qrels.values() if docs and all(d in pool_doc_ids for d in docs))
+    return {
+        "questions": len(context),
+        "passages": len(pool_doc_ids),
+        "title_slots": slots,
+        "unresolved": len(unresolved),
+        "collisions": len(collisions),
+        "gold_titles_matched": matched,
+        "gold_queries": len(qrels),
+    }
 
 
 def resolve(titles: set[str], index: dict[str, str]) -> tuple[dict[str, str], set[str]]:
