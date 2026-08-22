@@ -18,6 +18,7 @@ rather than forking it.
 """
 
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -42,6 +43,68 @@ class Retriever(Protocol):
         ...
 
 
+ALLOW_DIRTY = "RB_ALLOW_DIRTY_SCORED_RUN"
+
+
+def working_tree_state() -> dict:
+    """
+    Which tracked source files differ from HEAD.
+
+    `git_commit` in every artifact is only meaningful if the tree was clean when the run
+    happened. It was not, once: 003's 2Wiki arms were scored while `pool2wiki.py` — the module
+    that builds their corpus — was still uncommitted, so the recorded commit did not contain the
+    code that produced the numbers. It was caught by re-running an arm and comparing hashes,
+    which is luck rather than a control, and nothing would have caught it on a run nobody thought
+    to repeat.
+
+    Reports `src/` separately because that is the code under test. A dirty `results/` or a stale
+    note is not a reason to refuse to score.
+    """
+    out = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=normal"],
+        capture_output=True, text=True, cwd=ROOT,
+    ).stdout
+    # NOT `.stdout.strip()`. Porcelain lines are `XY<space>path`, and an unstaged modification
+    # begins with a SPACE, so stripping the whole output eats the first line's leading space and
+    # slices that one path one character short -- silently, and only for the first entry. Caught
+    # by this module's own test, which is the only reason it is not in the code.
+    paths = [line[3:].strip() for line in out.split("\n") if line.strip()]
+    return {
+        "clean": not paths,
+        "dirty_paths": sorted(paths),
+        "dirty_source_paths": sorted(p for p in paths if p.startswith("src/")),
+    }
+
+
+def assert_scorable(state: dict | None = None) -> dict:
+    """
+    Refuse to score from a source tree that differs from HEAD.
+
+    WHY THIS HALTS RATHER THAN WARNS. A scored run writes `git_commit` into an artifact that a
+    reader is invited to check out and reproduce. If uncommitted source produced the numbers,
+    that invitation is false, and it is false in the direction that looks fine: the artifact
+    names a real commit, the reader gets different numbers, and nothing says why.
+
+    Escape hatch, deliberately awkward and deliberately recorded. Exploratory runs are
+    legitimate, so `RB_ALLOW_DIRTY_SCORED_RUN=1` proceeds — but the override and the exact dirty
+    paths are written into the artifact, so a run made this way cannot later be mistaken for a
+    clean one. An escape hatch that leaves no trace is just a disabled check.
+    """
+    state = state if state is not None else working_tree_state()
+    if state["dirty_source_paths"] and not os.environ.get(ALLOW_DIRTY):
+        listed = "\n  ".join(state["dirty_source_paths"])
+        raise RuntimeError(
+            "refusing to score: uncommitted changes under src/, so the git_commit recorded in "
+            "the artifact would not contain the code that produced it.\n  " + listed +
+            f"\n\nCommit them, or set {ALLOW_DIRTY}=1 for an exploratory run — the override and "
+            "these paths are then recorded in the artifact."
+        )
+    return {
+        **state,
+        "override_used": bool(state["dirty_source_paths"] and os.environ.get(ALLOW_DIRTY)),
+    }
+
+
 def environment() -> dict:
     """
     Everything a stranger needs to tell an environment difference from a finding.
@@ -60,6 +123,8 @@ def environment() -> dict:
         "platform": platform.platform(),
         "machine": platform.machine(),
         "git_commit": commit,
+        # Whether that commit actually describes the code that ran. See assert_scorable.
+        "working_tree": working_tree_state(),
         "dataset_checksums": json.loads(manifest_path.read_text()) if manifest_path.exists() else {},
     }
 
@@ -95,6 +160,10 @@ def run_rung(
     out_dir. Decoupled from rb.datasets.load() so it is testable against tiny
     in-memory fixtures without downloading a corpus.
     """
+    # Before anything expensive, and before any artifact is written: the recorded commit must
+    # describe the code about to run. See assert_scorable for why this halts rather than warns.
+    assert_scorable()
+
     check = controls.gold_presence(corpus, qrels)
     if not check["passed"]:
         raise RuntimeError(f"control gold_presence failed: {check}. Nothing is scored on a broken harness.")
