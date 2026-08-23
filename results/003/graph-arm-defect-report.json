@@ -1,4 +1,5 @@
 {
+  "artifact_kind": "INVESTIGATION RECORD, not a computed artifact. Unlike every other file in this directory there is no command that regenerates it, because it records how a defect was found rather than a measurement. The figures it cites are reproducible from the arms and the ablation; this file is the narrative. Kept for the same reason results/003/pool/graph-defective/ is kept.",
   "status": "DEFECT CONFIRMED. The graph arm's published numbers are contaminated by an implementation fault and must not be read as evidence about graph retrieval.",
   "how_it_was_found": "Asked whether the arm was properly built after it scored far below HippoRAG's own deliberately-weakened ablation (21.3 R@2 against their REBEL variant's 43.9, where BM25 is ~55).",
   "evidence": {
@@ -22,16 +23,24 @@
       "reading": "score = incidence @ rank sums entity mass, so entity-rich documents win regardless of relevance. Gold documents are slightly BELOW corpus average."
     },
     "4_empty_results_are_minor": {
-      "empty_share": 0.161, "recall_2_all": 0.2132, "recall_2_non_empty": 0.2541
+      "empty_share": 0.161,
+      "recall_2_all": 0.2132,
+      "recall_2_non_empty": 0.2541
     },
     "5_reference_comparison_on_a_toy_graph_with_a_known_answer": {
-      "mass_on_informative_bridge_ours": 0.067, "mass_on_informative_bridge_networkx": 0.156,
-      "hub_over_bridge_ratio_ours": 3.19, "hub_over_bridge_ratio_networkx": 1.29,
+      "mass_on_informative_bridge_ours": 0.067,
+      "mass_on_informative_bridge_networkx": 0.156,
+      "hub_over_bridge_ratio_ours": 3.19,
+      "hub_over_bridge_ratio_networkx": 1.29,
       "reading": "Our walk under-weights the informative rare edge by 2.5x and ranks the only correct bridge target outside the top 4."
     },
     "6_graph_shape": {
       "median_entity_document_frequency": 1,
-      "largest_hub": {"entity": "american", "documents": 13376, "share_of_corpus": 0.201},
+      "largest_hub": {
+        "entity": "american",
+        "documents": 13376,
+        "share_of_corpus": 0.201
+      },
       "reading": "Most entities connect nothing; connectivity is carried by generic nationality terms."
     }
   },

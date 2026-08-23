@@ -246,6 +246,59 @@ instead of trusting the output, and that noticed the commit timestamp preceded t
 The re-run above was done with the file **deleted first**, so a stale read was impossible rather
 than merely unlikely.
 
+### C11 — five more artifacts with no producer, one of them the §8.1 gate
+
+The oracle ceiling was not the only one. A code-review seat grepped every filename in
+`results/003/` against the source tree and found five more, which is the same defect for the sixth,
+seventh, eighth, ninth and tenth time:
+
+| artifact | what it is | now produced by |
+|---|---|---|
+| `closure-8-1.json` | **the §8.1 harness-closure GATE** | `make reproduce-003-closure` |
+| `annotation-agreement.json` | inter-rater agreement, three-model panel | `make reproduce-003-diagnostics` |
+| `extraction-error-analysis.json` | false-positive/negative characterisation | `make reproduce-003-diagnostics` |
+| `scoring-ablation.json` | summed against mean document scoring | `make reproduce-003-ablation` |
+| `graph-arm-defect-report.json` | narrative record of the PPR defect | labelled as a record, not a measurement |
+
+**The gate is the serious one.** §8.1 halts the run if our BM25 cannot land within 0.05 of
+HippoRAG's published BM25 under matching conditions. A gate nobody can re-run is not a gate, and
+this one could not be re-run by anyone, including its author.
+
+Its subset rule was also unrecoverable: the committed file reports 9,811 pooled passages, while the
+first 1,000 questions in file order give 9,769 and sorted by id give 9,755. No code recorded the
+original draw. The rule is now **stated in the module** — first 1,000 question ids in sorted order —
+and the gate re-run under it. It passes, and by a wider margin than the artifact it replaces:
+
+| | ours | HippoRAG published | delta | tolerance |
+|---|---|---|---|---|
+| R@2 | 0.5520 | 0.554 | **0.002** | 0.05 |
+| R@5 | 0.7225 | 0.722 | **0.0005** | 0.05 |
+
+The previous artifact recorded deltas of 0.013 and 0.009 against the same reference. Both pass; the
+reproducible one passes more convincingly.
+
+`annotation-agreement.json` reproduces exactly. `extraction-error-analysis.json` reproduces five of
+six fields, with the count of false positives containing the prepended title at 34 against 36 —
+a title-matching rule that differs slightly and, again, no code for the original.
+
+### C12 — the false note published inside the extraction diagnostic
+
+`results/003/extraction-diagnostic.json` carried, as a field a reader is meant to rely on:
+
+> "Gold annotated by one rater who is also the author of the extractor; no inter-annotator
+> agreement exists."
+
+Every clause of that was false by the time it shipped. §8.2's second revision replaced the single
+annotator with **three independent language-model raters** and majority adjudication;
+`extraction-sample.jsonl` records `annotator: llm-panel-3x-majority` with a per-passage
+`rater_jaccard`; and `annotation-agreement.json` publishes a mean pairwise Jaccard of **0.9356**.
+Two committed files in this repository contradicted each other, and a reader diffing them would
+have found it before I did.
+
+It was a hardcoded sentence about the data sitting next to the data. It is now **derived from the
+sample** by `extraction_score.provenance()`, so it cannot drift again, and the note states plainly
+that the reference is model-annotated rather than human, with what that costs and what it buys.
+
 ## What NB-26 itself got wrong
 
 Listed because a corrections file that only records the code's errors and not the process's would

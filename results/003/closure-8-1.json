@@ -1,12 +1,13 @@
 {
-  "corpus_passages": 9811,
+  "corpus_passages": 9755,
   "queries": 1000,
+  "subset_rule": "first 1000 question ids in sorted order",
   "ours": {
-    "ndcg_cut_10": 0.7556,
-    "recall_10": 0.8605,
-    "recall_100": 0.96,
-    "recall_2": 0.567,
-    "recall_5": 0.731
+    "ndcg_cut_10": 0.7493,
+    "recall_10": 0.858,
+    "recall_100": 0.9615,
+    "recall_2": 0.552,
+    "recall_5": 0.7225
   },
   "published_bm25": {
     "recall_2": 0.554,
@@ -14,8 +15,9 @@
   },
   "tolerance": 0.05,
   "deltas": {
-    "recall_2": 0.013,
-    "recall_5": 0.009
+    "recall_2": 0.002,
+    "recall_5": 0.0005
   },
-  "passed": true
+  "passed": true,
+  "seconds": 24.1
 }

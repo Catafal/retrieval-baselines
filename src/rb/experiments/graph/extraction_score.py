@@ -145,8 +145,34 @@ def bridge_reachability(entities_by_doc: dict[str, list[str]],
     }
 
 
+def provenance(rows: list[dict]) -> dict:
+    """
+    Who produced the reference set, DERIVED from the sample rather than asserted.
+
+    WHY DERIVED. The hardcoded note this replaces said "gold annotated by one rater who is also the
+    author of the extractor; no inter-annotator agreement exists" and was published verbatim inside
+    `results/003/extraction-diagnostic.json`. By then it was false in every clause: the protocol's
+    second revision replaced the single annotator with three independent language-model raters and
+    majority adjudication, `extraction-sample.jsonl` records `annotator: llm-panel-3x-majority` with
+    a per-passage `rater_jaccard`, and `annotation-agreement.json` publishes mean pairwise Jaccard.
+    A reader diffing two committed files in this repository would have found them contradicting each
+    other.
+
+    A sentence about the data, hardcoded next to the data, drifts from the data. So it is computed.
+    """
+    annotators = sorted({r.get("annotator") for r in rows if r.get("annotator")})
+    jac = [r["rater_jaccard"] for r in rows if isinstance(r.get("rater_jaccard"), (int, float))]
+    return {
+        "annotator": annotators[0] if len(annotators) == 1 else annotators,
+        "rule_card": sorted({r.get("rule_card") for r in rows if r.get("rule_card")}),
+        "passages": len(rows),
+        "passages_with_rater_agreement": len(jac),
+        "mean_pairwise_jaccard": round(sum(jac) / len(jac), 4) if jac else None,
+    }
+
+
 def score(gold_by_doc: dict[str, list[str]], predicted_by_doc: dict[str, list[tuple[str, str]]],
-          kept=WHITELIST) -> dict:
+          kept=WHITELIST, rows: list[dict] | None = None) -> dict:
     """
     The full diagnostic.
 
@@ -167,8 +193,14 @@ def score(gold_by_doc: dict[str, list[str]], predicted_by_doc: dict[str, list[tu
         "precision_ci": bootstrap_ci(counts, "precision"),
         "recall_ci": bootstrap_ci(counts, "recall"),
         "note": (
-            "Diagnostic, not a gate. Gold annotated by one rater who is also the author of the "
-            "extractor; no inter-annotator agreement exists. No threshold was pre-registered "
-            "because none could be justified in advance."
+            "Diagnostic, not a gate. No threshold was pre-registered because none could be "
+            "justified in advance. The reference set is MODEL-ANNOTATED, not hand-annotated: "
+            "three independent language-model raters working alone from a frozen rule card, an "
+            "entity kept when at least two of three listed it, adjudicated in deterministic code. "
+            "It therefore inherits model biases about entity boundaries and is not independent "
+            "human judgement; discount it accordingly. What it does buy is real inter-annotator "
+            "agreement, reported below and in results/003/annotation-agreement.json."
         ),
+        # Derived from the sample, never asserted. See provenance().
+        "reference_set": provenance(rows) if rows else None,
     }

@@ -30,9 +30,18 @@
     "seed": 20260820,
     "unit": "passage"
   },
-  "note": "Diagnostic, not a gate. Gold annotated by one rater who is also the author of the extractor; no inter-annotator agreement exists. No threshold was pre-registered because none could be justified in advance.",
+  "note": "Diagnostic, not a gate. No threshold was pre-registered because none could be justified in advance. The reference set is MODEL-ANNOTATED, not hand-annotated: three independent language-model raters working alone from a frozen rule card, an entity kept when at least two of three listed it, adjudicated in deterministic code. It therefore inherits model biases about entity boundaries and is not independent human judgement; discount it accordingly. What it does buy is real inter-annotator agreement, reported below and in results/003/annotation-agreement.json.",
+  "reference_set": {
+    "annotator": "llm-panel-3x-majority",
+    "rule_card": [
+      "v1"
+    ],
+    "passages": 100,
+    "passages_with_rater_agreement": 100,
+    "mean_pairwise_jaccard": 0.9356
+  },
   "cost": {
-    "seconds": 1.803,
+    "seconds": 2.526,
     "passages": 100
   },
   "manifest": {
