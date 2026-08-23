@@ -20,18 +20,52 @@
     "recall_100": 0.491
   },
   "cost": {
-    "total_seconds": 362.836,
+    "total_seconds": 386.439,
     "usd": 0.0
   },
   "environment": {
     "python": "3.14.3",
     "platform": "macOS-26.6.1-arm64-arm-64bit-Mach-O",
     "machine": "arm64",
-    "git_commit": "f10a1a92a7153bc41a22d3be1de8532e215bed2b",
+    "git_commit": "ba74599f7cff7e7f2d290f5f57a53a4b0ae9ade6",
+    "working_tree": {
+      "clean": false,
+      "dirty_paths": [
+        "results/002/hotpotqa/lexical(idf,tf_sat)/summary.json",
+        "results/002/hotpotqa/lexical(idf,tf_sat,len_norm)/summary.json",
+        "results/002/quora/lexical(idf)/summary.json",
+        "results/002/quora/lexical(idf,len_norm)/summary.json",
+        "results/002/quora/lexical(idf,tf_sat)/summary.json",
+        "results/002/quora/lexical(idf,tf_sat,len_norm)/summary.json",
+        "results/002/quora/lexical(len_norm)/summary.json",
+        "results/002/quora/lexical(none)/summary.json",
+        "results/002/quora/lexical(tf_sat)/summary.json",
+        "results/002/quora/lexical(tf_sat,len_norm)/summary.json",
+        "results/002/quora/lexical_factorial.json",
+        "results/002/scifact/lexical(idf)/summary.json",
+        "results/002/scifact/lexical(idf,len_norm)/summary.json",
+        "results/002/scifact/lexical(idf,tf_sat)/summary.json",
+        "results/002/scifact/lexical(idf,tf_sat,len_norm)/summary.json",
+        "results/002/scifact/lexical(len_norm)/summary.json",
+        "results/002/scifact/lexical(none)/summary.json",
+        "results/002/scifact/lexical(tf_sat)/summary.json",
+        "results/002/scifact/lexical(tf_sat,len_norm)/summary.json",
+        "results/002/scifact/lexical_factorial.json"
+      ],
+      "dirty_source_paths": []
+    },
     "dataset_checksums": {
+      "2wiki_dev": {
+        "bytes": 30056098,
+        "sha256": "c0d8b60b9026b728fb07ad74c5252a0f188f6942e8ba5c02df4dfa369502ea8d"
+      },
       "hotpotqa": {
         "bytes": 654025350,
         "sha256": "c62459dbc91d31329584507b1fa564b3b1abcee58800967113054ee0f5a15c62"
+      },
+      "hotpotqa_distractor": {
+        "bytes": 27452575,
+        "sha256": "c20b638ca82b21d04fe12e14ff417ad05153d4d215a65de54497fca4e972f7c6"
       },
       "quora": {
         "bytes": 15853968,

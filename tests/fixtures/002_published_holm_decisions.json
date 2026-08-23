@@ -1,0 +1,90 @@
+{
+  "results_002_hotpotqa_dense_hybrid_analysis.json": {
+    "/comparisons[0]": {
+      "holm_significant": true
+    },
+    "/comparisons[1]": {
+      "holm_significant": false
+    },
+    "/comparisons[2]": {
+      "holm_significant": false
+    }
+  },
+  "results_002_hotpotqa_lexical_factorial.json": {
+    "/adjacent_rung_comparisons[0]": {
+      "holm_significant": true
+    },
+    "/adjacent_rung_comparisons[1]": {
+      "holm_significant": true
+    },
+    "/adjacent_rung_comparisons[2]": {
+      "holm_significant": false
+    }
+  },
+  "results_002_quora_dense_hybrid_analysis-bge.json": {
+    "/comparisons[0]": {
+      "holm_significant": true
+    },
+    "/comparisons[1]": {
+      "holm_significant": true
+    },
+    "/comparisons[2]": {
+      "holm_significant": true
+    }
+  },
+  "results_002_quora_dense_hybrid_analysis.json": {
+    "/comparisons[0]": {
+      "holm_significant": true
+    },
+    "/comparisons[1]": {
+      "holm_significant": true
+    },
+    "/comparisons[2]": {
+      "holm_significant": true
+    }
+  },
+  "results_002_quora_lexical_factorial.json": {
+    "/adjacent_rung_comparisons[0]": {
+      "holm_significant": true
+    },
+    "/adjacent_rung_comparisons[1]": {
+      "holm_significant": true
+    },
+    "/adjacent_rung_comparisons[2]": {
+      "holm_significant": true
+    }
+  },
+  "results_002_scifact_dense_hybrid_analysis-bge.json": {
+    "/comparisons[0]": {
+      "holm_significant": true
+    },
+    "/comparisons[1]": {
+      "holm_significant": true
+    },
+    "/comparisons[2]": {
+      "holm_significant": false
+    }
+  },
+  "results_002_scifact_dense_hybrid_analysis.json": {
+    "/comparisons[0]": {
+      "holm_significant": false
+    },
+    "/comparisons[1]": {
+      "holm_significant": true
+    },
+    "/comparisons[2]": {
+      "holm_significant": false
+    }
+  },
+  "results_002_scifact_lexical_factorial.json": {
+    "/adjacent_rung_comparisons[0]": {
+      "holm_significant": true
+    },
+    "/adjacent_rung_comparisons[1]": {
+      "holm_significant": true
+    },
+    "/adjacent_rung_comparisons[2]": {
+      "holm_significant": true
+    }
+  }
+}

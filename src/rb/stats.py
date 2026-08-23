@@ -73,20 +73,17 @@ def paired_bootstrap(
     # module 001 and 002 publish against, inside a correctness fix scoped to 003's graph arm,
     # bundles a cosmetic change into a diff a reviewer must check for moved numbers. Left as a
     # named follow-up rather than done quietly here. See NB-26 R6.
-    # Two-sided p-value from the bootstrap distribution itself: twice the smaller
-    # tail past zero, capped at 1 so a distribution that never crosses zero (e.g.
-    # two identical runs, all diffs zero) reports p=1 rather than an undefined 0.
+    # Two-sided p-value from the bootstrap distribution itself, via the add-one
+    # estimator in `bootstrap_p_value` below. See that docstring for why the +1 is
+    # the estimator rather than a floor.
     #
-    # KNOWN DEFECT, DELIBERATELY NOT FIXED HERE. This naive form returns exactly 0.0
-    # when no resample crosses, and 002's committed artifacts carry 75 such zeros
-    # across 27 Holm families. `bootstrap_p_value` below is the corrected estimator
-    # and 003 uses it. This call site is NOT switched over, because doing so would
-    # change numbers in a published entry, and that is an author's decision rather
-    # than a refactor's. Measured before leaving it: correcting these p-values flips
-    # ZERO Holm decisions in 002, so only the reported figures differ. See NB-25 R6.
-    below = sum(1 for m in means if m <= 0) / rounds
-    above = sum(1 for m in means if m >= 0) / rounds
-    p_value = min(1.0, 2 * min(below, above))
+    # This call site used the naive `2 * min(below, above) / rounds` until 2026-08-23,
+    # and 002's artifacts carried 75 exact zeros as a result. They were regenerated
+    # against this line under NB-33, which also asserts that all 27 Holm families
+    # decide identically before and after: see tests/test_002_holm_decisions_unmoved.py.
+    # A p-value of exactly zero is a claim no finite resampling procedure can make, so
+    # this is a reporting correction and not a change to what 002 concluded.
+    p_value = bootstrap_p_value(means, rounds)
 
     return {"mean_diff": observed, "ci95": [lo, hi], "p_value": p_value}
 
