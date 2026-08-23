@@ -162,7 +162,7 @@ def advantage(named: list[float]) -> dict:
 
 
 def decompose(graph, bm25, shared, classes, measure=PRIMARY_MEASURE) -> dict:
-    """
+    r"""
     POST-HOC. Registered in protocols/003-amendment-5-differential-decomposition.md, AFTER the
     results were seen. Not a falsifier, not part of §7's Holm family, and it cannot be reported
     as though it had been predicted.

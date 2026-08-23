@@ -34,6 +34,11 @@
     "idf>length_norm": 1.0,
     "tf_saturation>length_norm": 1.0
   },
+  "shapley_pairwise_ties": {
+    "idf=tf_saturation": 0.0,
+    "idf=length_norm": 0.0,
+    "tf_saturation=length_norm": 0.0
+  },
   "adjacent_rung_comparisons": [
     {
       "from": "lexical(none)",
@@ -43,7 +48,7 @@
         0.11824822788795436,
         0.15394785742461245
       ],
-      "p_value": 0.0,
+      "p_value": 0.0009995002498750624,
       "holm_significant": true
     },
     {
@@ -54,7 +59,7 @@
         0.39798220878974744,
         0.4512132050783627
       ],
-      "p_value": 0.0,
+      "p_value": 0.0009995002498750624,
       "holm_significant": true
     },
     {
@@ -65,7 +70,7 @@
         -0.0046923454378278865,
         0.0362191813987462
       ],
-      "p_value": 0.137,
+      "p_value": 0.13793103448275862,
       "holm_significant": false
     }
   ],
@@ -81,13 +86,8 @@
     }
   },
   "cost": {
-    "index_build_seconds": 104.8,
-    "scoring_seconds": 2567.1,
-    "total_seconds": 2671.9
-  },
-  "shapley_pairwise_ties": {
-    "idf=tf_saturation": 0.0,
-    "idf=length_norm": 0.0,
-    "tf_saturation=length_norm": 0.0
+    "index_build_seconds": 108.9,
+    "scoring_seconds": 2862.4,
+    "total_seconds": 2971.3
   }
 }
