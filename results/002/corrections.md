@@ -154,3 +154,33 @@ The same sweep found the percentile off-by-one — 003's own defect class — su
 `shapley_bootstrap` and `spearman_correlation`, while the audited site at `paired_bootstrap` is
 covered. Auditing by location rather than by defect class leaves the copies behind.
 `tests/test_sibling_percentile_bounds.py` closes both, each mutation-verified in isolation.
+
+### C8 — the encoder swap is not the single-variable comparison the protocol claims
+
+`protocols/002-amendment-2-second-encoder.md` section 5 says "The only variable is the encoder."
+Three things differ between the two arms: architecture, the context window (256 word pieces for
+MiniLM against 512 for BGE), and a query prefix BGE takes and MiniLM does not. Each follows the
+respective model card, which is the right way to use each model, but the sentence asserts an
+isolation the configuration does not have.
+
+The tagged protocol is not edited — a frozen document that gets quietly corrected is worth
+nothing. The entry's threats-to-validity section now states the confound and what it costs: the
+gradient claim survives it, because the gradient is about the tilt of the line and truncation
+moves its height; the corpus-level margin does not survive it cleanly. The clean comparison is
+BGE truncated to 256, which has not been run.
+
+Also in this pass: the "documents average 225 tokens" figure is carried from amendment 1's prose
+and is not computed anywhere in this repository, so the entry now says so rather than presenting
+it as measured. And `K1 = 1.2` / `B = 0.75` were pinned by no test — a mutation sweep set them to
+any value with the suite still green, because the equivalence test compares two implementations
+that read the same constants and therefore always agree with each other.
+`tests/test_bm25_constants_pinned.py` closes that, and also asserts the constants still reach the
+score, so hard-coding a value inside the scoring loop fails rather than passing both tests.
+
+### A note on how C8 was found
+
+It was not found by the council. The council reported it, and the fix summary claimed all twelve
+of its findings were closed when eleven were. C8 is the one that was named, acknowledged, and
+then not done, while being reported as done. The claim was checked afterwards and corrected. That
+is the third time in this project that a completion claim has been published ahead of the work,
+after 003's false verification claim and this file's own C6.
