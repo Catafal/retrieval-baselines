@@ -117,4 +117,34 @@ def win_loss_by_property(
         result[prop_name] = bin_reports
 
     result["per_query_diff"] = {q: dense_ndcg[q] - bm25_ndcg[q] for q in qids}
+
+    # WHY THESE P-VALUES CARRY NO HOLM DECISION, STATED IN THE ARTIFACT ITSELF.
+    # protocols/002-ladder.md section 5 registers the Holm family as "the adjacent-rung
+    # comparisons made within each corpus". That family is the `comparisons` /
+    # `adjacent_rung_comparisons` arrays, and every member of it gets a `holm_significant`
+    # key. The bins below are a different thing: amendment-1 section 7 registers them as
+    # win rate "within bins of each property, with intervals", and the entry reads only
+    # `mean_diff` and `n_queries` out of them — no per-bin accept/reject is ever asserted,
+    # so there is no family-wise error rate to control and applying Holm here would be a
+    # correction in search of a claim.
+    #
+    # But a reader opening this file sees 113 p-values sitting beside 24 that ARE gated,
+    # with nothing in the data distinguishing them. A review council split precisely on
+    # that: one seat derived that no correction is owed, another argued the absence of any
+    # in-file signal is itself the defect. This field is the resolution — the numbers stay
+    # uncorrected, and say so where they live rather than only in prose the reader may not
+    # have.
+    result["multiplicity"] = {
+        "corrected": False,
+        "method": None,
+        "n_p_values": sum(len(v) for k, v in result.items()
+                          if k in PROPERTY_NAMES and isinstance(v, list)),
+        "note": (
+            "Exploratory. These per-bin p-values are UNCORRECTED for multiplicity and no "
+            "published claim rests on any one of them; the entry reads only mean_diff and "
+            "n_queries from these bins. The pre-registered Holm family is the adjacent-rung "
+            "/ dense-hybrid comparisons array, whose members each carry holm_significant. "
+            "Do not read a single bin here as a significance result."
+        ),
+    }
     return result

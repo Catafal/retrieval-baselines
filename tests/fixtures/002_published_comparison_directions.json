@@ -1,0 +1,154 @@
+{
+  "results/002/hotpotqa/dense_hybrid_analysis.json": {
+    "comparisons": [
+      {
+        "comparison": "dense_vs_full_bm25",
+        "mean_diff": -0.1300234929948108,
+        "sign": -1
+      },
+      {
+        "comparison": "dense_vs_coordination",
+        "mean_diff": 0.034698141533417604,
+        "sign": 1
+      },
+      {
+        "comparison": "hybrid_vs_better_component(full_bm25)",
+        "mean_diff": 0.008505186325868398,
+        "sign": 1
+      }
+    ]
+  },
+  "results/002/hotpotqa/lexical_factorial.json": {
+    "adjacent_rung_comparisons": [
+      {
+        "comparison": "lexical(none) -> lexical(idf)",
+        "mean_diff": 0.1355092554721571,
+        "sign": 1
+      },
+      {
+        "comparison": "lexical(idf) -> lexical(idf,tf_sat)",
+        "mean_diff": 0.4248847449519012,
+        "sign": 1
+      },
+      {
+        "comparison": "lexical(idf,tf_sat) -> lexical(idf,tf_sat,len_norm)",
+        "mean_diff": 0.015432584104040052,
+        "sign": 1
+      }
+    ]
+  },
+  "results/002/quora/dense_hybrid_analysis-bge.json": {
+    "comparisons": [
+      {
+        "comparison": "dense_vs_full_bm25",
+        "mean_diff": 0.12625702949792672,
+        "sign": 1
+      },
+      {
+        "comparison": "dense_vs_coordination",
+        "mean_diff": 0.3619254983015076,
+        "sign": 1
+      },
+      {
+        "comparison": "hybrid_vs_better_component(dense)",
+        "mean_diff": -0.04487438523511873,
+        "sign": -1
+      }
+    ]
+  },
+  "results/002/quora/dense_hybrid_analysis.json": {
+    "comparisons": [
+      {
+        "comparison": "dense_vs_full_bm25",
+        "mean_diff": 0.11155859748999813,
+        "sign": 1
+      },
+      {
+        "comparison": "dense_vs_coordination",
+        "mean_diff": 0.3472270662935791,
+        "sign": 1
+      },
+      {
+        "comparison": "hybrid_vs_better_component(dense)",
+        "mean_diff": -0.033173463725926104,
+        "sign": -1
+      }
+    ]
+  },
+  "results/002/quora/lexical_factorial.json": {
+    "adjacent_rung_comparisons": [
+      {
+        "comparison": "lexical(none) -> lexical(idf)",
+        "mean_diff": 0.34323828470398793,
+        "sign": 1
+      },
+      {
+        "comparison": "lexical(idf) -> lexical(idf,tf_sat)",
+        "mean_diff": 0.27110620658911444,
+        "sign": 1
+      },
+      {
+        "comparison": "lexical(idf,tf_sat) -> lexical(idf,tf_sat,len_norm)",
+        "mean_diff": 0.11644151399286898,
+        "sign": 1
+      }
+    ]
+  },
+  "results/002/scifact/dense_hybrid_analysis-bge.json": {
+    "comparisons": [
+      {
+        "comparison": "dense_vs_full_bm25",
+        "mean_diff": 0.07992713792610448,
+        "sign": 1
+      },
+      {
+        "comparison": "dense_vs_coordination",
+        "mean_diff": 0.20528080788718808,
+        "sign": 1
+      },
+      {
+        "comparison": "hybrid_vs_better_component(dense)",
+        "mean_diff": -0.023235897968127788,
+        "sign": -1
+      }
+    ]
+  },
+  "results/002/scifact/dense_hybrid_analysis.json": {
+    "comparisons": [
+      {
+        "comparison": "dense_vs_full_bm25",
+        "mean_diff": -0.015382497846996943,
+        "sign": -1
+      },
+      {
+        "comparison": "dense_vs_coordination",
+        "mean_diff": 0.10997117211408666,
+        "sign": 1
+      },
+      {
+        "comparison": "hybrid_vs_better_component(full_bm25)",
+        "mean_diff": 0.022146346246597018,
+        "sign": 1
+      }
+    ]
+  },
+  "results/002/scifact/lexical_factorial.json": {
+    "adjacent_rung_comparisons": [
+      {
+        "comparison": "lexical(none) -> lexical(idf)",
+        "mean_diff": 0.38294364925693797,
+        "sign": 1
+      },
+      {
+        "comparison": "lexical(idf) -> lexical(idf,tf_sat)",
+        "mean_diff": 0.1656653181032333,
+        "sign": 1
+      },
+      {
+        "comparison": "lexical(idf,tf_sat) -> lexical(idf,tf_sat,len_norm)",
+        "mean_diff": 0.014777776996828284,
+        "sign": 1
+      }
+    ]
+  }
+}

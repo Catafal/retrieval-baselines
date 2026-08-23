@@ -11,9 +11,26 @@ test is the standing evidence for that claim, so a future change to the estimato
 implementation, or the round count cannot quietly flip a published decision.
 
 `tests/fixtures/002_published_holm_decisions.json` freezes the decisions as they were
-PUBLISHED, read from the artifacts at commit HEAD before the regeneration. Those are
-historical facts and must never be edited to make this test pass. If this test fails, the
-correction has changed a conclusion and the entry needs rewriting, not the fixture.
+PUBLISHED. Those are historical facts and must never be edited to make this test pass. If
+this test fails, the correction has changed a conclusion and the entry needs rewriting, not
+the fixture.
+
+PROVENANCE, STATED PRECISELY BECAUSE THE FIRST VERSION OF THIS DOCSTRING DID NOT. It first
+claimed the values were "read from the artifacts at commit HEAD before the regeneration".
+The fixture was committed in 0eb38e6, the same commit that regenerated the last artifacts,
+so the git history does not corroborate that sentence and it should not have been written
+as though it did. The content was verified afterwards, independently, against commit
+a126b92 - genuinely pre-correction, before stats.py was touched at all - and every one of
+the 24 values matches. So the fixture is correct and this test is not circular. The claim
+now rests on that check rather than on an ordering the record cannot show.
+
+WHAT THIS TEST DOES NOT COVER. Holm significance is computed from p_value alone, and
+paired_bootstrap's p-value is SYMMETRIC under swapping its two arguments: the add-one
+estimator's min(c_le + 1, c_ge + 1) is invariant to negating every difference. Swapping
+which arm is A and which is B therefore leaves every holm_significant boolean untouched and
+flips only the sign of mean_diff. This test freezes holm keys only, so it cannot detect an
+arm swap - not merely by omission, but structurally. That hole is covered by
+tests/test_002_comparison_directions.py, which freezes the directions.
 """
 import json
 from pathlib import Path

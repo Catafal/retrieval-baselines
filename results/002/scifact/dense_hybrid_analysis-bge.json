@@ -666,6 +666,12 @@
       "985": 0.0,
       "99": 0.0,
       "993": -0.36907024642854247
+    },
+    "multiplicity": {
+      "corrected": false,
+      "method": null,
+      "n_p_values": 21,
+      "note": "Exploratory. These per-bin p-values are UNCORRECTED for multiplicity and no published claim rests on any one of them; the entry reads only mean_diff and n_queries from these bins. The pre-registered Holm family is the adjacent-rung / dense-hybrid comparisons array, whose members each carry holm_significant. Do not read a single bin here as a significance result."
     }
   }
 }
