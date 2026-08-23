@@ -349,3 +349,25 @@ The scored arms are not behind a target, deliberately — they take hours and ar
 pre-registration tag. The graph arm was nonetheless re-scored from scratch at `3c556ef` to confirm
 none of these corrections touches a retrieved ranking: `per_query.jsonl` came back **byte-identical**
 (sha256 `725c40c2…`), R@2 0.2148 unchanged.
+
+## C10 — a hard-coded number inside a generated block (2026-08-23)
+
+Found while verifying figures for protocol 004, not by any review pass.
+
+`scripts/sync-003-results.mjs`'s oracle table computed BM25's R@2 and the oracle's R@2 and empty
+rate from committed artifacts, and carried the graph arm's empty rate as a **literal `17.7%`**.
+
+**The value was correct** — the arm's own `per_query.jsonl` gives 1309/7405 = 17.68%. That is
+precisely what makes it worth recording. It was right by luck rather than by construction, sitting
+inside a `RESULTS:003:oracle` block, which is worse than a number in prose: a reader sees it in a
+table marked generated and reasonably assumes it traces to data. Had the arm been re-scored, every
+other cell would have moved and that one would not, and `--check` would have passed.
+
+The overall empty rate was not derivable from any committed JSON, only from `per_query.jsonl`,
+which is why it was typed. `arms_summary.py` now counts it for every arm on both corpora, so the
+table reads it like every other cell. The published entry is byte-identical after the fix.
+
+Two things the count surfaced that were not visible before: BM25 and both dense arms return
+results for every query on both corpora, and the graph arm returns nothing for **41.07%** of 2Wiki
+queries against 17.68% on HotpotQA — the figure the entry quotes in prose as "one query in five"
+and "49.2% of bridge-hidden questions" now has its corpus-level counterpart in the artifact.

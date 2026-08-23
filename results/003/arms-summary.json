@@ -10,7 +10,9 @@
           "ndcg_cut_10": 0.7197,
           "recall_10": 0.7863,
           "recall_100": 0.915,
-          "queries_scored": 7405
+          "queries_scored": 7405,
+          "empty_results": 0,
+          "empty_rate": 0.0
         },
         "graph": {
           "recall_2": 0.2148,
@@ -18,7 +20,9 @@
           "ndcg_cut_10": 0.3161,
           "recall_10": 0.3866,
           "recall_100": 0.5147,
-          "queries_scored": 7405
+          "queries_scored": 7405,
+          "empty_results": 1309,
+          "empty_rate": 0.1768
         },
         "dense-minilm": {
           "recall_2": 0.5136,
@@ -26,7 +30,9 @@
           "ndcg_cut_10": 0.661,
           "recall_10": 0.7003,
           "recall_100": 0.8381,
-          "queries_scored": 7405
+          "queries_scored": 7405,
+          "empty_results": 0,
+          "empty_rate": 0.0
         },
         "dense-bge": {
           "recall_2": 0.6957,
@@ -34,7 +40,9 @@
           "ndcg_cut_10": 0.8269,
           "recall_10": 0.8693,
           "recall_100": 0.953,
-          "queries_scored": 7405
+          "queries_scored": 7405,
+          "empty_results": 0,
+          "empty_rate": 0.0
         }
       }
     },
@@ -47,7 +55,9 @@
           "ndcg_cut_10": 0.6611,
           "recall_10": 0.7022,
           "recall_100": 0.8018,
-          "queries_scored": 9825
+          "queries_scored": 9825,
+          "empty_results": 0,
+          "empty_rate": 0.0
         },
         "graph": {
           "recall_2": 0.2734,
@@ -55,7 +65,9 @@
           "ndcg_cut_10": 0.3452,
           "recall_10": 0.3731,
           "recall_100": 0.4353,
-          "queries_scored": 9825
+          "queries_scored": 9825,
+          "empty_results": 4035,
+          "empty_rate": 0.4107
         },
         "dense-minilm": {
           "recall_2": 0.4766,
@@ -63,7 +75,9 @@
           "ndcg_cut_10": 0.6103,
           "recall_10": 0.626,
           "recall_100": 0.7483,
-          "queries_scored": 9825
+          "queries_scored": 9825,
+          "empty_results": 0,
+          "empty_rate": 0.0
         },
         "dense-bge": {
           "recall_2": 0.6557,
@@ -71,7 +85,9 @@
           "ndcg_cut_10": 0.7739,
           "recall_10": 0.7617,
           "recall_100": 0.8479,
-          "queries_scored": 9825
+          "queries_scored": 9825,
+          "empty_results": 0,
+          "empty_rate": 0.0
         }
       }
     }

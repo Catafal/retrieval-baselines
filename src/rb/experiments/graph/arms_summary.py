@@ -45,6 +45,24 @@ def arm_row(path: Path) -> dict | None:
     d = json.loads(f.read_text())
     row = {m: d["ranked"][m] for m in MEASURES if m in d["ranked"]}
     row["queries_scored"] = d.get("queries_scored")
+
+    # "Retrieves nothing" is a headline figure for the graph arm and it was NOT derivable from
+    # any committed JSON — only from per_query.jsonl. The notebook's oracle table therefore
+    # carried the graph arm's rate as a hard-coded 17.7% inside a block marked as generated,
+    # which is worse than a number in prose: a reader sees it in a generated table and assumes it
+    # traces to an artifact. It happened to be correct, which is the whole problem — right by
+    # luck rather than by construction, and nothing would have caught it drifting. Counted here so
+    # the table can read it. See results/003/corrections.md.
+    pq = path / "per_query.jsonl"
+    if pq.exists():
+        empty = total = 0
+        with pq.open() as fh:
+            for line in fh:
+                total += 1
+                if not json.loads(line).get("retrieved"):
+                    empty += 1
+        row["empty_results"] = empty
+        row["empty_rate"] = round(empty / total, 4) if total else None
     return row
 
 
