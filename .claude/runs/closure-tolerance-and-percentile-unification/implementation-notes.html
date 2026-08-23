@@ -92,6 +92,29 @@
     question worth being asked.
   </div>
 
+  <h2>Deviations, continued</h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span>
+    <strong>A mutation-sweep methodology defect was found mid-run, and it is not specific to
+    this work.</strong>
+    While mutation-verifying the tolerance, the imported <code>BM25_CLOSURE_TOLERANCE</code> was
+    <code>0.03</code> while the source file said <code>0.05</code>. Cause: restoring a mutated
+    file with <code>cp</code> sets its mtime to now, and the <code>__pycache__</code>
+    <code>.pyc</code> had been written in the <em>same second</em>. Python invalidates bytecode
+    on mtime plus size — the two candidate values are the same length — so the restore was
+    invisible and a stale <code>.pyc</code> kept serving the mutated constant.
+    <p><strong>Why this is worth more than the fix.</strong> Every mutation sweep in this project
+    uses write-then-<code>cp</code>-restore. A stale <code>.pyc</code> means the mutation is never
+    loaded, the tests pass, and the sweep reports <strong>SURVIVED</strong> — a false hole, in the
+    exact direction that wastes effort rather than hides a bug. Kills stay trustworthy: a test can
+    only fail if the mutated code actually ran.</p>
+    <p>The four survivors from the 002 sweep were each independently re-demonstrated afterwards
+    (arm swap via a real artifact regeneration in a fresh subprocess; the two percentile siblings
+    and k1/b by watching the new tests fail), so no conclusion in that review rests on this. But
+    any future sweep must run with <code>PYTHONDONTWRITEBYTECODE=1</code> or clear
+    <code>__pycache__</code> between mutations.</p>
+  </div>
+
   <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
 
   <div class="open"><span class="tag t-open">Open</span>
