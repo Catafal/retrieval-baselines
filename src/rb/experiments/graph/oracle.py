@@ -120,8 +120,17 @@ def main() -> None:
     # numbers, because the numbers never got written.
     import rb.experiments.graph.retriever as rmod
     by_norm = {normalise(t): t for t in titles.values() if normalise(t)}
-    rmod._query_entities = lambda q: [(t, "ORG") for t in query_titles(q, by_norm)]
-    run = arm.retrieve(corpus, queries, TOP_K)
+    # RESTORED IN `finally`. `_seed` calls the module-level `_query_entities` by name, so this
+    # patch is live for the rest of the process. Harmless while `make` gives each target its own
+    # subprocess, and a landmine the moment anything chains targets in-process or imports this
+    # module before exercising the real arm. The two existing call sites that patch this name both
+    # restore it; this one did not.
+    original = rmod._query_entities
+    try:
+        rmod._query_entities = lambda q: [(t, "ORG") for t in query_titles(q, by_norm)]
+        run = arm.retrieve(corpus, queries, TOP_K)
+    finally:
+        rmod._query_entities = original
 
     scored = metrics.score_ranked(qrels, run, GRAPH_MEASURES)
     ranked = {m: round(metrics.mean([scored[q][m] for q in scored]), 4)
