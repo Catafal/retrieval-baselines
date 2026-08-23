@@ -118,6 +118,17 @@
   <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
 
   <div class="open"><span class="tag t-open">Open</span>
+    <strong>A dangling citation shipped in a commit, and only a post-restart check caught it.</strong>
+    The percentile commit added a comment pointing at
+    <code>protocols/002-amendment-6-percentile-unification.md</code> before that file existed.
+    It was written and tagged immediately afterwards so the citation resolves, but the commit
+    that referenced a non-existent document is in the history. Same class as the fixture
+    docstring in C6 and 003's verification claim: a reference asserted ahead of the thing it
+    references. Worth deciding whether a pre-commit check should verify that every
+    <code>protocols/</code> path named in source actually exists — it is a two-line grep and
+    this is the second instance.</div>
+
+  <div class="open"><span class="tag t-open">Open</span>
     <strong>Does the closure control still earn its place?</strong>
     It now catches exactly one class: a wrong BM25 formula, which the factorial's own equivalence
     tests also catch, in CI, without a corpus. Its unique value is that it checks against an
@@ -128,16 +139,34 @@
 
   <h2>Build / verification</h2>
   <ul>
-    <li>In progress — see Progress table.</li>
+    <li><strong>411 tests pass</strong> (from 407; four added by <code>test_bm25_closure_tolerance.py</code>).</li>
+    <li><strong>Item 1 mutation-verified from both sides.</strong> Reverting the tolerance to 0.10
+        fails <em>"too close to a real defect"</em>; setting it to 0.03 fails <em>"too close to a
+        legitimate difference"</em>; 0.05 passes. A one-sided test would have accepted 0.10.</li>
+    <li><strong>Item 2 mutation-verified, and the refactor's value measured.</strong> Mutating the
+        single derived rule now fails <strong>11 tests</strong>. Before unification, the identical
+        mutation at <code>shapley_bootstrap</code> or <code>spearman_correlation</code> failed
+        <strong>zero</strong>.</li>
+    <li><strong>No-op proven twice.</strong> By reconstruction (5 published intervals recomputed
+        under both rules, 0 mismatches) and then by real regeneration: SciFact and Quora's
+        factorials rebuilt and diffed leaf-by-leaf — the only non-cost change is
+        <code>tolerance: 0.1 → 0.05</code> plus the two added <code>cannot_detect</code> entries.
+        No nDCG, p-value, Holm decision or comparison direction moved.</li>
+    <li>Amendments 5 and 6 written and tagged. Amendment 5 was tagged <em>before</em> the
+        regeneration it governs — unlike amendment 4, which said so plainly.</li>
+    <li>New deps: none. Migrations: none.</li>
   </ul>
 
   <h2>Progress</h2>
   <table>
     <tr><th>Slice</th><th>What</th><th>Status</th></tr>
     <tr><td>1</td><td>Measure defect effect sizes to ground the tolerance</td><td class="done">✓ done</td></tr>
-    <tr><td>2</td><td>Item 1: tolerance 0.05 + docstring + test + amendment 5</td><td>in progress</td></tr>
-    <tr><td>3</td><td>Item 2: route four percentile call sites through the derived helper</td><td>not started</td></tr>
-    <tr><td>4</td><td>Prove item 2 is a no-op on every committed artifact</td><td>not started</td></tr>
+    <tr><td>2</td><td>Item 1: tolerance 0.05 + docstring + tests + amendment 5</td><td class="done">✓ done</td></tr>
+    <tr><td>3</td><td>Item 2: route four percentile call sites through the derived helper</td><td class="done">✓ done</td></tr>
+    <tr><td>4</td><td>Prove item 2 is a no-op — reconstruction, then real regeneration</td><td class="done">✓ done</td></tr>
+    <tr><td>5</td><td>Amendment 6, so the code's citation resolves</td><td class="done">✓ done</td></tr>
+    <tr><td>6</td><td>Regenerate HotpotQA's factorial (~50 min) so its artifact matches the code</td><td>running</td></tr>
+    <tr><td>7</td><td>PR + merge both items</td><td>not started</td></tr>
   </table>
 </body>
 </html>

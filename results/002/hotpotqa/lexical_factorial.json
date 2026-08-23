@@ -79,15 +79,19 @@
       "our_ndcg_cut_10": 0.5758,
       "published_ndcg_cut_10": 0.603,
       "absolute_difference": 0.0272,
-      "tolerance": 0.1,
+      "tolerance": 0.05,
       "passed": true,
+      "cannot_detect": [
+        "k1/b parameter drift",
+        "length normalisation disabled"
+      ],
       "in_repo_bm25s_ndcg_cut_10": 0.5678,
       "difference_to_in_repo_anchor": 0.008
     }
   },
   "cost": {
-    "index_build_seconds": 108.9,
-    "scoring_seconds": 2862.4,
-    "total_seconds": 2971.3
+    "index_build_seconds": 113.5,
+    "scoring_seconds": 2625.5,
+    "total_seconds": 2739.0
   }
 }
