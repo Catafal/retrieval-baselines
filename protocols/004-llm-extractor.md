@@ -152,14 +152,28 @@ asked and the entry says so.
 
 ## 8. The pilot gate, and the stopping rule it enforces
 
-**200 passages, sampled with seed 20260820, scored under §7 before the full run is purchased.**
+**The 100 hand-annotated passages already committed at `results/003/extraction-sample.jsonl`,
+scored under §7 before the full run is purchased.**
 
-- If the LLM's extraction F1 does not exceed spaCy's by at least 5 points absolute on the pilot,
+Not a fresh sample. An earlier draft of this section said "200 passages, sampled with seed
+20260820" and was wrong in a way that mattered: extraction quality can only be scored where gold
+exists, and gold exists exactly for those 100 passages — hand-annotated against a committed rule
+card, two raters, mean pairwise Jaccard 0.9356. A fresh 200 would have nothing to score against.
+Reusing the annotated set is also the stronger comparison, because both extractors are then
+measured on the same passages under the same rule card rather than on samples that merely share a
+seed.
+
+**spaCy's score on that set, from `results/003/extraction-diagnostic.json`, fixed here as the bar:
+micro precision 0.6836, recall 0.6574, F1 0.6703.**
+
+- If GLM-4.7-Flash's micro F1 does not exceed **0.7203** — spaCy's 0.6703 plus 5 points absolute —
   the full run is **not** purchased. The entry reports the pilot, states that a stronger extractor
   did not clear the bar on the extraction step, and 003's extractor gap stays open with that
-  measurement attached.
+  measurement attached rather than as an open question.
+- The bar is stated as a number here, before the pilot runs, so that "close enough" is not
+  available afterwards.
 - The pilot's per-passage token usage is measured and the full-run cost re-estimated from it
-  before spending.
+  before any further spending.
 
 The gate is registered here so that not spending is a pre-committed outcome rather than a decision
 made after seeing a disappointing number.
