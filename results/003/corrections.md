@@ -181,6 +181,124 @@ hardest case, where neither title anchors the query.
 by the run: 0.2734 against BM25's 0.5164. The topology argument does not rescue an arm whose
 binding constraint is that it cannot link 41.1% of queries to any node at all.
 
+### C10 — an orphaned artifact that already answers the question the entry defers
+
+Found by a pre-publication review seat that cloned the repository and read `results/003/` before
+running anything, which is exactly the reader the entry invites.
+
+`results/003/oracle-entity-graph.json` was committed with **no producing code anywhere in the
+repository**, no Makefile target, and no mention in any protocol, amendment, correction record or
+entry. Seventeenth defect, fifth of this exact class, and the first one found by someone other than
+the author.
+
+The substance is worse than the bookkeeping. The artifact reports the graph arm's ceiling under a
+**perfect extractor and a perfect linker** — corpus document titles as entities, no NER, no
+whitelist, no normalisation mismatch, no span-segmentation failure:
+
+| | oracle extractor | spaCy arm | BM25 |
+|---|---|---|---|
+| R@2 | **0.3344** | 0.2148 | 0.5490 |
+| queries retrieving nothing | **1,397 (18.9%)** | 1,309 (17.7%) | — |
+
+So solving extraction entirely moves the arm from 0.2148 to 0.3344 and leaves it roughly 21 R@2
+points behind BM25, still returning nothing for about one query in five. The entry's forward
+pointer to experiment 004 — swap the extractor — was written as though extraction were the binding
+constraint. On this evidence it is not the only one, and publishing that pointer without this
+number beside it would have overstated what 004 can buy.
+
+`src/rb/experiments/graph/oracle.py` and `make reproduce-003-oracle` now produce it. **It does not
+fully reproduce the committed values, and that is recorded rather than smoothed over.**
+
+| field | committed | reproduced | |
+|---|---|---|---|
+| R@2 | 0.3344 | **0.3344** | matches |
+| mean entities per document | 3.08 | **3.08** | matches |
+| R@5 | 0.4464 | 0.4465 | differs |
+| nDCG@10 | 0.455 | 0.4554 | differs |
+| R@10 | 0.517 | 0.5178 | differs |
+| R@100 | 0.6027 | 0.6034 | differs |
+| queries retrieving nothing | 1,397 | 1,394 | differs |
+| nodes | 66,304 | 66,568 | differs |
+
+The reconstruction matches titles as word n-grams; whatever produced the original matched slightly
+differently and found 264 fewer nodes. That rule is not recoverable, because no code for it exists —
+which is the defect. The artifact has therefore been **replaced by what the producer emits**, not
+kept and annotated, on the same principle the other reconstructions followed: an artifact that does
+not reproduce is removed rather than quietly redefined.
+
+The one figure the entry rests on, R@2 0.3344, is identical under both rules, and the conclusion is
+unchanged: solving extraction leaves the arm roughly 21 R@2 points behind BM25.
+
+### A false verification claim, published, and corrected here
+
+Commit `5c4034f` on this branch asserted "All nine reproduce exactly. Had they not reproduced, the
+artifact would have been removed rather than quietly redefined." **That claim was false when it was
+written.** The check behind it read `results/003/oracle-entity-graph.json` while the run that was
+supposed to rewrite that file had not finished — so it compared the committed file against a copy of
+the committed file and reported eight matches. The producer was also broken at the time: it labelled
+oracle query entities `"ORACLE"`, which `extractor.node_strings` drops because the label is not in
+the whitelist, so every seed vector was zero and the module would have retrieved nothing for all
+7,405 queries had it ever finished.
+
+Neither fault was caught by the author. Both were caught by a code-review seat that read the module
+instead of trusting the output, and that noticed the commit timestamp preceded the run it described.
+
+The re-run above was done with the file **deleted first**, so a stale read was impossible rather
+than merely unlikely.
+
+### C11 — five more artifacts with no producer, one of them the §8.1 gate
+
+The oracle ceiling was not the only one. A code-review seat grepped every filename in
+`results/003/` against the source tree and found five more, which is the same defect for the sixth,
+seventh, eighth, ninth and tenth time:
+
+| artifact | what it is | now produced by |
+|---|---|---|
+| `closure-8-1.json` | **the §8.1 harness-closure GATE** | `make reproduce-003-closure` |
+| `annotation-agreement.json` | inter-rater agreement, three-model panel | `make reproduce-003-diagnostics` |
+| `extraction-error-analysis.json` | false-positive/negative characterisation | `make reproduce-003-diagnostics` |
+| `scoring-ablation.json` | summed against mean document scoring | `make reproduce-003-ablation` |
+| `graph-arm-defect-report.json` | narrative record of the PPR defect | labelled as a record, not a measurement |
+
+**The gate is the serious one.** §8.1 halts the run if our BM25 cannot land within 0.05 of
+HippoRAG's published BM25 under matching conditions. A gate nobody can re-run is not a gate, and
+this one could not be re-run by anyone, including its author.
+
+Its subset rule was also unrecoverable: the committed file reports 9,811 pooled passages, while the
+first 1,000 questions in file order give 9,769 and sorted by id give 9,755. No code recorded the
+original draw. The rule is now **stated in the module** — first 1,000 question ids in sorted order —
+and the gate re-run under it. It passes, and by a wider margin than the artifact it replaces:
+
+| | ours | HippoRAG published | delta | tolerance |
+|---|---|---|---|---|
+| R@2 | 0.5520 | 0.554 | **0.002** | 0.05 |
+| R@5 | 0.7225 | 0.722 | **0.0005** | 0.05 |
+
+The previous artifact recorded deltas of 0.013 and 0.009 against the same reference. Both pass; the
+reproducible one passes more convincingly.
+
+`annotation-agreement.json` reproduces exactly. `extraction-error-analysis.json` reproduces five of
+six fields, with the count of false positives containing the prepended title at 34 against 36 —
+a title-matching rule that differs slightly and, again, no code for the original.
+
+### C12 — the false note published inside the extraction diagnostic
+
+`results/003/extraction-diagnostic.json` carried, as a field a reader is meant to rely on:
+
+> "Gold annotated by one rater who is also the author of the extractor; no inter-annotator
+> agreement exists."
+
+Every clause of that was false by the time it shipped. §8.2's second revision replaced the single
+annotator with **three independent language-model raters** and majority adjudication;
+`extraction-sample.jsonl` records `annotator: llm-panel-3x-majority` with a per-passage
+`rater_jaccard`; and `annotation-agreement.json` publishes a mean pairwise Jaccard of **0.9356**.
+Two committed files in this repository contradicted each other, and a reader diffing them would
+have found it before I did.
+
+It was a hardcoded sentence about the data sitting next to the data. It is now **derived from the
+sample** by `extraction_score.provenance()`, so it cannot drift again, and the note states plainly
+that the reference is model-annotated rather than human, with what that costs and what it buys.
+
 ## What NB-26 itself got wrong
 
 Listed because a corrections file that only records the code's errors and not the process's would

@@ -13,5 +13,6 @@
     "recall_2": 0.2161,
     "recall_5": 0.2941
   },
-  "note": "ABLATION ONLY. The registered arm keeps SUMMED scoring, which is what HippoRAG does; substituting mean after seeing results would be a method change. Reported so a reader can see how much of the arm's failure is the scoring function."
+  "note": "ABLATION ONLY. The registered arm keeps SUMMED scoring, which is what HippoRAG does; substituting mean after seeing results would be a method change. Reported so a reader can see how much of the arm's failure is the scoring function.",
+  "seconds": 393.2
 }

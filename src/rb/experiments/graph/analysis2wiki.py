@@ -107,7 +107,11 @@ def run() -> dict:
             results[ekey] = {"n": len(adv), "mean_advantage": round(sum(adv) / len(adv), 4),
                              "ci95": [round(lo, 4), round(hi, 4)],
                              "p_value": round(bootstrap_p_value(dr, B), 6),
-                             "no_advantage": bool(hi <= 0 or (lo <= 0 <= hi))}
+                             # See analysis.advantage: the registered flag stays, and `verdict`
+                             # separates a confirmed negative control from an inconclusive one.
+                             "no_advantage": bool(hi <= 0 or (lo <= 0 <= hi)),
+                             "verdict": ("confirmed_no_advantage" if hi <= 0
+                                         else "inconclusive" if lo <= 0 <= hi else "advantage")}
             pvals[ekey] = results[ekey]["p_value"]
         if definition == cov.PRIMARY:
             for lbl, keep in (("coverage_0", (0,)), ("coverage_1", (1,)),

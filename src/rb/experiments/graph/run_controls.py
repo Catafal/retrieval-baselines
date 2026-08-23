@@ -33,7 +33,7 @@ def diagnostic() -> dict:
     t0 = time.perf_counter()
     predicted = extractor.extract_many({r["doc_id"]: r["text"] for r in rows})
     elapsed = time.perf_counter() - t0
-    result = es.score(gold, predicted)
+    result = es.score(gold, predicted, rows=rows)
     result["cost"] = {"seconds": round(elapsed, 3), "passages": len(rows)}
     result["manifest"] = extractor.manifest()
     result["published_ontonotes_ents_f"] = SPACY_ONTONOTES_ENTS_F

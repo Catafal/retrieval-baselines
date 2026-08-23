@@ -149,7 +149,16 @@ def advantage(named: list[float]) -> dict:
     return {"n": len(named), "mean_advantage": round(sum(named) / len(named), 4),
             "ci95": [round(lo, 4), round(hi, 4)],
             "p_value": round(bootstrap_p_value(draws, B), 6),
-            "no_advantage": bool(hi <= 0 or (lo <= 0 <= hi))}
+            # SPLIT, because these are different findings that the registered rule treats
+            # alike. `no_advantage` is what section 7 registered and it stays as registered.
+            # `verdict` distinguishes an interval entirely below zero (the graph is WORSE, a
+            # confirmed negative control) from one straddling zero (inconclusive). All twelve
+            # published B and E cells are entirely negative, so nothing published changes -- but
+            # experiment 004 reuses this path and would otherwise report an inconclusive result
+            # as a confirmed control.
+            "no_advantage": bool(hi <= 0 or (lo <= 0 <= hi)),
+            "verdict": ("confirmed_no_advantage" if hi <= 0
+                        else "inconclusive" if lo <= 0 <= hi else "advantage")}
 
 
 def decompose(graph, bm25, shared, classes, measure=PRIMARY_MEASURE) -> dict:
@@ -206,6 +215,13 @@ def decompose(graph, bm25, shared, classes, measure=PRIMARY_MEASURE) -> dict:
                        "excludes_zero": bool(g_lo > 0 or g_hi < 0)},
         "bm25_term": {"point": round(b_point, 4), "ci95": [round(b_lo, 4), round(b_hi, 4)],
                       "excludes_zero": bool(b_lo > 0 or b_hi < 0)},
+        # NOT A PROPORTION, despite the name. It is a ratio of two noisy quantities and is
+        # unbounded: when the graph term is negative the baseline term must exceed the whole
+        # differential to compensate, so this exceeds 1.0 in three of the six cells. Read it as
+        # "how much of the differential the baseline accounts for", where values above 1 mean the
+        # graph term worked against it. The bootstrap is stable here only because the denominator
+        # never approaches zero on this data (minimum draw 0.0307); on data where it does, this
+        # field is not interpretable and should be dropped rather than reported.
         "bm25_share_of_differential": {
             "point": round(b_point / total, 4) if total else None,
             "ci95": [round(s_lo, 4), round(s_hi, 4)] if share else None},

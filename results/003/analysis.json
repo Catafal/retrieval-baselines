@@ -48,6 +48,7 @@
       ],
       "p_value": 0.0002,
       "no_advantage": true,
+      "verdict": "confirmed_no_advantage",
       "p_holm": 0.0024
     },
     "A|recall_5|stripped": {
@@ -75,6 +76,7 @@
       ],
       "p_value": 0.0002,
       "no_advantage": true,
+      "verdict": "confirmed_no_advantage",
       "p_holm": 0.0024
     },
     "A|ndcg_cut_10|stripped": {
@@ -102,6 +104,7 @@
       ],
       "p_value": 0.0002,
       "no_advantage": true,
+      "verdict": "confirmed_no_advantage",
       "p_holm": 0.0024
     },
     "A|recall_2|exact": {
@@ -129,6 +132,7 @@
       ],
       "p_value": 0.0002,
       "no_advantage": true,
+      "verdict": "confirmed_no_advantage",
       "p_holm": 0.0024
     },
     "A|recall_5|exact": {
@@ -156,6 +160,7 @@
       ],
       "p_value": 0.0002,
       "no_advantage": true,
+      "verdict": "confirmed_no_advantage",
       "p_holm": 0.0024
     },
     "A|ndcg_cut_10|exact": {
@@ -183,6 +188,7 @@
       ],
       "p_value": 0.0002,
       "no_advantage": true,
+      "verdict": "confirmed_no_advantage",
       "p_holm": 0.0024
     }
   },

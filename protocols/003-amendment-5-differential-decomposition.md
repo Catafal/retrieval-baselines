@@ -43,8 +43,29 @@ Algebraically the same quantity, split into the two class swings it is the diffe
 
 ```
 differential = (graph_absent - graph_cov2) - (bm25_absent - bm25_cov2)
-               \_______ graph term _______/   \_______ bm25 term _______/
+               \_______ graph term _______/   \____ baseline swing ____/
 ```
+
+The reported `bm25_term` is the **negation** of that second bracket, so the two published terms
+**add** to the differential:
+
+```
+differential = graph_term + bm25_term     where  bm25_term = -(bm25_absent - bm25_cov2)
+```
+
+Each field is that arm's *contribution* to the differential, which is what makes them comparable
+and is why the sign is carried this way. Check it on the primary cell: 0.0065 + 0.0651 = 0.0716.
+
+**The three fields are each rounded independently to four places, so the sum can differ from the
+reported differential in the last digit.** It does on one cell: `recall_5|stripped` gives
+-0.0155 + 0.1338 = 0.1183 against a reported 0.1182. That is arithmetic on rounded values, not a
+discrepancy in the computation, and it is stated here so a reader hand-verifying the table is not
+left wondering.
+
+*Corrected 2026-08-23.* The first version of this amendment printed only the formula above and
+labelled the second bracket "bm25 term", so a reader hand-verifying the published fields by
+subtraction would have got -0.0586 and a sign flip. No published value changes; the exposition
+was wrong, not the arithmetic.
 
 Same stratified percentile bootstrap, same B = 10,000, same seed 20260820 as `_contrast`, so the
 registered contrast and the decomposition are one resampling procedure read two ways. Reported for

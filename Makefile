@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -73,6 +73,28 @@ reproduce-003-2wiki-analysis:
 # Replaces a file that previously had no producer and carried a retracted figure.
 reproduce-003-arms-summary:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.arms_summary
+
+# The oracle-extractor ceiling: corpus titles as entities, a perfect extractor AND linker.
+# A DIAGNOSTIC, not a registered arm -- it uses gold titles a real system does not have.
+# Writes results/003/oracle-entity-graph.json, which previously had no producer at all.
+reproduce-003-oracle:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.oracle
+
+# Section 8.1's harness-closure GATE: our BM25 against HippoRAG's published BM25 row on a nested
+# 1,000-question subset, tolerance 0.05. Halts on failure. Previously had no producer at all,
+# which for a gate means it could not be checked by anyone including its author.
+reproduce-003-closure:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.closure
+
+# Section 8.2's two side-analyses: inter-rater agreement over the three-model reference panel,
+# and the characterisation of the extractor's false positives and negatives.
+reproduce-003-diagnostics:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.diagnostics
+
+# The scoring ablation: summed (registered) against mean document scoring. Rebuilds the graph and
+# runs PPR over all 7,405 queries, so it is the slow one -- roughly fifteen minutes.
+reproduce-003-ablation:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.ablation
 
 clean:
 	rm -rf data/*/rg_corpus.txt
