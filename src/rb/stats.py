@@ -79,8 +79,11 @@ def paired_bootstrap(
     #
     # This call site used the naive `2 * min(below, above) / rounds` until 2026-08-23,
     # and 002's artifacts carried 75 exact zeros as a result. They were regenerated
-    # against this line under NB-33, which also asserts that all 27 Holm families
+    # against this line under NB-33, which also asserts that all 24 Holm decisions
     # decide identically before and after: see tests/test_002_holm_decisions_unmoved.py.
+    # (An earlier version of this comment said 27. It was wrong, and it was written in the
+    # same commit that fixed a defect about publishing numbers that are not real. Counted:
+    # 8 analysis artifacts x 3 recorded holm_significant leaves = 24. NB-35.)
     # A p-value of exactly zero is a claim no finite resampling procedure can make, so
     # this is a reporting correction and not a change to what 002 concluded.
     p_value = bootstrap_p_value(means, rounds)
