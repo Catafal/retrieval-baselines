@@ -184,3 +184,46 @@ of its findings were closed when eleven were. C8 is the one that was named, ackn
 then not done, while being reported as done. The claim was checked afterwards and corrected. That
 is the third time in this project that a completion claim has been published ahead of the work,
 after 003's false verification claim and this file's own C6.
+
+### C9 — the closure control could not fail, and the percentile rule had four copies
+
+Two items the review council left open, closed together under amendments 5 and 6.
+
+**The closure tolerance was 0.10 against deltas of 0.0045, 0.0212 and 0.0272** — 4x to 22x looser
+than what it was gating. It is now 0.05, chosen by measuring what defects actually cost rather
+than by preference: it sits above the largest legitimate difference with 1.8x headroom and below
+the wrong-formula defects (IDF off 0.1085, TF saturation off 0.1075) with a 2.2x margin. At 0.10
+that second margin was 1.08x, meaning the gate cleared the largest defect that exists by luck.
+
+The finding underneath is more useful than the number. Tightening this does **not** let the
+control catch subtle scoring defects, and implying otherwise would have been easy. A k1 or b drift
+moves nDCG@10 by up to 0.0211 and the legitimate difference to the published figure is already
+0.0272, so no threshold separates them; the same holds for length normalisation at 0.0148. Those
+classes are below this control's resolution by construction. They are covered instead by
+`tests/test_bm25_constants_pinned.py` and the factorial equivalence tests, and the artifact now
+carries a `cannot_detect` field naming the blind spot where a reader will see it.
+
+**The percentile expression had four copies**, and a mutation sweep had already shown two of them
+were covered by no test. All four now route through the one derived rule. Mutating that rule fails
+11 tests; before unification the identical mutation at `shapley_bootstrap` or
+`spearman_correlation` failed none.
+
+No published number moved, proven twice — by reconstructing five committed intervals under both
+rules with zero mismatches, and then by regenerating all three lexical factorials and diffing them
+leaf by leaf. The only non-wall-clock change in any artifact is `tolerance: 0.1 -> 0.05` and the
+two added `cannot_detect` entries.
+
+**One defect was introduced and caught during this work.** The percentile commit added a comment
+citing `protocols/002-amendment-6-percentile-unification.md` before that file existed. The
+amendment was written and tagged immediately, so the citation resolves, but a commit referencing a
+document that did not exist is in the history. That is the same class as C6's fixture docstring and
+003's verification claim: a reference asserted ahead of the thing it references, for the third time.
+
+**A methodology defect was also found, affecting every mutation sweep in this project.** Restoring
+a mutated file with `cp` sets its mtime to the current second; if the `__pycache__` entry was
+written in that same second and the two candidate values are the same length, Python's
+mtime-plus-size invalidation does not fire and a stale `.pyc` keeps serving the mutated code. The
+mutation is then never loaded, the tests pass, and the sweep records **SURVIVED** — a false hole.
+Kills remain trustworthy, since a test can only fail if the mutated code actually ran, and the
+002 sweep's four survivors were each independently re-demonstrated afterwards. Future sweeps must
+run under `PYTHONDONTWRITEBYTECODE=1`, as this one did after the discovery.

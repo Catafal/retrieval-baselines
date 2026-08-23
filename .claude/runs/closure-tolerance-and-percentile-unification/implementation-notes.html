@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Closure tolerance &amp; percentile unification · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>Closure tolerance &amp; percentile unification</h1>
+  <p class="meta">Branch <code>nb-38-closure-and-percentile</code> · started 2026-08-23 · the two
+     items left open after the 002 review council.</p>
+  <p>This is a <strong>living document</strong> capturing how the implementation interprets,
+     diverges from, or trades off against the spec. Updated as each slice lands.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Make <code>bm25_closure</code> able to fail without making it flaky, and route all four
+     percentile call sites through the derived <code>_percentile_index</code> helper with proof
+     that no committed number moves. Both mutation-verified.</p>
+
+  <h2>Design decisions <span class="meta">(spec was ambiguous → here's the call I made)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span>
+    <strong>Tolerance set to 0.05, chosen by measuring defect effect sizes rather than by taste.</strong>
+    The spec said not to pick 0.03 just because it was suggested, so I measured what defects
+    actually cost in nDCG@10 and set the gate between the largest legitimate difference and the
+    smallest defect the control can see.
+    <table>
+      <tr><th>Class</th><th>Measured Δ nDCG@10</th><th>Visible at 0.05?</th></tr>
+      <tr><td>Legitimate tokenisation difference vs published Anserini</td>
+          <td>0.0045 scifact · 0.0212 quora · 0.0272 hotpotqa</td><td>must NOT fire — 1.8× headroom</td></tr>
+      <tr><td>IDF silently off (wrong formula)</td><td>0.1085</td><td>yes, 2.2× margin</td></tr>
+      <tr><td>TF saturation off (wrong formula)</td><td>0.1075</td><td>yes, 2.2× margin</td></tr>
+      <tr><td>Length norm off</td><td>0.0148</td><td><strong>no</strong></td></tr>
+      <tr><td>k1 or b drift (0.9/2.0, 0.4/0.5/1.0)</td><td>0.0006 – 0.0211</td><td><strong>no</strong></td></tr>
+    </table>
+    Measured on SciFact and Quora with the committed scorer. The old 0.10 caught the two
+    wrong-formula defects at only a 1.08× margin — it barely cleared the largest defect that
+    exists. 0.05 doubles that margin while keeping 1.8× headroom over the largest legitimate
+    delta.
+  </div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span>
+    <strong>The control now states what it cannot catch, in its own docstring and in the artifact.</strong>
+    A control whose limits are undocumented invites the reader to assume it covers everything.
+    The docstring now names the two invisible classes and points at where they ARE covered
+    (<code>tests/test_bm25_constants_pinned.py</code> for k1/b, the factorial equivalence tests
+    for the switches).
+  </div>
+
+  <h2>Deviations <span class="meta">(intentional departures from the spec/convention)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span>
+    <strong>Tightening the tolerance does NOT achieve the spec's stated goal, and I am saying so
+    rather than implying it does.</strong>
+    The spec's premise was that at 0.10 the control "would only catch a catastrophically broken
+    tokenizer, not a subtle scoring defect". The measurement says that is true at
+    <em>every</em> safe tolerance: a k1 drift moves nDCG by up to 0.0211 and the legitimate
+    difference to published is already 0.0272, so no threshold separates them. The subtle-defect
+    class is <strong>below this control's resolution by construction</strong>, not because the
+    number was too loose. 0.05 is still worth doing — it doubles the margin on the defects the
+    control can see — but it buys a better gate, not a new capability.
+  </div>
+
+  <h2>Tradeoffs <span class="meta">(alternatives considered)</span></h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span>
+    <strong>0.05 flat vs. 0.03 flat vs. per-corpus tolerances.</strong>
+    0.03 clears HotpotQA's 0.0272 by only 0.0028 — one corpus revision or a BEIR re-release and
+    it false-fails on correct code, which is how a control gets quietly loosened until it means
+    nothing. Per-corpus tolerances fit tighter but are a free parameter per corpus, which is
+    exactly the shape of a gate tuned until it passes. Flat 0.05 is one number, defensible from
+    the measurement, and it fails loudly if a future corpus disagrees by more — which is a
+    question worth being asked.
+  </div>
+
+  <h2>Deviations, continued</h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span>
+    <strong>A mutation-sweep methodology defect was found mid-run, and it is not specific to
+    this work.</strong>
+    While mutation-verifying the tolerance, the imported <code>BM25_CLOSURE_TOLERANCE</code> was
+    <code>0.03</code> while the source file said <code>0.05</code>. Cause: restoring a mutated
+    file with <code>cp</code> sets its mtime to now, and the <code>__pycache__</code>
+    <code>.pyc</code> had been written in the <em>same second</em>. Python invalidates bytecode
+    on mtime plus size — the two candidate values are the same length — so the restore was
+    invisible and a stale <code>.pyc</code> kept serving the mutated constant.
+    <p><strong>Why this is worth more than the fix.</strong> Every mutation sweep in this project
+    uses write-then-<code>cp</code>-restore. A stale <code>.pyc</code> means the mutation is never
+    loaded, the tests pass, and the sweep reports <strong>SURVIVED</strong> — a false hole, in the
+    exact direction that wastes effort rather than hides a bug. Kills stay trustworthy: a test can
+    only fail if the mutated code actually ran.</p>
+    <p>The four survivors from the 002 sweep were each independently re-demonstrated afterwards
+    (arm swap via a real artifact regeneration in a fresh subprocess; the two percentile siblings
+    and k1/b by watching the new tests fail), so no conclusion in that review rests on this. But
+    any future sweep must run with <code>PYTHONDONTWRITEBYTECODE=1</code> or clear
+    <code>__pycache__</code> between mutations.</p>
+  </div>
+
+  <h2>Open questions <span class="meta">(want your confirm/revise)</span></h2>
+
+  <div class="open"><span class="tag t-open">Open</span>
+    <strong>A dangling citation shipped in a commit, and only a post-restart check caught it.</strong>
+    The percentile commit added a comment pointing at
+    <code>protocols/002-amendment-6-percentile-unification.md</code> before that file existed.
+    It was written and tagged immediately afterwards so the citation resolves, but the commit
+    that referenced a non-existent document is in the history. Same class as the fixture
+    docstring in C6 and 003's verification claim: a reference asserted ahead of the thing it
+    references. Worth deciding whether a pre-commit check should verify that every
+    <code>protocols/</code> path named in source actually exists — it is a two-line grep and
+    this is the second instance.</div>
+
+  <div class="open"><span class="tag t-open">Open</span>
+    <strong>Does the closure control still earn its place?</strong>
+    It now catches exactly one class: a wrong BM25 formula, which the factorial's own equivalence
+    tests also catch, in CI, without a corpus. Its unique value is that it checks against an
+    <em>external</em> reference rather than against this repo's own reference implementation —
+    which is real, but narrower than the entry currently implies. Running with "keep it, state
+    its limits"; the alternative is to demote it to informational.
+  </div>
+
+  <h2>Build / verification</h2>
+  <ul>
+    <li><strong>411 tests pass</strong> (from 407; four added by <code>test_bm25_closure_tolerance.py</code>).</li>
+    <li><strong>Item 1 mutation-verified from both sides.</strong> Reverting the tolerance to 0.10
+        fails <em>"too close to a real defect"</em>; setting it to 0.03 fails <em>"too close to a
+        legitimate difference"</em>; 0.05 passes. A one-sided test would have accepted 0.10.</li>
+    <li><strong>Item 2 mutation-verified, and the refactor's value measured.</strong> Mutating the
+        single derived rule now fails <strong>11 tests</strong>. Before unification, the identical
+        mutation at <code>shapley_bootstrap</code> or <code>spearman_correlation</code> failed
+        <strong>zero</strong>.</li>
+    <li><strong>No-op proven twice.</strong> By reconstruction (5 published intervals recomputed
+        under both rules, 0 mismatches) and then by real regeneration: SciFact and Quora's
+        factorials rebuilt and diffed leaf-by-leaf — the only non-cost change is
+        <code>tolerance: 0.1 → 0.05</code> plus the two added <code>cannot_detect</code> entries.
+        No nDCG, p-value, Holm decision or comparison direction moved.</li>
+    <li>Amendments 5 and 6 written and tagged. Amendment 5 was tagged <em>before</em> the
+        regeneration it governs — unlike amendment 4, which said so plainly.</li>
+    <li>New deps: none. Migrations: none.</li>
+  </ul>
+
+  <h2>Progress</h2>
+  <table>
+    <tr><th>Slice</th><th>What</th><th>Status</th></tr>
+    <tr><td>1</td><td>Measure defect effect sizes to ground the tolerance</td><td class="done">✓ done</td></tr>
+    <tr><td>2</td><td>Item 1: tolerance 0.05 + docstring + tests + amendment 5</td><td class="done">✓ done</td></tr>
+    <tr><td>3</td><td>Item 2: route four percentile call sites through the derived helper</td><td class="done">✓ done</td></tr>
+    <tr><td>4</td><td>Prove item 2 is a no-op — reconstruction, then real regeneration</td><td class="done">✓ done</td></tr>
+    <tr><td>5</td><td>Amendment 6, so the code's citation resolves</td><td class="done">✓ done</td></tr>
+    <tr><td>6</td><td>Regenerate HotpotQA's factorial (~50 min) so its artifact matches the code</td><td>running</td></tr>
+    <tr><td>7</td><td>PR + merge both items</td><td>not started</td></tr>
+  </table>
+</body>
+</html>

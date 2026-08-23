@@ -38,8 +38,14 @@ def empty_query(corpus_path: Path, doc_ids: list[str]) -> dict:
     return {"retrieved": len(results), "passed": len(results) == 0}
 
 
+# Set from measurement, not taste. See bm25_closure's docstring for the table this comes from:
+# it sits above the largest legitimate difference to the published figure (0.0272 on HotpotQA)
+# with 1.8x headroom, and below the smallest wrong-formula defect (0.1075) with a 2.2x margin.
+BM25_CLOSURE_TOLERANCE = 0.05
+
+
 def bm25_closure(our_ndcg: float, published_ndcg: float, anchor_ndcg: float | None = None,
-                 tolerance: float = 0.10) -> dict:
+                 tolerance: float = BM25_CLOSURE_TOLERANCE) -> dict:
     """
     Experiment 002's closure control.
 
@@ -62,11 +68,36 @@ def bm25_closure(our_ndcg: float, published_ndcg: float, anchor_ndcg: float | No
     is a real difference in what is being measured rather than noise. Ours lands
     within 0.0045 of the published Anserini figure, closer to it than `bm25s` is.
 
-    So the gate is against the PUBLISHED figure, at the same 0.10 tolerance 001 used
-    for the same reason: it is a genuinely external reference, and every
-    implementation here is checked against it rather than against each other. The
-    in-repo anchor is still reported when supplied, because a large gap to it would
+    So the gate is against the PUBLISHED figure: it is a genuinely external reference,
+    and every implementation here is checked against it rather than against each other.
+    The in-repo anchor is still reported when supplied, because a large gap to it would
     signal something worth looking at, but it does not gate.
+
+    WHY 0.05, AND WHAT THIS CONTROL CANNOT SEE. The tolerance was 0.10, inherited from
+    001. A review found it was 4x to 22x looser than the deltas it was gating, so it
+    could not fail on anything short of a catastrophe. Rather than pick a smaller number
+    by taste, the defect classes were measured against the committed scorer:
+
+        legitimate tokenisation difference   0.0045 scifact, 0.0212 quora, 0.0272 hotpotqa
+        idf silently off (wrong formula)     0.1085
+        tf saturation off (wrong formula)    0.1075
+        length normalisation off             0.0148
+        k1 drift  (1.2 -> 0.9 or 2.0)        0.0008 - 0.0054
+        b drift   (0.75 -> 0.4, 0.5, 1.0)    0.0006 - 0.0211
+
+    0.05 sits above the largest legitimate difference with 1.8x headroom and below the
+    wrong-formula defects with a 2.2x margin. At the old 0.10 that margin was 1.08x: the
+    gate barely cleared the largest defect that exists.
+
+    The honest part. Tightening this does NOT make the control catch subtle scoring
+    defects, and it would be convenient to imply otherwise. A k1 drift moves nDCG@10 by
+    up to 0.0211 and the legitimate difference to the published figure is already 0.0272,
+    so no threshold separates them. That class is below this control's resolution by
+    construction. It is covered instead by tests/test_bm25_constants_pinned.py, which
+    pins k1 and b directly, and the factorial switches are covered by the equivalence
+    tests in tests/test_lexical_equivalence.py. This control's one job is to catch a BM25
+    that is not BM25, measured against an external reference. It does that, and saying so
+    precisely is worth more than a tighter number that implies a reach it does not have.
     """
     delta = round(abs(round(our_ndcg, 4) - round(published_ndcg, 4)), 6)
     result = {
@@ -75,6 +106,9 @@ def bm25_closure(our_ndcg: float, published_ndcg: float, anchor_ndcg: float | No
         "absolute_difference": delta,
         "tolerance": tolerance,
         "passed": delta <= tolerance,
+        # Recorded in the artifact so a reader is not left to infer the control's reach
+        # from a threshold alone. See the docstring for the measurements behind this.
+        "cannot_detect": ["k1/b parameter drift", "length normalisation disabled"],
     }
     if anchor_ndcg is not None:
         # Informational only. Different tokenisation, so a gap here is expected.

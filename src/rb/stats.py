@@ -55,24 +55,20 @@ def paired_bootstrap(
     rng = random.Random(seed)
     means = sorted(sum(rng.choices(diffs, k=n)) / n for _ in range(rounds))
     observed = sum(diffs) / n
-    # 95% percentile interval: cut 2.5% off each tail of the sorted `rounds` draws.
-    # The -1 on the upper index only is deliberate, not a typo: int(0.025 * rounds)
-    # already lands on the correct 0-indexed element for the lower 2.5% cut, but
-    # int(0.975 * rounds) is one PAST the element at the 97.5th percentile in a
-    # 0-indexed list, so it needs the -1 to point at the same element the lower
-    # index's convention would. Dropping it silently widens every interval's upper
-    # bound by one draw and passed the whole suite once before this test existed:
-    # tests/test_stats.py::test_percentile_bounds_pin_exact_values_on_a_known_distribution.
-    lo, hi = means[int(0.025 * rounds)], means[int(0.975 * rounds) - 1]
-
-    # NOT routed through `percentile_ci` below. The two agree at the round counts this repo
-    # registers (n = 1000, 2000, 10000, where 0.975 * n is integral) and DIVERGE at arbitrary n:
-    # at n = 100 this expression cuts 3 draws above and 2 below, while `percentile_ci` cuts 2 and
-    # 2. `percentile_ci` is the more correct of the two by the derivation `_percentile_index`
-    # carries. NB-26's council ruled that refactoring the
-    # module 001 and 002 publish against, inside a correctness fix scoped to 003's graph arm,
-    # bundles a cosmetic change into a diff a reviewer must check for moved numbers. Left as a
-    # named follow-up rather than done quietly here. See NB-26 R6.
+    # 95% percentile interval, through the one derived rule in `_percentile_index`.
+    #
+    # This was a hand-written `means[int(0.025*rounds)], means[int(0.975*rounds)-1]` until
+    # NB-38, and the asymmetric -1 it carried was correct but had to be re-argued in a comment
+    # at every site that copied it. Three sites copied it. Two of them were then found by a
+    # mutation sweep to have no test at all, which is how a defect class survives being
+    # audited: the audit fixes the site it is looking at and leaves the copies behind.
+    #
+    # NB-26's council deferred this refactor on the grounds that a cosmetic change bundled
+    # into a correctness diff makes a reviewer hunt for moved numbers. That reason held, and
+    # it stops applying once the refactor is done alone with proof attached. The proof is in
+    # protocols/002-amendment-6-percentile-unification.md: every committed artifact in
+    # results/001 and results/002 recomputes byte-identical.
+    lo, hi = percentile_ci(means)
     # Two-sided p-value from the bootstrap distribution itself, via the add-one
     # estimator in `bootstrap_p_value` below. See that docstring for why the +1 is
     # the estimator rather than a floor.
@@ -316,10 +312,7 @@ def shapley_bootstrap(
     phi_ci95 = {}
     for p in players:
         draws = sorted(per_player_draws[p])
-        # Same 2.5%/97.5% percentile-index convention as paired_bootstrap, including
-        # the upper-only -1 — see the comment there for why the two indices are not
-        # symmetric.
-        phi_ci95[p] = [draws[int(0.025 * rounds)], draws[int(0.975 * rounds) - 1]]
+        phi_ci95[p] = list(percentile_ci(draws))
 
     # Fraction of rounds a outranked b, for every pair — this is what lets the
     # entry say "we cannot tell" instead of forcing an order out of two point
@@ -419,7 +412,6 @@ def spearman_correlation(
         ys = [y[i] for i in idx]
         draws.append(_pearson(_fractional_ranks(xs), _fractional_ranks(ys)))
     draws.sort()
-    # Same percentile-index convention as paired_bootstrap; see there for the -1.
-    lo, hi = draws[int(0.025 * rounds)], draws[int(0.975 * rounds) - 1]
+    lo, hi = percentile_ci(draws)
 
     return {"rho": rho, "ci95": [lo, hi]}

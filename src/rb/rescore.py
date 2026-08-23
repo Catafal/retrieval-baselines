@@ -26,6 +26,7 @@ from pathlib import Path
 import pytrec_eval
 
 from rb import datasets, metrics
+from rb.stats import percentile_ci
 
 ROOT = Path(__file__).resolve().parents[2]
 BOOTSTRAP_SEED = 20260818
@@ -37,7 +38,9 @@ def bootstrap_ci(values: list[float], rounds: int = BOOTSTRAP_ROUNDS) -> tuple[f
     rng = random.Random(BOOTSTRAP_SEED)
     n = len(values)
     means = sorted(sum(rng.choices(values, k=n)) / n for _ in range(rounds))
-    return means[int(0.025 * rounds)], means[int(0.975 * rounds) - 1]
+    # One derived rule, shared with rb.stats — see _percentile_index there. This was the
+    # fourth copy of the hand-written index expression; NB-38 unified all four.
+    return percentile_ci(means)
 
 
 def rescore(dataset: str) -> dict:
