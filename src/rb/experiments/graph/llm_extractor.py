@@ -27,6 +27,19 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+
+class MalformedResponse(RuntimeError):
+    """
+    A call returned something that is not the agreed JSON.
+
+    Its own type because it is RETRYABLE and a schema violation is not. The first full run died
+    eight minutes in, at 1,300 of 110,068 passages, when one batch came back truncated
+    ("Unterminated string at char 49119") and `json.loads` raised straight through
+    `ThreadPoolExecutor.map`. A run of 11,000 calls will meet a bad response; dying on the first
+    one and discarding the work in flight is a defect in the harness, not a fact about the
+    provider.
+    """
+
 # --- the pin, frozen in protocol 004 §4 -------------------------------------------------------
 # Provider and quantisation are part of the pin, not a routing preference. OpenRouter serves one
 # model id from many backends at different numerical precisions: deepseek-v4-flash spans 17
@@ -45,6 +58,12 @@ BATCH = 10
 # pilot's measured 12.6s per batch would take about 38 hours.
 WORKERS = 12
 MAX_RETRIES = 5
+
+# Bounds one call's output. The pilot measured 197 completion tokens per passage, so a batch of 10
+# needs about 2,000; 8,000 leaves room for a dense passage without letting a degenerate generation
+# run unbounded. A response that hits this ceiling comes back as truncated JSON, which is now a
+# retryable failure rather than a crash — see MalformedResponse.
+MAX_TOKENS = 8000
 
 # GLM-4.7-Flash is a reasoning model. With reasoning left on, DeepInfra returns the structured
 # payload in the `reasoning` field and sets `content` to None, so the extraction parses to nothing
@@ -165,7 +184,7 @@ def _with_retry(fn, *args):
     for attempt in range(MAX_RETRIES):
         try:
             return fn(*args)
-        except (TimeoutError, OSError) as exc:  # urllib raises URLError(OSError) on 429/5xx
+        except (TimeoutError, OSError, MalformedResponse) as exc:  # URLError(OSError) on 429/5xx
             if attempt == MAX_RETRIES - 1:
                 raise
             wait = min(60, 2 ** attempt) + random.uniform(0, 1)
@@ -193,6 +212,7 @@ def _call(client, batch: list[str]) -> tuple[list[list[tuple[str, str]]], dict]:
         "temperature": TEMPERATURE,
         "seed": SEED,
         "reasoning": REASONING,
+        "max_tokens": MAX_TOKENS,
         "messages": [
             {"role": "system", "content": PROMPT},
             {"role": "user", "content": numbered},
@@ -210,7 +230,21 @@ def _call(client, batch: list[str]) -> tuple[list[list[tuple[str, str]]], dict]:
         },
     }
     data = client(ENDPOINT, body)
-    parsed = json.loads(data["choices"][0]["message"]["content"])
+    choice = data["choices"][0]
+    content = choice["message"].get("content")
+
+    # `finish_reason == "length"` says the generation was cut off, so the JSON is truncated by
+    # construction. Named explicitly rather than left to surface as a parse error, because the two
+    # need different responses: truncation means the batch is too large for the ceiling, a parse
+    # error on a complete response means the model emitted something else.
+    if choice.get("finish_reason") == "length":
+        raise MalformedResponse(f"response truncated at max_tokens={MAX_TOKENS}")
+    if not content:
+        raise MalformedResponse(f"empty content (finish_reason={choice.get('finish_reason')!r})")
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise MalformedResponse(f"content is not JSON: {exc}") from exc
 
     by_index = {p["index"]: p["entities"] for p in parsed["passages"]}
     # A model that drops a passage must not silently shift every later passage's entities onto
@@ -244,27 +278,61 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
                  len(ids), len(chunks), WORKERS)
         done = [0]
 
-        def run(chunk):
-            ents, _ = _with_retry(_call, client, [todo[d] for d in chunk])
-            rows = []
-            for doc_id, e in zip(chunk, ents):
-                key = cache_key(todo[doc_id])
-                rows.append({"key": key, "doc_id": doc_id,
-                             "entities": [{"text": t, "label": l} for t, l in e]})
+        failures: dict[str, str] = {}
+
+        def persist(chunk, ents):
+            rows = [{"key": cache_key(todo[d]), "doc_id": d,
+                     "entities": [{"text": t, "label": l} for t, l in e]}
+                    for d, e in zip(chunk, ents)]
             # Written before the in-memory cache is updated, so a crash leaves the file as the
             # authority and a resumed run skips exactly what was persisted, never more.
             _append(rows)
             with _CACHE_LOCK:
-                for doc_id, e in zip(chunk, ents):
-                    cache[cache_key(todo[doc_id])] = e
+                for d, e in zip(chunk, ents):
+                    cache[cache_key(todo[d])] = e
                 done[0] += len(chunk)
                 if done[0] % (BATCH * 50) < BATCH:
                     log.info("  %d/%d passages", done[0], len(ids))
+
+        def run(chunk):
+            """
+            One batch, with the batch itself as the unit of isolation.
+
+            Retries first. If a multi-passage batch still fails, it is split to single passages so
+            one pathological input cannot cost its nine neighbours their work. A single passage
+            that still fails is RECORDED, not cached: writing empty entities would make a failed
+            extraction indistinguishable from a passage that genuinely contains no entities, and
+            that passage would then contribute nothing to the graph while looking normal.
+            """
+            try:
+                ents, _ = _with_retry(_call, client, [todo[d] for d in chunk])
+                persist(chunk, ents)
+                return
+            except Exception as exc:
+                if len(chunk) == 1:
+                    with _CACHE_LOCK:
+                        failures[chunk[0]] = f"{type(exc).__name__}: {exc}"
+                    log.error("passage %s failed after %d retries: %s", chunk[0], MAX_RETRIES, exc)
+                    return
+                log.warning("batch of %d failed (%s); splitting to isolate", len(chunk), exc)
+
+            for doc_id in chunk:
+                run([doc_id])
 
         with ThreadPoolExecutor(max_workers=WORKERS) as pool:
             # list() forces every future to be consumed, so an exception in any worker propagates
             # rather than being swallowed by the executor shutting down quietly.
             list(pool.map(run, chunks))
+
+        if failures:
+            # Raised at the END, so the run banks every passage it could extract and reports the
+            # exact set that needs attention, rather than dying on the first bad one and
+            # discarding thousands of successful calls that were already paid for.
+            raise RuntimeError(
+                f"{len(failures)} of {len(ids)} passages could not be extracted: "
+                f"{dict(list(failures.items())[:5])}"
+                + (" ..." if len(failures) > 5 else "")
+            )
 
     return {d: cache[cache_key(t)] for d, t in texts.items()}
 

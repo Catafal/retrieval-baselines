@@ -188,3 +188,62 @@ def test_a_resumed_run_extracts_only_what_is_missing():
 
     assert extracted_first == 20
     assert sum(calls) == 5, "a resumed run must extract only the passages it does not already have"
+
+
+def test_a_truncated_response_is_retried_not_fatal():
+    """
+    KILLS the defect that killed the first full run.
+
+    One batch returned truncated JSON eight minutes in, `json.loads` raised through
+    ThreadPoolExecutor.map, and 110,068 passages of work stopped at 1,300. A malformed response
+    from one call must cost that call, not the run.
+    """
+    attempts = []
+
+    def client(endpoint, body):
+        attempts.append(1)
+        if len(attempts) == 1:
+            return {"choices": [{"finish_reason": "length",
+                                 "message": {"content": '{"passages": [{"index": 0, "enti'}}]}
+        return _reply([{"index": 0, "entities": [{"text": "Kyoto", "label": "GPE"}]}])
+
+    m.MAX_RETRIES  # documents the dependency
+    out = m.extract_many({"d1": "Kyoto is old."}, client=client)
+
+    assert out == {"d1": [("Kyoto", "GPE")]}
+    assert len(attempts) == 2, "the truncated call should have been retried once, not raised"
+
+
+def test_one_bad_passage_does_not_cost_its_batch_its_work(monkeypatch):
+    """
+    KILLS: a single pathological input discarding nine neighbours' successful extractions.
+
+    The batch is retried, then split to single passages so the failure is isolated to the one
+    passage that causes it.
+    """
+    monkeypatch.setattr(m, "MAX_RETRIES", 1)
+
+    def client(endpoint, body):
+        content = body["messages"][1]["content"]
+        if "POISON" in content and content.count("[") > 1:
+            raise m.MalformedResponse("batch containing the bad passage fails")
+        if "POISON" in content:
+            raise m.MalformedResponse("and the bad passage fails alone too")
+        blocks = content.split("\n\n")
+        return _reply([{"index": j, "entities": [{"text": "Ok", "label": "GPE"}]}
+                       for j in range(len(blocks))])
+
+    texts = {f"d{i}": f"clean passage {i}" for i in range(9)}
+    texts["d9"] = "a POISON passage"
+
+    with pytest.raises(RuntimeError, match="could not be extracted"):
+        m.extract_many(texts, client=client)
+
+    # The nine good passages were still banked, and the bad one was NOT cached as empty.
+    cached = m.load_cache()
+    good = [d for d in texts if d != "d9" and m.cache_key(texts[d]) in cached]
+    assert len(good) == 9, "the clean passages in a failed batch must survive"
+    assert m.cache_key(texts["d9"]) not in cached, (
+        "a failed extraction must not be cached as empty — it would be indistinguishable "
+        "from a passage that genuinely has no entities"
+    )
