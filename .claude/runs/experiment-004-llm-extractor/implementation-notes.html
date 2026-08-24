@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Experiment 004 · Implementation Notes</title>
+<style>
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;max-width:880px;margin:40px auto;padding:0 24px;color:#292524;line-height:1.55}
+h1{border-bottom:3px solid #0181c9;padding-bottom:8px}
+h2{margin-top:36px;color:#0181c9;border-bottom:1px solid #e5e5e5;padding-bottom:4px}
+code{background:#f5f5f4;padding:1px 5px;border-radius:4px;font-size:.9em}
+.decision{background:#f0f9ff;border-left:4px solid #0181c9;padding:12px 16px;margin:14px 0}
+.deviation{background:#fffbeb;border-left:4px solid #d97706;padding:12px 16px;margin:14px 0}
+.tradeoff{background:#f5f3ff;border-left:4px solid #7c3aed;padding:12px 16px;margin:14px 0}
+.open{background:#fef2f2;border-left:4px solid #dc2626;padding:12px 16px;margin:14px 0}
+.tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 8px;border-radius:10px;color:#fff}
+.t-dec{background:#0181c9}.t-dev{background:#d97706}.t-trade{background:#7c3aed}.t-open{background:#dc2626}
+.meta{color:#78716c;font-size:.9em}.done{color:#16a34a;font-weight:600}
+table{border-collapse:collapse;width:100%;margin:10px 0}
+th,td{border:1px solid #e5e5e5;padding:6px 10px;text-align:left;font-size:.92em}th{background:#fafaf9}
+</style></head>
+<body>
+<h1>Experiment 004 — LLM extractor</h1>
+<p class="meta">Branch <code>nb-20-llm-extractor</code> · started 2026-08-23 · running NB-20 as
+committed in the published 003 entry.</p>
+<p>A <strong>living document</strong>. Updated as each slice lands.</p>
+
+<h2>The spec, in one line</h2>
+<p>Swap 003's spaCy extractor for a pinned LLM on both corpora, changing nothing else, and report
+whether the graph result moves.</p>
+
+<h2>Design decisions</h2>
+
+<div class="decision"><span class="tag t-dec">Decision</span>
+<strong>GLM-4.7-Flash pinned to DeepInfra at bf16, chosen for reproducibility rather than capability.</strong>
+OpenRouter serves one model id from many backends at different precisions: <code>deepseek-v4-flash</code>
+spans 17 from fp4 to fp8, <code>kimi-k2.5</code> spans 10 including int4, and each lab's own
+endpoint is often the quantised one — Z.AI serves GLM-4.7 at fp4, Moonshot serves K2.5 at int4.
+bf16 is the only tier where the weights served are the weights named.
+<p>003's oracle is what makes that trade correct rather than merely cheap: a <em>perfect</em>
+extractor gives R@2 0.3344 against BM25's 0.5490, so capability only matters up to a known
+ceiling and no model can buy past it. A reader objecting that a larger model might differ is
+answered by the oracle row, not by a bigger bill.</p></div>
+
+<div class="decision"><span class="tag t-dec">Decision</span>
+<strong>The cache, not the API, is the artifact of record.</strong>
+An LLM is not deterministic even at temperature 0 with a seed, so <code>make reproduce</code>
+cannot mean re-calling a paid endpoint. Keys include the passage, model, provider, quantisation,
+prompt hash and reasoning setting, so editing any of them misses rather than silently reusing.
+<code>offline=True</code> raises on a miss, so a scored number can never come from an uncached call.</p></div>
+
+<h2>Deviations</h2>
+
+<div class="deviation"><span class="tag t-dev">Deviation</span>
+<strong>Entities, not OpenIE triples — against NB-20's own wording.</strong>
+NB-20's roadmap row says "LLM OpenIE". Triples would change the graph's node and edge semantics,
+so the arm would differ from 003 in the extractor <em>and</em> the structure built on it, and no
+result could be attributed to either. That is 002's "the only variable is the encoder" error,
+where three things differed. Entity extraction on the identical
+<code>(surface_form, label)</code> contract keeps builder, linking, walk, classes, analysis and
+controls byte-identical. Registered in protocol §5 rather than done quietly.</div>
+
+<div class="deviation"><span class="tag t-dev">Deviation</span>
+<strong>The pilot gate was unrunnable as drafted, and was fixed before tagging.</strong>
+§8 first said "200 passages, sampled with seed 20260820". Extraction quality can only be scored
+where gold exists, and gold is exactly the 100 hand-annotated passages committed in 003. A fresh
+200 would have had nothing to score against. Reusing the annotated set is also the stronger
+comparison — same passages, same rule card. The bar was fixed as a number, F1 &gt; 0.7203, before
+the pilot ran, so "close enough" was not available afterwards.</div>
+
+<h2>Tradeoffs</h2>
+
+<div class="tradeoff"><span class="tag t-trade">Tradeoff</span>
+<strong>12 workers against provider throttling.</strong>
+Serial extraction at the pilot's measured 12.6s per batch is about 38 hours. 12 concurrent
+workers bring it to roughly 7. Concurrency is a throughput decision and not an experimental one:
+every call is independent and the cache is keyed by content, so what a passage returns does not
+depend on what else is in flight — asserted by a test that gives each passage a unique marker and
+checks it comes back attached to its own document. Observed throttling is 6 retries in the first
+800 passages, absorbed by exponential backoff.</div>
+
+<h2>Open questions</h2>
+
+<div class="open"><span class="tag t-open">Open</span>
+<strong>The cost estimate was wrong by 2.6× and the entry should say so.</strong>
+Projected $3.70, measured $9.53. The input side was accurate; output was underestimated 3× —
+60 tokens per passage assumed against 197 measured, because the model returns about 10.9 entities
+per passage where spaCy returned fewer. That is the same behaviour that produced the higher
+recall, so the overrun and the quality gain have one cause. Worth a line in the entry's cost
+section rather than quietly reporting the final figure.</div>
+
+<div class="open"><span class="tag t-open">Open</span>
+<strong>The retry log does not record HTTP status codes.</strong>
+Retries are logged as <code>transient failure (HTTPError)</code> with no code, so the entry
+cannot report what fraction of calls were rate-limited versus failed for another reason. Not
+worth restarting a 7-hour run to fix; worth fixing before any future paid run.</div>
+
+<h2>Build / verification</h2>
+<ul>
+  <li><strong>420 tests pass.</strong></li>
+  <li>Four guards mutation-verified in isolation: the pin is sent with <code>allow_fallbacks:false</code>;
+      offline mode raises on a cache miss; per-passage results are keyed by returned index so a
+      dropped passage yields nothing rather than shifting its neighbour's entities; and the
+      threaded fan-out keeps every passage with its own entities.</li>
+  <li>Two defects found and fixed while writing tests, both mine: default-argument binding meant
+      <code>CACHE</code> could not be redirected, so two tests wrote fake entities into the real
+      cache; and cache isolation is now autouse rather than opt-in.</li>
+  <li><strong>Pilot passed the gate:</strong> F1 0.8565 against spaCy's 0.6703, +0.1862 on a +0.05 bar.
+      Precision 0.6836 → 0.9092.</li>
+</ul>
+
+<h2>Progress</h2>
+<table>
+<tr><th>Slice</th><th>What</th><th>Status</th></tr>
+<tr><td>1</td><td>Cost research across OpenRouter, provider/quantisation audit</td><td class="done">✓ done</td></tr>
+<tr><td>2</td><td>Protocol 004 written and tagged</td><td class="done">✓ done</td></tr>
+<tr><td>3</td><td>Pinned extractor + cache + tests</td><td class="done">✓ done</td></tr>
+<tr><td>4</td><td>Amendment 1: reasoning disabled (found by smoke test)</td><td class="done">✓ done</td></tr>
+<tr><td>5</td><td>Pilot: 100 annotated passages, §8 gate</td><td class="done">✓ passed, +0.1862 F1</td></tr>
+<tr><td>6</td><td>Full extraction, both corpora, 110,068 passages</td><td>running, ~7h</td></tr>
+<tr><td>7</td><td>Build graphs, score both arms, run the registered analysis</td><td>not started</td></tr>
+<tr><td>8</td><td>Entry</td><td>not started</td></tr>
+</table>
+</body></html>
