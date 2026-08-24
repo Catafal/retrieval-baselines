@@ -19,6 +19,10 @@ import hashlib
 import json
 import logging
 import os
+import random
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -34,6 +38,13 @@ QUANTIZATION = "bf16"
 TEMPERATURE = 0
 SEED = 20260820
 BATCH = 10
+
+# Concurrency is a throughput decision, not an experimental one: every call is independent, the
+# cache is keyed by content, and results are written per batch, so the entities produced for a
+# passage do not depend on what else is in flight. Serial extraction of 110,068 passages at the
+# pilot's measured 12.6s per batch would take about 38 hours.
+WORKERS = 12
+MAX_RETRIES = 5
 
 # GLM-4.7-Flash is a reasoning model. With reasoning left on, DeepInfra returns the structured
 # payload in the `reasoning` field and sets `content` to None, so the extraction parses to nothing
@@ -139,13 +150,37 @@ def load_cache(path: Path | None = None) -> dict[str, list[tuple[str, str]]]:
     return out
 
 
+_CACHE_LOCK = threading.Lock()
+
+
+def _with_retry(fn, *args):
+    """
+    Retry transient failures with exponential backoff and jitter.
+
+    A run of 11,000 calls will meet rate limits and provider hiccups; without this a single 429
+    three hours in would lose the run. Retries only transport-level failures — a schema violation
+    or a refused pin is a real failure and must surface immediately rather than be retried into
+    looking like success.
+    """
+    for attempt in range(MAX_RETRIES):
+        try:
+            return fn(*args)
+        except (TimeoutError, OSError) as exc:  # urllib raises URLError(OSError) on 429/5xx
+            if attempt == MAX_RETRIES - 1:
+                raise
+            wait = min(60, 2 ** attempt) + random.uniform(0, 1)
+            log.warning("transient failure (%s), retrying in %.1fs", type(exc).__name__, wait)
+            time.sleep(wait)
+
+
 def _append(rows: list[dict], path: Path | None = None) -> None:
     """Append-only. The cache is evidence; rewriting it in place would lose what was returned.
 
     Same call-time resolution as `load_cache`, and for the same reason."""
     path = CACHE if path is None else path
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as fh:
+    # Serialised: several workers append concurrently and interleaved writes would corrupt lines.
+    with _CACHE_LOCK, path.open("a") as fh:
         for row in rows:
             fh.write(json.dumps(row, sort_keys=True) + "\n")
 
@@ -204,18 +239,32 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
         if client is None:
             raise ValueError("client is required when the cache does not cover every passage")
         ids = sorted(todo)
-        log.info("extracting %d uncached passages in batches of %d", len(ids), BATCH)
-        for start in range(0, len(ids), BATCH):
-            chunk = ids[start:start + BATCH]
-            ents, usage = _call(client, [todo[d] for d in chunk])
+        chunks = [ids[i:i + BATCH] for i in range(0, len(ids), BATCH)]
+        log.info("extracting %d uncached passages in %d batches, %d workers",
+                 len(ids), len(chunks), WORKERS)
+        done = [0]
+
+        def run(chunk):
+            ents, _ = _with_retry(_call, client, [todo[d] for d in chunk])
             rows = []
             for doc_id, e in zip(chunk, ents):
                 key = cache_key(todo[doc_id])
-                cache[key] = e
                 rows.append({"key": key, "doc_id": doc_id,
                              "entities": [{"text": t, "label": l} for t, l in e]})
+            # Written before the in-memory cache is updated, so a crash leaves the file as the
+            # authority and a resumed run skips exactly what was persisted, never more.
             _append(rows)
-            log.info("  %d/%d  usage=%s", min(start + BATCH, len(ids)), len(ids), usage)
+            with _CACHE_LOCK:
+                for doc_id, e in zip(chunk, ents):
+                    cache[cache_key(todo[doc_id])] = e
+                done[0] += len(chunk)
+                if done[0] % (BATCH * 50) < BATCH:
+                    log.info("  %d/%d passages", done[0], len(ids))
+
+        with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+            # list() forces every future to be consumed, so an exception in any worker propagates
+            # rather than being swallowed by the executor shutting down quietly.
+            list(pool.map(run, chunks))
 
     return {d: cache[cache_key(t)] for d, t in texts.items()}
 

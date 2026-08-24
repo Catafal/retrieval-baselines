@@ -135,3 +135,56 @@ def test_a_second_run_reads_the_cache_and_does_not_call():
 
     assert first == second == {"d1": [("Rome", "GPE")]}
     assert len(calls) == 1, "the second run must be served entirely from the cache"
+
+
+def test_concurrent_extraction_keeps_every_passage_with_its_own_entities():
+    """
+    KILLS: a threaded fan-out that returns the right entities attached to the wrong documents.
+
+    With WORKERS batches in flight and a shared cache dict, the plausible failure is not a crash
+    but a permutation: every document has entities, none looks wrong, and the graph is built on a
+    silent shuffle. Each passage here carries a unique marker and must come back with its own.
+    """
+    n = 250
+    texts = {f"d{i}": f"passage about MARKER{i} in a town" for i in range(n)}
+
+    def client(endpoint, body):
+        # Echo back the marker found in each numbered passage, so a misattribution is detectable.
+        blocks = body["messages"][1]["content"].split("\n\n")
+        out = []
+        for j, block in enumerate(blocks):
+            marker = block.split("MARKER")[1].split(" ")[0]
+            out.append({"index": j, "entities": [{"text": f"MARKER{marker}", "label": "GPE"}]})
+        return _reply(out)
+
+    result = m.extract_many(texts, client=client)
+
+    assert len(result) == n
+    for i in range(n):
+        assert result[f"d{i}"] == [(f"MARKER{i}", "GPE")], f"d{i} got another document's entities"
+
+
+def test_a_resumed_run_extracts_only_what_is_missing():
+    """
+    The cache is what makes a multi-hour run survivable. If a crash at 80% meant re-buying
+    everything, the run would be unaffordable to retry and the temptation would be to press on
+    with partial results.
+    """
+    calls = []
+
+    def client(endpoint, body):
+        blocks = body["messages"][1]["content"].split("\n\n")
+        calls.append(len(blocks))
+        return _reply([{"index": j, "entities": []} for j in range(len(blocks))])
+
+    first = {f"d{i}": f"text {i}" for i in range(20)}
+    m.extract_many(first, client=client)
+    extracted_first = sum(calls)
+
+    calls.clear()
+    second = dict(first)
+    second.update({f"new{i}": f"fresh {i}" for i in range(5)})
+    m.extract_many(second, client=client)
+
+    assert extracted_first == 20
+    assert sum(calls) == 5, "a resumed run must extract only the passages it does not already have"
