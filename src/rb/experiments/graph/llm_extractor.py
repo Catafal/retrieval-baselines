@@ -35,6 +35,15 @@ TEMPERATURE = 0
 SEED = 20260820
 BATCH = 10
 
+# GLM-4.7-Flash is a reasoning model. With reasoning left on, DeepInfra returns the structured
+# payload in the `reasoning` field and sets `content` to None, so the extraction parses to nothing
+# — and 30 of 46 completion tokens on a one-entity passage were reasoning, i.e. most of the output
+# bill for a task that needs none. Disabled: `content` is populated and reasoning_tokens is 0.
+#
+# NOT `{"exclude": True}`, which is a trap: it returns content None AND reasoning None, losing the
+# payload silently rather than loudly. Registered in protocols/004-amendment-1-reasoning-off.md.
+REASONING = {"enabled": False}
+
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 
 # Frozen verbatim in protocol 004 §5. No few-shot examples and no chain of thought: both are free
@@ -103,7 +112,9 @@ def cache_key(passage: str) -> str:
     therefore MISSES rather than silently returning extractions produced under the old one, which
     is the failure that would let a tuned prompt inherit a registered one's results.
     """
-    return _sha("\x00".join([passage, MODEL, PROVIDER, QUANTIZATION, _sha(PROMPT)]))
+    return _sha("\x00".join(
+        [passage, MODEL, PROVIDER, QUANTIZATION, _sha(PROMPT), json.dumps(REASONING, sort_keys=True)]
+    ))
 
 
 def load_cache(path: Path | None = None) -> dict[str, list[tuple[str, str]]]:
@@ -146,6 +157,7 @@ def _call(client, batch: list[str]) -> tuple[list[list[tuple[str, str]]], dict]:
         "model": MODEL,
         "temperature": TEMPERATURE,
         "seed": SEED,
+        "reasoning": REASONING,
         "messages": [
             {"role": "system", "content": PROMPT},
             {"role": "user", "content": numbered},
