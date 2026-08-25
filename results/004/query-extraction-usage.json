@@ -1,0 +1,7 @@
+{
+  "hotpotqa_queries": 7405,
+  "2wiki_queries": 9825,
+  "calls": 1729,
+  "cost_usd": 0.2077,
+  "wall_clock_seconds": 879.4
+}
