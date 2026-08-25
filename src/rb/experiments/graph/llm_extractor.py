@@ -74,7 +74,23 @@ MAX_TOKENS = 8000
 #
 # NOT `{"exclude": True}`, which is a trap: it returns content None AND reasoning None, losing the
 # payload silently rather than loudly. Registered in protocols/004-amendment-1-reasoning-off.md.
-REASONING = {"enabled": False}
+# SUPERSEDED BY AMENDMENT 4 FOR QUERIES. Amendment 1 disabled reasoning to fix a TRANSPORT
+# problem — DeepInfra returns the payload in `reasoning` with `content` None, and the parser only
+# read `content`. Disabling reasoning made `content` populate, so the parse worked. The correct
+# fix was one line in the parser; changing the model's behaviour to suit the parser cost it an
+# entire input type. With reasoning off, 9 of 20 questions extract NOTHING; with it on, 0 of 20.
+#
+# Documents keep the setting they were bought under. Measured on the same gold as the pilot,
+# 40 passages: reasoning off F1 0.8255, reasoning on F1 0.8224 — a 0.003 difference, against
+# spaCy's 0.6703. The setting does not matter on passages and is decisive on questions.
+DOC_REASONING = {"enabled": False}
+
+# None means the field is omitted from the request, which is the model's default and leaves
+# reasoning ON. `None` is therefore a MEANINGFUL value here, not "unspecified" — hence the
+# sentinel below, so a caller can ask for reasoning-on without it being mistaken for a default.
+QUERY_REASONING = None
+
+_UNSET = object()
 
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -136,7 +152,7 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def cache_key(passage: str) -> str:
+def cache_key(passage: str, reasoning=_UNSET) -> str:
     """
     Identifies an extraction by everything that could change it.
 
@@ -144,8 +160,10 @@ def cache_key(passage: str) -> str:
     therefore MISSES rather than silently returning extractions produced under the old one, which
     is the failure that would let a tuned prompt inherit a registered one's results.
     """
+    if reasoning is _UNSET:
+        reasoning = DOC_REASONING
     return _sha("\x00".join(
-        [passage, MODEL, PROVIDER, QUANTIZATION, _sha(PROMPT), json.dumps(REASONING, sort_keys=True)]
+        [passage, MODEL, PROVIDER, QUANTIZATION, _sha(PROMPT), json.dumps(reasoning, sort_keys=True)]
     ))
 
 
@@ -217,14 +235,14 @@ def _append(rows: list[dict], path: Path | None = None) -> None:
             fh.write(json.dumps(row, sort_keys=True) + "\n")
 
 
-def _call(client, batch: list[str]) -> tuple[list[list[tuple[str, str]]], dict]:
+def _call(client, batch: list[str], reasoning=_UNSET) -> tuple[list[list[tuple[str, str]]], dict]:
     """One API call over `batch` passages. Returns per-passage entities and usage."""
+    reasoning = DOC_REASONING if reasoning is _UNSET else reasoning
     numbered = "\n\n".join(f"[{i}] {t}" for i, t in enumerate(batch))
     body = {
         "model": MODEL,
         "temperature": TEMPERATURE,
         "seed": SEED,
-        "reasoning": REASONING,
         "max_tokens": MAX_TOKENS,
         "messages": [
             {"role": "system", "content": PROMPT},
@@ -242,9 +260,19 @@ def _call(client, batch: list[str]) -> tuple[list[list[tuple[str, str]]], dict]:
             "allow_fallbacks": False,
         },
     }
+    # Omitted entirely when None: that is the model's default and the only way to leave
+    # reasoning ON, which questions require.
+    if reasoning is not None:
+        body["reasoning"] = reasoning
+
     data = client(ENDPOINT, body)
     choice = data["choices"][0]
-    content = choice["message"].get("content")
+    # THE FIX AMENDMENT 1 SHOULD HAVE BEEN. Some providers return the structured payload in
+    # `reasoning` and leave `content` None; reading only `content` is what made a working
+    # extraction look like an empty one, and the "fix" for that — disabling reasoning — cost the
+    # model its ability to handle questions at all. Read whichever field carries it.
+    msg = choice["message"]
+    content = msg.get("content") or msg.get("reasoning")
 
     # `finish_reason == "length"` says the generation was cut off, so the JSON is truncated by
     # construction. Named explicitly rather than left to surface as a parse error, because the two
@@ -271,7 +299,8 @@ def _call(client, batch: list[str]) -> tuple[list[list[tuple[str, str]]], dict]:
     return out, data.get("usage", {})
 
 
-def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> dict[str, list[tuple[str, str]]]:
+def extract_many(texts: dict[str, str], client=None, offline: bool = False,
+                 reasoning=_UNSET) -> dict[str, list[tuple[str, str]]]:
     """
     doc_id -> entities, reading the cache first and calling only for misses.
 
@@ -279,7 +308,7 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
     reaching for the network, so a scored number can never come from an uncached call.
     """
     cache = load_cache()
-    todo = {d: t for d, t in texts.items() if cache_key(t) not in cache}
+    todo = {d: t for d, t in texts.items() if cache_key(t, reasoning) not in cache}
 
     if todo and offline:
         raise RuntimeError(
@@ -300,7 +329,7 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
         salvaged: dict[str, int] = {}
 
         def persist(chunk, ents):
-            rows = [{"key": cache_key(todo[d]), "doc_id": d,
+            rows = [{"key": cache_key(todo[d], reasoning), "doc_id": d,
                      "entities": [{"text": t, "label": l} for t, l in e]}
                     for d, e in zip(chunk, ents)]
             # Written before the in-memory cache is updated, so a crash leaves the file as the
@@ -308,7 +337,7 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
             _append(rows)
             with _CACHE_LOCK:
                 for d, e in zip(chunk, ents):
-                    cache[cache_key(todo[d])] = e
+                    cache[cache_key(todo[d], reasoning)] = e
                 done[0] += len(chunk)
                 if done[0] % (BATCH * 50) < BATCH:
                     log.info("  %d/%d passages", done[0], len(ids))
@@ -324,7 +353,7 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
             that passage would then contribute nothing to the graph while looking normal.
             """
             try:
-                ents, _ = _with_retry(_call, client, [todo[d] for d in chunk])
+                ents, _ = _with_retry(_call, client, [todo[d] for d in chunk], reasoning)
                 persist(chunk, ents)
                 return
             except Exception as exc:
@@ -340,11 +369,11 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
                         if pair not in seen:
                             seen.append(pair)
                     if seen:
-                        _append([{"key": cache_key(todo[doc_id]), "doc_id": doc_id,
+                        _append([{"key": cache_key(todo[doc_id], reasoning), "doc_id": doc_id,
                                   "salvaged": True,
                                   "entities": [{"text": t, "label": l} for t, l in seen]}])
                         with _CACHE_LOCK:
-                            cache[cache_key(todo[doc_id])] = seen
+                            cache[cache_key(todo[doc_id], reasoning)] = seen
                             salvaged[doc_id] = len(seen)
                             done[0] += 1
                         log.warning("passage %s salvaged %d distinct entities from a truncated "
@@ -386,7 +415,8 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
     # Excluded passages are ABSENT from the result, not present-and-empty. A caller building a
     # graph must be able to tell "this passage yielded no entities" from "this passage was never
     # extracted", and the count of missing keys is the exclusion count the entry reports.
-    return {d: cache[cache_key(t)] for d, t in texts.items() if cache_key(t) in cache}
+    return {d: cache[cache_key(t, reasoning)] for d, t in texts.items()
+            if cache_key(t, reasoning) in cache}
 
 
 def http_client(endpoint: str, body: dict) -> dict:
@@ -417,7 +447,7 @@ def http_client(endpoint: str, body: dict) -> dict:
 
 def extract_docs_offline(corpus: dict[str, str]) -> dict[str, list[tuple[str, str]]]:
     """doc_id -> entities, for GraphRetriever.fit. Cache only."""
-    return extract_many(corpus, offline=True)
+    return extract_many(corpus, offline=True, reasoning=DOC_REASONING)
 
 
 def extract_query_offline(query: str) -> list[tuple[str, str]]:
@@ -429,7 +459,7 @@ def extract_query_offline(query: str) -> list[tuple[str, str]]:
     and a missing query is a pre-run bookkeeping error that the scored-run gate below catches
     all at once rather than one query into the walk.
     """
-    key = cache_key(query)
+    key = cache_key(query, QUERY_REASONING)
     cache = _query_cache()
     return cache.get(key, [])
 
@@ -450,7 +480,7 @@ def assert_queries_cached(queries: dict[str, str]) -> None:
     look exactly like the empty-result finding this experiment is measuring.
     """
     cache = _query_cache()
-    missing = [q for q, t in queries.items() if cache_key(t) not in cache]
+    missing = [q for q, t in queries.items() if cache_key(t, QUERY_REASONING) not in cache]
     if missing:
         raise RuntimeError(
             f"{len(missing)} of {len(queries)} queries are not in the extraction cache "

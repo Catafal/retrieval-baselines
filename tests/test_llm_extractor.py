@@ -334,3 +334,47 @@ def test_the_scored_arm_reads_the_cache_and_never_the_api(monkeypatch):
     with pytest.raises(RuntimeError, match="offline=True"):
         m.extract_docs_offline({"d1": "never extracted"})
     m._query_cache.cache_clear()
+
+
+def test_the_payload_is_read_from_whichever_field_carries_it():
+    """
+    KILLS the bug that caused amendment 1, and that amendment 1 then made worse.
+
+    Some providers return the structured payload in `reasoning` and leave `content` None. Reading
+    only `content` made a working extraction look like an empty one. The "fix" was to disable
+    reasoning so `content` populated — which silently cost the model its ability to extract from
+    questions at all. The transport is what needed fixing.
+    """
+    payload = json.dumps({"passages": [{"index": 0, "entities": [{"text": "Lima", "label": "GPE"}]}]})
+
+    def in_reasoning(endpoint, body):
+        return {"choices": [{"message": {"content": None, "reasoning": payload}}]}
+
+    assert m.extract_many({"d1": "Lima is in Peru."}, client=in_reasoning) == {"d1": [("Lima", "GPE")]}
+
+
+def test_documents_and_queries_use_different_reasoning_settings():
+    """
+    protocol-004 amendment 4. Documents keep the setting they were bought under; queries need
+    reasoning ON or they extract nothing. The two therefore key differently in the cache, so a
+    query can never be served a document-side extraction of the same string, or the reverse.
+    """
+    assert m.DOC_REASONING == {"enabled": False}
+    assert m.QUERY_REASONING is None
+    assert m.cache_key("same text", m.DOC_REASONING) != m.cache_key("same text", m.QUERY_REASONING)
+
+
+def test_reasoning_is_omitted_from_the_request_when_it_is_none():
+    """`None` means leave the field out, which is the only way to get the model's default ON."""
+    seen = {}
+
+    def client(endpoint, body):
+        seen.update(body)
+        return _reply([{"index": 0, "entities": []}])
+
+    m.extract_many({"d1": "text"}, client=client, reasoning=None)
+    assert "reasoning" not in seen, "None must omit the field, not send null"
+
+    seen.clear()
+    m.extract_many({"d2": "text2"}, client=client, reasoning={"enabled": False})
+    assert seen["reasoning"] == {"enabled": False}

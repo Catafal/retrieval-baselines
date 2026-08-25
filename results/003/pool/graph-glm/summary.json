@@ -1,0 +1,104 @@
+{
+  "dataset": "hotpotqa-distractor-pool",
+  "retriever": "graph-glm-ppr",
+  "queries_scored": 7405,
+  "queries_available": 7405,
+  "subsampled": false,
+  "seed": null,
+  "corpus_documents": 66581,
+  "controls": {
+    "gold_presence": {
+      "gold_documents": 13783,
+      "missing_from_corpus": 0,
+      "examples": [],
+      "passed": true
+    }
+  },
+  "ranked": {
+    "ndcg_cut_10": 0.2725,
+    "recall_10": 0.3193,
+    "recall_100": 0.383,
+    "recall_2": 0.1974,
+    "recall_5": 0.2702
+  },
+  "cost": {
+    "total_seconds": 203.11,
+    "usd": 0.0
+  },
+  "environment": {
+    "python": "3.14.3",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "git_commit": "3448c4775913059eda8cd6159e6333633d93f2a0",
+    "working_tree": {
+      "clean": false,
+      "dirty_paths": [
+        "results/003/pool/graph-glm/"
+      ],
+      "dirty_source_paths": []
+    },
+    "dataset_checksums": {
+      "2wiki_dev": {
+        "bytes": 30056098,
+        "sha256": "c0d8b60b9026b728fb07ad74c5252a0f188f6942e8ba5c02df4dfa369502ea8d"
+      },
+      "hotpotqa": {
+        "bytes": 654025350,
+        "sha256": "c62459dbc91d31329584507b1fa564b3b1abcee58800967113054ee0f5a15c62"
+      },
+      "hotpotqa_distractor": {
+        "bytes": 27452575,
+        "sha256": "c20b638ca82b21d04fe12e14ff417ad05153d4d215a65de54497fca4e972f7c6"
+      },
+      "quora": {
+        "bytes": 15853968,
+        "sha256": "56aacd9dcc4d9c093b63f175afdda0e21cbc8442ecf6c717d09de7b358d77531"
+      },
+      "scifact": {
+        "bytes": 2816079,
+        "sha256": "536e14446a0ba56ed1398ab1055f39fe852686ecad24a6306c80c490fa8e0165"
+      }
+    }
+  },
+  "retriever_manifest": {
+    "build_seconds": 1.7,
+    "pool_control": {
+      "questions": 7405,
+      "passages": 66581,
+      "title_slots": 73700,
+      "unresolved_titles": 0,
+      "title_collisions": 0,
+      "gold_titles_matched": 7405,
+      "gold_queries": 7405,
+      "mismatched": {},
+      "passed": true
+    },
+    "documents": 66581,
+    "nodes": 284899,
+    "edges_as_incidence_nnz": 565200,
+    "documents_without_entities": 1048,
+    "extractor": "spacy-ner",
+    "spacy_version": "3.8.13",
+    "model": "en_core_web_sm",
+    "model_version": "3.8.0",
+    "disabled_components": [
+      "parser",
+      "lemmatizer",
+      "tagger",
+      "attribute_ruler"
+    ],
+    "whitelist": [
+      "EVENT",
+      "FAC",
+      "GPE",
+      "LANGUAGE",
+      "LAW",
+      "LOC",
+      "NORP",
+      "ORG",
+      "PERSON",
+      "PRODUCT",
+      "WORK_OF_ART"
+    ]
+  }
+}
