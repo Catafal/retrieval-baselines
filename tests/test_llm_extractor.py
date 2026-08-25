@@ -378,3 +378,35 @@ def test_reasoning_is_omitted_from_the_request_when_it_is_none():
     seen.clear()
     m.extract_many({"d2": "text2"}, client=client, reasoning={"enabled": False})
     assert seen["reasoning"] == {"enabled": False}
+
+
+def test_scoring_refuses_when_the_queries_are_cached_but_empty():
+    """
+    KILLS the exact hole that let an invalid run score to completion.
+
+    Every query was in the cache, so the missing-entry gate passed. Every query was cached with
+    an EMPTY entity list, so the arm retrieved nothing for half the corpus — indistinguishable
+    from this experiment's finding. Presence was checked; content was not.
+    """
+    m._query_cache.cache_clear()
+    texts = {f"q{i}": f"Which of these, A{i} or B{i}, is older?" for i in range(20)}
+    m._append([{"key": m.cache_key(t, m.QUERY_REASONING), "doc_id": q, "entities": []}
+               for q, t in texts.items()])
+    m._query_cache.cache_clear()
+
+    with pytest.raises(RuntimeError, match="no whitelisted entity"):
+        m.assert_queries_cached(texts)
+    m._query_cache.cache_clear()
+
+
+def test_the_gate_passes_when_the_queries_actually_have_entities():
+    """The ceiling is a smoke alarm, not a quality bar — a working extractor must pass it."""
+    m._query_cache.cache_clear()
+    texts = {f"q{i}": f"Where is Q{i} University?" for i in range(20)}
+    m._append([{"key": m.cache_key(t, m.QUERY_REASONING), "doc_id": q,
+                "entities": [{"text": f"Q{i} University", "label": "ORG"}]}
+               for i, (q, t) in enumerate(texts.items())])
+    m._query_cache.cache_clear()
+
+    m.assert_queries_cached(texts)
+    m._query_cache.cache_clear()

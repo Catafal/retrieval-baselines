@@ -92,6 +92,10 @@ QUERY_REASONING = None
 
 _UNSET = object()
 
+# Above this fraction of queries yielding no whitelisted entity, scoring refuses to start.
+# spaCy's rate on the same queries is about 7%.
+EMPTY_QUERY_CEILING = 0.25
+
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 
 # Frozen verbatim in protocol 004 §5. No few-shot examples and no chain of thought: both are free
@@ -487,3 +491,27 @@ def assert_queries_cached(queries: dict[str, str]) -> None:
             f"(e.g. {missing[:3]}). Run query extraction before scoring. See protocol 004 "
             f"amendment 3."
         )
+
+    # AND THAT THEY ARE NOT ALL EMPTY. The check above passed on a run where every query WAS
+    # cached — cached with an empty entity list, because reasoning-off made the model return
+    # nothing for questions. It checked for missing entries and not for empty ones, so a
+    # completely broken extractor read as a fully prepared one, and the arm scored 0.1974 with
+    # 51.44% of queries retrieving nothing. See protocol 004 amendment 4 section 5.
+    #
+    # The threshold is a smoke alarm, not a quality bar: spaCy leaves about 7% of these queries
+    # without a whitelisted entity, so a quarter of them means the extractor is not working on
+    # this input type rather than being merely worse.
+    from rb.experiments.graph.extractor import node_strings
+
+    empty = sum(1 for t in queries.values()
+                if not node_strings(cache[cache_key(t, QUERY_REASONING)]))
+    rate = empty / len(queries) if queries else 0.0
+    if rate > EMPTY_QUERY_CEILING:
+        raise RuntimeError(
+            f"{empty} of {len(queries)} queries ({rate:.1%}) have no whitelisted entity, above "
+            f"the {EMPTY_QUERY_CEILING:.0%} ceiling. An extractor that returns nothing for its "
+            f"queries produces an arm that retrieves nothing, which is indistinguishable from "
+            f"this experiment's finding. Refusing to score. See protocol 004 amendment 4."
+        )
+    log.info("query seed check: %d/%d (%.1f%%) without a whitelisted entity",
+             empty, len(queries), rate * 100)
