@@ -236,10 +236,10 @@ def test_one_bad_passage_does_not_cost_its_batch_its_work(monkeypatch):
     texts = {f"d{i}": f"clean passage {i}" for i in range(9)}
     texts["d9"] = "a POISON passage"
 
-    with pytest.raises(RuntimeError, match="could not be extracted"):
-        m.extract_many(texts, client=client)
+    out = m.extract_many(texts, client=client)
 
-    # The nine good passages were still banked, and the bad one was NOT cached as empty.
+    # The nine good passages were banked. The bad one is ABSENT from the result rather than
+    # present-and-empty, so a caller can tell "no entities" from "never extracted".
     cached = m.load_cache()
     good = [d for d in texts if d != "d9" and m.cache_key(texts[d]) in cached]
     assert len(good) == 9, "the clean passages in a failed batch must survive"
@@ -247,3 +247,39 @@ def test_one_bad_passage_does_not_cost_its_batch_its_work(monkeypatch):
         "a failed extraction must not be cached as empty — it would be indistinguishable "
         "from a passage that genuinely has no entities"
     )
+    assert "d9" not in out, "an excluded passage must be absent from the result, not empty"
+    assert len(out) == 9
+
+
+def test_a_truncated_loop_is_salvaged_to_its_distinct_entities():
+    """
+    protocol-004 amendment 2: the model emits its full list, then loops on an ambiguous member.
+
+    Measured on all eight real failures: the first repeat falls at exactly the distinct count, so
+    the truncated prefix carries everything a terminating response would have. The graph dedupes
+    nodes by string regardless, so the salvaged set is what it would have received.
+    """
+    loop = ('{"passages": [{"index": 0, "entities": ['
+            '{"text": "Fenn College", "label": "ORG"}, '
+            '{"text": "Cleveland State", "label": "ORG"}, '
+            + '{"text": "Cleveland State", "label": "GPE"}, {"text": "Cleveland State", "label": "ORG"}, ' * 40
+            + '{"text": "Cleveland Sta')
+
+    def client(endpoint, body):
+        return {"choices": [{"finish_reason": "length", "message": {"content": loop}}]}
+
+    out = m.extract_many({"d1": "Woodling coached at Fenn College."}, client=client)
+
+    assert out["d1"] == [("Fenn College", "ORG"), ("Cleveland State", "ORG"),
+                         ("Cleveland State", "GPE")], "distinct entities, order preserved"
+    assert m.load_cache()[m.cache_key("Woodling coached at Fenn College.")] == out["d1"]
+
+
+def test_a_half_written_entity_is_discarded_rather_than_guessed():
+    """The final object in a truncated response is incomplete; only whole objects are recovered."""
+    partial = '{"passages": [{"index": 0, "entities": [{"text": "Kyoto", "label": "GPE"}, {"text": "Osa'
+
+    def client(endpoint, body):
+        return {"choices": [{"finish_reason": "length", "message": {"content": partial}}]}
+
+    assert m.extract_many({"d1": "Kyoto and Osaka."}, client=client)["d1"] == [("Kyoto", "GPE")]

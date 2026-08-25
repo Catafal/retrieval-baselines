@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import random
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -147,6 +148,17 @@ def cache_key(passage: str) -> str:
     ))
 
 
+# Matches one {"text": ..., "label": ...} object, tolerating escaped quotes inside the surface
+# form. Deliberately a regex over a partial document rather than a JSON parse: the input this runs
+# on is by definition truncated, so no parser will accept it.
+_PAIR_RE = re.compile(r'\{"text":\s*"((?:[^"\\]|\\.)*)",\s*"label":\s*"([A-Z_]+)"\}')
+
+
+def salvage_pairs(content: str) -> list[tuple[str, str]]:
+    """Every complete (text, label) object in a truncated response, in order, WITH duplicates."""
+    return _PAIR_RE.findall(content)
+
+
 def load_cache(path: Path | None = None) -> dict[str, list[tuple[str, str]]]:
     """
     key -> entities. Absent file is an empty cache, not an error: the first run builds it.
@@ -238,7 +250,12 @@ def _call(client, batch: list[str]) -> tuple[list[list[tuple[str, str]]], dict]:
     # need different responses: truncation means the batch is too large for the ceiling, a parse
     # error on a complete response means the model emitted something else.
     if choice.get("finish_reason") == "length":
-        raise MalformedResponse(f"response truncated at max_tokens={MAX_TOKENS}")
+        exc = MalformedResponse(f"response truncated at max_tokens={MAX_TOKENS}")
+        # Carried on the exception so the failure path can salvage from THIS response. Re-asking
+        # would be a different call, and picking the probe that recovers something is selecting
+        # the input that gives the wanted output. See protocol 004 amendment 2 section 4.
+        exc.truncated_content = content or ""
+        raise exc
     if not content:
         raise MalformedResponse(f"empty content (finish_reason={choice.get('finish_reason')!r})")
     try:
@@ -279,6 +296,7 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
         done = [0]
 
         failures: dict[str, str] = {}
+        salvaged: dict[str, int] = {}
 
         def persist(chunk, ents):
             rows = [{"key": cache_key(todo[d]), "doc_id": d,
@@ -310,9 +328,32 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
                 return
             except Exception as exc:
                 if len(chunk) == 1:
+                    doc_id = chunk[0]
+                    # protocol 004 amendment 2: recover the complete entity objects from the
+                    # truncated response. The model emits its full distinct list and then loops
+                    # on an ambiguous member, so the prefix carries everything the graph would
+                    # have received — the graph dedupes nodes by string regardless.
+                    pairs = salvage_pairs(getattr(exc, "truncated_content", "") or "")
+                    seen: list[tuple[str, str]] = []
+                    for pair in pairs:
+                        if pair not in seen:
+                            seen.append(pair)
+                    if seen:
+                        _append([{"key": cache_key(todo[doc_id]), "doc_id": doc_id,
+                                  "salvaged": True,
+                                  "entities": [{"text": t, "label": l} for t, l in seen]}])
+                        with _CACHE_LOCK:
+                            cache[cache_key(todo[doc_id])] = seen
+                            salvaged[doc_id] = len(seen)
+                            done[0] += 1
+                        log.warning("passage %s salvaged %d distinct entities from a truncated "
+                                    "response (%d objects emitted)", doc_id, len(seen), len(pairs))
+                        return
+                    # Nothing complete in the response: excluded, never cached as empty.
                     with _CACHE_LOCK:
-                        failures[chunk[0]] = f"{type(exc).__name__}: {exc}"
-                    log.error("passage %s failed after %d retries: %s", chunk[0], MAX_RETRIES, exc)
+                        failures[doc_id] = f"{type(exc).__name__}: {exc}"
+                    log.error("passage %s failed after %d retries and salvaged nothing: %s",
+                              doc_id, MAX_RETRIES, exc)
                     return
                 log.warning("batch of %d failed (%s); splitting to isolate", len(chunk), exc)
 
@@ -324,17 +365,27 @@ def extract_many(texts: dict[str, str], client=None, offline: bool = False) -> d
             # rather than being swallowed by the executor shutting down quietly.
             list(pool.map(run, chunks))
 
+        if salvaged:
+            log.warning("%d passages salvaged from truncated responses: %s",
+                        len(salvaged), dict(list(salvaged.items())[:8]))
         if failures:
             # Raised at the END, so the run banks every passage it could extract and reports the
             # exact set that needs attention, rather than dying on the first bad one and
             # discarding thousands of successful calls that were already paid for.
-            raise RuntimeError(
-                f"{len(failures)} of {len(ids)} passages could not be extracted: "
-                f"{dict(list(failures.items())[:5])}"
-                + (" ..." if len(failures) > 5 else "")
-            )
+            # Recorded, not raised. Amendment 2 registers exclusion as the handling for a
+            # passage that salvages nothing, so stopping the pipeline here would refuse a case
+            # the protocol now covers. The ids are committed so the exclusion is checkable.
+            out = Path(str(CACHE.parent / "extraction-failures.json"))
+            existing = json.loads(out.read_text()) if out.exists() else {}
+            existing.update(failures)
+            out.write_text(json.dumps(existing, indent=2, sort_keys=True) + "\n")
+            log.error("%d of %d passages excluded, ids written to %s",
+                      len(failures), len(ids), out)
 
-    return {d: cache[cache_key(t)] for d, t in texts.items()}
+    # Excluded passages are ABSENT from the result, not present-and-empty. A caller building a
+    # graph must be able to tell "this passage yielded no entities" from "this passage was never
+    # extracted", and the count of missing keys is the exclusion count the entry reports.
+    return {d: cache[cache_key(t)] for d, t in texts.items() if cache_key(t) in cache}
 
 
 def http_client(endpoint: str, body: dict) -> dict:
