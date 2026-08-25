@@ -312,3 +312,25 @@ def test_an_unqualified_graph_retriever_is_still_003s_arm():
         "defeats any test that monkeypatches the module function"
     )
     assert g.name == "graph-spacy-ppr"
+
+
+def test_scoring_refuses_to_start_with_uncached_queries(monkeypatch):
+    """
+    KILLS the failure that would be indistinguishable from the finding.
+
+    A query absent from the cache seeds nothing, so the arm retrieves nothing for it — which is
+    exactly the empty-result signature 004 is measuring. A bookkeeping gap would therefore read
+    as a result. The gate runs once, before the build, and names the count.
+    """
+    m._query_cache.cache_clear()
+    with pytest.raises(RuntimeError, match="not in the extraction cache"):
+        m.assert_queries_cached({"q1": "an unextracted question"})
+    m._query_cache.cache_clear()
+
+
+def test_the_scored_arm_reads_the_cache_and_never_the_api(monkeypatch):
+    """protocol 004 §6: a scored number cannot come from a live generation."""
+    m._query_cache.cache_clear()
+    with pytest.raises(RuntimeError, match="offline=True"):
+        m.extract_docs_offline({"d1": "never extracted"})
+    m._query_cache.cache_clear()

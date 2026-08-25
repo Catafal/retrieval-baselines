@@ -15,6 +15,7 @@ includes the prompt hash and the full model pin, so changing either cannot silen
 extractions produced under the old one.
 """
 
+import functools
 import hashlib
 import json
 import logging
@@ -407,3 +408,52 @@ def http_client(endpoint: str, body: dict) -> dict:
     )
     with urllib.request.urlopen(req, timeout=120) as resp:
         return json.loads(resp.read())
+
+
+# --- adapters for the scored run -------------------------------------------------------------
+# Both read the committed cache and never call the API: protocol 004 §6 makes the cache the
+# artifact of record, so a scored number cannot come from a live generation. A cache miss raises.
+
+
+def extract_docs_offline(corpus: dict[str, str]) -> dict[str, list[tuple[str, str]]]:
+    """doc_id -> entities, for GraphRetriever.fit. Cache only."""
+    return extract_many(corpus, offline=True)
+
+
+def extract_query_offline(query: str) -> list[tuple[str, str]]:
+    """
+    Entities for one query, for GraphRetriever._seed. Cache only.
+
+    Returns [] for a query absent from the cache rather than raising, because `_seed` already
+    treats an unseeded query as retrieving nothing — the honest outcome the protocol requires —
+    and a missing query is a pre-run bookkeeping error that the scored-run gate below catches
+    all at once rather than one query into the walk.
+    """
+    key = cache_key(query)
+    cache = _query_cache()
+    return cache.get(key, [])
+
+
+@functools.lru_cache(maxsize=1)
+def _query_cache() -> dict[str, list[tuple[str, str]]]:
+    """The cache, read once per process. `_seed` is called per query and re-reading a 61 MB
+    file 17,230 times would dominate the run."""
+    return load_cache()
+
+
+def assert_queries_cached(queries: dict[str, str]) -> None:
+    """
+    Every query must be in the cache before scoring starts.
+
+    Called once, before the walk, so a bookkeeping gap surfaces as a refusal to score rather
+    than as an arm that quietly retrieves nothing for the queries nobody extracted — which would
+    look exactly like the empty-result finding this experiment is measuring.
+    """
+    cache = _query_cache()
+    missing = [q for q, t in queries.items() if cache_key(t) not in cache]
+    if missing:
+        raise RuntimeError(
+            f"{len(missing)} of {len(queries)} queries are not in the extraction cache "
+            f"(e.g. {missing[:3]}). Run query extraction before scoring. See protocol 004 "
+            f"amendment 3."
+        )
