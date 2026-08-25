@@ -283,3 +283,32 @@ def test_a_half_written_entity_is_discarded_rather_than_guessed():
         return {"choices": [{"finish_reason": "length", "message": {"content": partial}}]}
 
     assert m.extract_many({"d1": "Kyoto and Osaka."}, client=client)["d1"] == [("Kyoto", "GPE")]
+
+
+def test_graph_retriever_refuses_a_half_swapped_extractor():
+    """
+    KILLS the confound protocol-004 amendment 3 exists to prevent.
+
+    `_seed` links query entities to graph nodes by exact normalised string. A graph built by one
+    extractor and seeded by another fails to link on span-boundary differences alone, which lowers
+    the seed rate and raises the empty rate for a reason unrelated to graph traversal — and looks
+    exactly like a confirmation of 003's finding. Supplying one side without the other is
+    therefore a construction error, not a configuration.
+    """
+    from rb.experiments.graph.retriever import GraphRetriever
+
+    for kwargs in ({"extract_docs": lambda c: {}}, {"extract_query": lambda q: []}):
+        with pytest.raises(ValueError, match="must be supplied together"):
+            GraphRetriever(**kwargs)
+
+
+def test_an_unqualified_graph_retriever_is_still_003s_arm():
+    """The injection must not move 003's published numbers: no argument means spaCy on both sides."""
+    from rb.experiments.graph import retriever as r
+
+    g = r.GraphRetriever()
+    assert g._extract_docs is None and g._extract_query is None, (
+        "defaults must resolve at call time, not bind at construction — binding here silently "
+        "defeats any test that monkeypatches the module function"
+    )
+    assert g.name == "graph-spacy-ppr"

@@ -34,13 +34,39 @@ class GraphRetriever:
 
     name = "graph-spacy-ppr"
 
-    def __init__(self, damping: float = 0.5, use_specificity: bool = True):
-        # Both fixed by the protocol rather than tuned here. HippoRAG reports 0.5 and reports
-        # that removing specificity costs it 4.2 R@2 on HotpotQA; tuning either on the corpus
-        # being measured is how a result gets manufactured.
+    def __init__(self, damping: float = 0.5, use_specificity: bool = True,
+                 extract_docs=None, extract_query=None, name: str | None = None):
+        # damping and use_specificity are both fixed by the protocol rather than tuned here.
+        # HippoRAG reports 0.5 and reports that removing specificity costs it 4.2 R@2 on
+        # HotpotQA; tuning either on the corpus being measured is how a result gets manufactured.
         self.damping = damping
         self.use_specificity = use_specificity
         self._fitted = None
+
+        # INJECTED FOR EXPERIMENT 004, DEFAULTING TO 003's BEHAVIOUR EXACTLY. Both default to
+        # None and resolve to the spaCy functions, so an unqualified GraphRetriever() is the
+        # arm 003 published and its numbers cannot move.
+        #
+        # BOTH sides are injected together, never one. `_seed` links query entities to graph
+        # nodes by exact normalised string, so a graph built by one extractor and seeded by
+        # another fails to link on span-boundary differences alone — lowering the seed rate and
+        # raising the empty rate for a reason that has nothing to do with graph traversal, while
+        # looking exactly like a confirmation of 003's finding. See
+        # protocols/004-amendment-3-query-extraction.md.
+        if (extract_docs is None) != (extract_query is None):
+            raise ValueError(
+                "extract_docs and extract_query must be supplied together: a graph built by one "
+                "extractor and seeded by another measures extractor mismatch, not extraction "
+                "quality. See protocols/004-amendment-3-query-extraction.md."
+            )
+        # Stored as None rather than resolved to the spaCy functions here. Binding the default
+        # at construction captures the module attribute as it was, so a test that monkeypatches
+        # `_query_entities` to a stub would silently keep hitting the real spaCy path — which is
+        # exactly what happened, and two existing tests caught it. Resolved at call time instead.
+        self._extract_docs = extract_docs
+        self._extract_query = extract_query
+        if name:
+            self.name = name
 
     def fit(self, corpus: dict[str, str]) -> dict:
         """
@@ -51,7 +77,7 @@ class GraphRetriever:
         other arms have near-zero build cost and an arm whose advantage costs an extraction
         pass must show that in the same table as its nDCG.
         """
-        raw = extract_many(corpus)
+        raw = (self._extract_docs or extract_many)(corpus)
         entities = {doc: node_strings(ents) for doc, ents in raw.items()}
         nodes, doc_ids, incidence = kg.build(entities)
         self._fitted = {
@@ -106,7 +132,8 @@ class GraphRetriever:
         # here rather than in `node_strings`, which is deliberately surface-form-level and is
         # shared with the §8.2 diagnostic, where collapsing surface forms would change what the
         # extraction score measures.
-        for node in {normalise(text) for text in node_strings(_query_entities(query))}:
+        extract_q = self._extract_query or _query_entities
+        for node in {normalise(text) for text in node_strings(extract_q(query))}:
             i = f["node_index"].get(node)
             if i is not None:
                 seed[i] += f["specificity"][i] if self.use_specificity else 1.0
