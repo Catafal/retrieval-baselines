@@ -1,0 +1,7 @@
+{
+  "calls": 4729,
+  "prompt_tokens": 5715948,
+  "completion_tokens": 8748267,
+  "cost_usd": 3.803,
+  "wall_clock_seconds": 16764.4
+}
