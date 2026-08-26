@@ -1,0 +1,24 @@
+{
+  "status": "HEADROOM CONTROL, required by protocol section 7 and reported alongside every delta.",
+  "measure": "recall_2",
+  "per_class": {
+    "bridge_absent": {
+      "n": 5455,
+      "bm25_recall_2": 0.5318,
+      "graph_recall_2": 0.35,
+      "raw_deficit": -0.1818,
+      "headroom": 0.4682,
+      "headroom_normalised_deficit": -0.3882
+    },
+    "comparison": {
+      "n": 1950,
+      "bm25_recall_2": 0.5969,
+      "graph_recall_2": 0.4254,
+      "raw_deficit": -0.1715,
+      "headroom": 0.4031,
+      "headroom_normalised_deficit": -0.4256
+    }
+  },
+  "raw_differential": -0.0103,
+  "normalised_differential": 0.0374
+}

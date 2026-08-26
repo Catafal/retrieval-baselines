@@ -1,0 +1,10 @@
+{
+  "passages": 100,
+  "entities": 1086,
+  "wall_clock_seconds": 126.3,
+  "prompt_tokens": 14133,
+  "completion_tokens": 19697,
+  "cost_usd": 0.008663,
+  "cost_per_passage_usd": 8.663e-05,
+  "full_run_estimate_usd": 9.53
+}

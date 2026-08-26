@@ -83,6 +83,16 @@ def _arm(name: str):
     if name == "graph":
         from rb.experiments.graph.retriever import GraphRetriever
         return GraphRetriever(), "fit"
+    if name == "graph-glm":
+        # Experiment 004: the same graph, the same walk, the same everything, with the extractor
+        # swapped on BOTH sides. Supplying one side without the other raises in GraphRetriever —
+        # see protocols/004-amendment-3-query-extraction.md for why a half-swap would measure
+        # extractor mismatch and look like a confirmation of 003.
+        from rb.experiments.graph import llm_extractor as llm
+        from rb.experiments.graph.retriever import GraphRetriever
+        return GraphRetriever(extract_docs=llm.extract_docs_offline,
+                              extract_query=llm.extract_query_offline,
+                              name="graph-glm-ppr"), "fit"
     if name.startswith("dense-"):
         from rb.experiments.ladder.retrievers.dense import DenseRetriever
         from rb.experiments.ladder.run import EMBEDDING_CACHE_DIR, _make_encoder
@@ -96,7 +106,7 @@ def _arm(name: str):
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--arm", required=True,
-                    choices=["bm25", "graph", "dense-minilm", "dense-bge"])
+                    choices=["bm25", "graph", "graph-glm", "dense-minilm", "dense-bge"])
     ap.add_argument("--dataset", default="hotpotqa", choices=["hotpotqa", "2wiki"])
     ap.add_argument("--top-k", type=int, default=100)
     args = ap.parse_args()
@@ -108,6 +118,11 @@ def main() -> None:
         corpus, queries, qrels, check = load_pool()
     print(f"pool[{args.dataset}]: {len(corpus):,} passages, {len(queries):,} queries "
           f"({time.perf_counter()-t0:.0f}s)", flush=True)
+
+    if args.arm == "graph-glm":
+        # Checked before the expensive build, not during the walk.
+        from rb.experiments.graph import llm_extractor as llm
+        llm.assert_queries_cached(queries)
 
     retriever, needs_fit = _arm(args.arm)
     build_manifest, build_seconds = {}, 0.0

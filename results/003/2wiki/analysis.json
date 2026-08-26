@@ -212,6 +212,7 @@
   },
   "prediction_d_crossover": {
     "twowiki_deficit_r2": -0.243,
+    "hotpotqa_graph_recall_2": 0.2148,
     "hotpotqa_deficit_r2": -0.3342,
     "shrink_points": 9.12,
     "registered_threshold_points": 10.0,
