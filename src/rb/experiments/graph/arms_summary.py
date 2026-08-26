@@ -33,7 +33,10 @@ CORPORA = {
                         "questions (amendment 6)"),
     },
 }
-ARMS = ("bm25", "graph", "dense-minilm", "dense-bge")
+# graph-glm is experiment 004's arm: the same graph and the same walk with the extractor
+# swapped. Listed here so the cross-arm table carries it beside the arm it replaces rather than
+# living in a second file that nothing regenerates — which is the defect this module exists for.
+ARMS = ("bm25", "graph", "graph-glm", "dense-minilm", "dense-bge")
 MEASURES = ("recall_2", "recall_5", "ndcg_cut_10", "recall_10", "recall_100")
 
 

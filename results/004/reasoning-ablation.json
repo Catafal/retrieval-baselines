@@ -1,0 +1,53 @@
+{
+  "status": "Measured for protocol 004 amendment 4. Costs API calls; the artifact is the record. Sample: first N by sorted id, so the sample cannot be chosen after seeing the outcome",
+  "model": "z-ai/glm-4.7-flash",
+  "provider": "DeepInfra",
+  "quantization": "bf16",
+  "queries": {
+    "n": 60,
+    "reasoning_off": {
+      "empty": 29,
+      "empty_rate": 0.4833,
+      "mean_entities": 0.9
+    },
+    "reasoning_on": {
+      "empty": 0,
+      "empty_rate": 0.0,
+      "mean_entities": 2.233
+    },
+    "spacy": {
+      "empty": 2,
+      "empty_rate": 0.0333,
+      "mean_entities": 2.0
+    }
+  },
+  "passages": {
+    "n": 40,
+    "reasoning_off": {
+      "precision": 0.8783,
+      "recall": 0.7978,
+      "f1": 0.8362,
+      "tp": 296,
+      "fp": 41,
+      "fn": 75
+    },
+    "reasoning_on": {
+      "precision": 0.8493,
+      "recall": 0.8356,
+      "f1": 0.8424,
+      "tp": 310,
+      "fp": 55,
+      "fn": 61
+    },
+    "spacy": {
+      "precision": 0.7011,
+      "recall": 0.6765,
+      "f1": 0.6886,
+      "tp": 251,
+      "fp": 107,
+      "fn": 120
+    }
+  },
+  "reasoning_off_seconds": 195.7,
+  "reasoning_on_seconds": 340.0
+}

@@ -24,6 +24,16 @@
           "empty_results": 1309,
           "empty_rate": 0.1768
         },
+        "graph-glm": {
+          "recall_2": 0.3699,
+          "recall_5": 0.508,
+          "ndcg_cut_10": 0.5094,
+          "recall_10": 0.5937,
+          "recall_100": 0.7084,
+          "queries_scored": 7405,
+          "empty_results": 732,
+          "empty_rate": 0.0989
+        },
         "dense-minilm": {
           "recall_2": 0.5136,
           "recall_5": 0.6334,
@@ -68,6 +78,16 @@
           "queries_scored": 9825,
           "empty_results": 4035,
           "empty_rate": 0.4107
+        },
+        "graph-glm": {
+          "recall_2": 0.377,
+          "recall_5": 0.4479,
+          "ndcg_cut_10": 0.4573,
+          "recall_10": 0.4784,
+          "recall_100": 0.5294,
+          "queries_scored": 9825,
+          "empty_results": 3153,
+          "empty_rate": 0.3209
         },
         "dense-minilm": {
           "recall_2": 0.4766,
