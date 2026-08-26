@@ -267,9 +267,17 @@ def empty_query_ids(arm: str) -> set[str]:
             if not json.loads(line)["retrieved"]}
 
 
-def run() -> dict:
+def run(arm: str = "graph") -> dict:
+    """
+    The registered analysis for one graph arm against BM25.
+
+    `arm` defaults to "graph", which is 003's published arm, so an unqualified call reproduces
+    003's artifacts byte for byte. Experiment 004 passes "graph-glm" to adjudicate the same
+    registered predictions against the same BM25 on the same queries — the only difference being
+    which per_query.jsonl the graph side is re-scored from.
+    """
     qrels = datasets.load_qrels("hotpotqa")
-    graph, bm25 = _per_query("graph", qrels), _per_query("bm25", qrels)
+    graph, bm25 = _per_query(arm, qrels), _per_query("bm25", qrels)
     shared = sorted(set(graph) & set(bm25))
     classes = {d: _classes(d) for d in (cov.PRIMARY, cov.SENSITIVITY)}
 
@@ -305,7 +313,7 @@ def run() -> dict:
     # THREE artifacts, returned explicitly. The third is post-hoc and is kept OUT of `contrasts`
     # and out of `family_size` so it cannot be mistaken for part of the registered family.
     profile = per_class_profile(graph, bm25, shared, classes[cov.PRIMARY],
-                                empty_query_ids("graph"))
+                                empty_query_ids(arm))
     decomposition = {
         f"{m}|{d}": decompose(graph, bm25, shared, classes[d], m)
         for d in (cov.PRIMARY, cov.SENSITIVITY)
@@ -319,14 +327,21 @@ def run() -> dict:
 
 
 if __name__ == "__main__":
-    r, head, decomposition = run()
+    import sys
+
+    # Positional so `python -m rb.experiments.graph.analysis` stays exactly 003's command and
+    # writes exactly 003's files. Any other arm writes under its own suffix; nothing an
+    # experiment publishes can be overwritten by a later one's run.
+    arm = sys.argv[1] if len(sys.argv) > 1 else "graph"
+    suffix = "" if arm == "graph" else f"-{arm}"
+    r, head, decomposition = run(arm)
     # Written as its own artifact because §7 requires it reported alongside every delta, and
     # because it previously existed as a file with no code behind it.
-    (OUT / "headroom-control.json").write_text(json.dumps(head, indent=2) + "\n")
-    (OUT / "analysis.json").write_text(json.dumps(r, indent=2) + "\n")
+    (OUT / f"headroom-control{suffix}.json").write_text(json.dumps(head, indent=2) + "\n")
+    (OUT / f"analysis{suffix}.json").write_text(json.dumps(r, indent=2) + "\n")
     # Its own file, never merged into analysis.json: a post-hoc statistic sitting inside the
     # registered artifact is how it gets read as registered.
-    (OUT / "decomposition.json").write_text(json.dumps({
+    (OUT / f"decomposition{suffix}.json").write_text(json.dumps({
         "status": (
             "POST-HOC, registered in protocols/003-amendment-5-differential-decomposition.md "
             "AFTER the results were seen. Not a falsifier and not in section 7's Holm family."),

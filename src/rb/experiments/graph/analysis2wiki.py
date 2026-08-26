@@ -79,14 +79,15 @@ def own_class_difference(scores: dict, absent: list[str], named: list[str], meas
     }
 
 
-def run() -> dict:
+def run(arm: str = "graph") -> dict:
+    """Defaults to 003's published arm so an unqualified call reproduces its artifact exactly."""
     _corpus, titles, queries, qrels = pool2wiki.build()
-    graph, bm25 = _per_query("graph", qrels), _per_query("bm25", qrels)
+    graph, bm25 = _per_query(arm, qrels), _per_query("bm25", qrels)
     shared = sorted(set(graph) & set(bm25))
     gold = {q: [titles.get(d, "") for d in sorted(docs)] for q, docs in qrels.items()}
 
     empty_ids = {json.loads(l)["query_id"]
-                 for l in (OUT / "graph" / "per_query.jsonl").read_text().splitlines()
+                 for l in (OUT / arm / "per_query.jsonl").read_text().splitlines()
                  if not json.loads(l)["retrieved"]}
     results, pvals = {}, {}
     per_class = {}
@@ -136,15 +137,27 @@ def run() -> dict:
     g = metrics.mean([graph[q]["recall_2"] for q in shared])
     b = metrics.mean([bm25[q]["recall_2"] for q in shared])
     deficit = g - b
-    hotpot_deficit = HOTPOT_GRAPH_R2 - HOTPOT_BM25_R2
+    # ARM-AWARE, because these constants are 003's spaCy figures. Running this module against a
+    # different arm while leaving them fixed compares that arm on 2Wiki against spaCy on
+    # HotpotQA, and prediction D — a crossover between the two corpora — is then computed across
+    # two different retrievers. It reported "supported: true" for the GLM arm on exactly that
+    # mistake before this guard existed. See results/003/corrections.md.
+    if arm == "graph":
+        hotpot_graph_r2 = HOTPOT_GRAPH_R2
+    else:
+        hotpot_summary = json.loads(
+            (OUT.parent / "pool" / arm / "summary.json").read_text())
+        hotpot_graph_r2 = round(hotpot_summary["ranked"]["recall_2"], 4)
+    hotpot_deficit = hotpot_graph_r2 - HOTPOT_BM25_R2
     crossover = {
         "twowiki_deficit_r2": round(deficit, 4),
+        "hotpotqa_graph_recall_2": hotpot_graph_r2,
         "hotpotqa_deficit_r2": round(hotpot_deficit, 4),
         "shrink_points": round((deficit - hotpot_deficit) * 100, 2),
         "registered_threshold_points": 10.0,
         "supported": bool((deficit - hotpot_deficit) >= 0.10),
     }
-    empty = sum(1 for line in (OUT / "graph" / "per_query.jsonl").read_text().splitlines()
+    empty = sum(1 for line in (OUT / arm / "per_query.jsonl").read_text().splitlines()
                 if not json.loads(line)["retrieved"])
     overall = {m: {"graph": round(metrics.mean([graph[q][m] for q in shared]), 4),
                    "bm25": round(metrics.mean([bm25[q][m] for q in shared]), 4)}
@@ -161,8 +174,12 @@ def run() -> dict:
 
 
 if __name__ == "__main__":
-    r = run()
-    (OUT / "analysis.json").write_text(json.dumps(r, indent=2) + "\n")
+    import sys
+
+    arm = sys.argv[1] if len(sys.argv) > 1 else "graph"
+    suffix = "" if arm == "graph" else f"-{arm}"
+    r = run(arm)
+    (OUT / f"analysis{suffix}.json").write_text(json.dumps(r, indent=2) + "\n")
     print(json.dumps(r["overall"], indent=2))
     print(json.dumps(r["per_class_recall_2"], indent=2))
     for k, v in r["prediction_c_and_e"].items():

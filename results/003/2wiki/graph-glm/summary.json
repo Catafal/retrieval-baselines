@@ -1,28 +1,28 @@
 {
-  "dataset": "hotpotqa-distractor-pool",
+  "dataset": "2wiki-distractor-pool",
   "retriever": "graph-glm-ppr",
-  "queries_scored": 7405,
-  "queries_available": 7405,
+  "queries_scored": 9825,
+  "queries_available": 9825,
   "subsampled": false,
   "seed": null,
-  "corpus_documents": 66581,
+  "corpus_documents": 43487,
   "controls": {
     "gold_presence": {
-      "gold_documents": 13783,
+      "gold_documents": 16468,
       "missing_from_corpus": 0,
       "examples": [],
       "passed": true
     }
   },
   "ranked": {
-    "ndcg_cut_10": 0.5094,
-    "recall_10": 0.5937,
-    "recall_100": 0.7084,
-    "recall_2": 0.3699,
-    "recall_5": 0.508
+    "ndcg_cut_10": 0.4573,
+    "recall_10": 0.4784,
+    "recall_100": 0.5294,
+    "recall_2": 0.377,
+    "recall_5": 0.4479
   },
   "cost": {
-    "total_seconds": 383.34,
+    "total_seconds": 231.707,
     "usd": 0.0
   },
   "environment": {
@@ -33,7 +33,9 @@
     "working_tree": {
       "clean": false,
       "dirty_paths": [
-        "results/003/pool/graph-glm/per_query.jsonl"
+        "results/003/2wiki/graph-glm/",
+        "results/003/pool/graph-glm/per_query.jsonl",
+        "results/003/pool/graph-glm/summary.json"
       ],
       "dirty_source_paths": []
     },
@@ -61,22 +63,22 @@
     }
   },
   "retriever_manifest": {
-    "build_seconds": 1.6,
+    "build_seconds": 1.2,
     "pool_control": {
-      "questions": 7405,
-      "passages": 66581,
-      "title_slots": 73700,
-      "unresolved_titles": 0,
-      "title_collisions": 0,
-      "gold_titles_matched": 7405,
-      "gold_queries": 7405,
+      "questions": 9825,
+      "passages": 43487,
+      "title_slots": 98250,
+      "variant_titles": 1242,
+      "gold_titles": 16468,
+      "gold_titles_matched": 9825,
+      "gold_queries": 9825,
       "mismatched": {},
       "passed": true
     },
-    "documents": 66581,
-    "nodes": 284899,
-    "edges_as_incidence_nnz": 565200,
-    "documents_without_entities": 1048,
+    "documents": 43487,
+    "nodes": 179091,
+    "edges_as_incidence_nnz": 328607,
+    "documents_without_entities": 2239,
     "extractor": "spacy-ner",
     "spacy_version": "3.8.13",
     "model": "en_core_web_sm",

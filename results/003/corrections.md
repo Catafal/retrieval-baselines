@@ -371,3 +371,86 @@ Two things the count surfaced that were not visible before: BM25 and both dense 
 results for every query on both corpora, and the graph arm returns nothing for **41.07%** of 2Wiki
 queries against 17.68% on HotpotQA — the figure the entry quotes in prose as "one query in five"
 and "49.2% of bridge-hidden questions" now has its corpus-level counterpart in the artifact.
+
+## C11 — experiment 004 removes 003's central finding (2026-08-26)
+
+Not a defect in 003's code. A later experiment, run as 003 committed it would be, contradicted
+what 003 concluded. Recorded here because a reader arriving at 003 must not have to find 004 to
+learn that its headline no longer stands.
+
+### What 003 claimed
+
+Prediction A was supported on all six cells: the graph arm's advantage over BM25 was greater on
+bridge-absent queries than on coverage-2 queries, by +0.0716 to +0.1568, Holm p 0.0024. The entry
+read that as the graph reaching documents a query does not name.
+
+003 already qualified it once: decomposing the differential put the graph term's interval across
+zero on all six cells, so the movement was carried by BM25's behaviour rather than the graph's.
+The entry says so.
+
+### What 004 found
+
+Swapping spaCy for GLM-4.7-Flash on both corpora, changing nothing else:
+
+| cell | 003 (spaCy) | 004 (GLM) |
+|---|---|---|
+| ndcg@10 exact | +0.1216 supported | −0.0110 not supported |
+| recall@2 exact | +0.0985 supported | +0.0033 not supported |
+| recall@2 stripped | +0.0716 supported | −0.0102 not supported |
+
+Zero of six cells supported, one significantly negative. Meanwhile the arm's overall R@2 rose from
+0.2148 to 0.3699 and its empty rate fell from 17.68% to 9.89%.
+
+**The differential was an extraction artefact.** It measured how badly spaCy extracted the queries
+whose gold documents were named — not how well a graph traverses. 004's protocol registered this
+outcome in advance as failure mode 1 and required it be said plainly, which is what this is.
+
+### The oracle sentence, and what it cost
+
+003's closing leaned on the oracle: a perfect extractor and linker gave R@2 0.3344 against BM25's
+0.5490, and the entry concluded that "the extractor is not the whole of it" and that it was "less
+sure than I was this morning" that the extractor was the interesting question.
+
+**004 scored 0.3699 and passed that ceiling.** The oracle used corpus document titles as entities:
+perfect linking over a *fixed entity set*. It bounded that definition of entity, not extraction.
+GLM returns about ten entities per passage where titles give one.
+
+So the closing argued from a bound that was not one, and reached a conclusion — extraction is not
+the binding constraint — that 004 reverses. Extraction was the binding constraint on overall
+performance. It simply had nothing to do with the class differential.
+
+I registered that same false ceiling again in protocol 004 §2, in the sentence "a real extractor
+cannot beat a perfect one", specifically so it could not be spun later. The experiment falsified
+it. That is the system working, and it is the second time an oracle has been mistaken for an upper
+bound in this sequence.
+
+### What still stands in 003
+
+The negative control (prediction B, `confirmed_no_advantage` on all six cells) holds under both
+extractors. Predictions C and D on 2Wiki remain refuted, and C is refuted harder under GLM
+(−0.3416 against −0.2587). The corpus-level result — the graph arm loses to BM25 on both corpora —
+stands, and 004 widens rather than closes that gap's explanation.
+
+### Where the entry is corrected
+
+`content/experiments/003-my-graph-retriever-was-doing-entity-lookup.mdx` carries a correction
+section pointing here. The published numbers in 003 are unchanged; what changed is what they mean.
+
+## C12 — the 2Wiki crossover compared two different retrievers (2026-08-26)
+
+Found while running 004's registered analysis, before its result was written up.
+
+`analysis2wiki` quotes HotpotQA's figures as module constants — `HOTPOT_GRAPH_R2 = 0.2148` — so a
+2Wiki run cannot silently alter HotpotQA's published numbers. That is a good property, and it
+became a defect the moment the module was pointed at a second arm: the constants are 003's spaCy
+figures, so running the GLM arm computed prediction D's crossover from **GLM on 2Wiki against
+spaCy on HotpotQA**.
+
+It reported `supported: true`, 19.48 shrink points against a registered threshold of 10 — a
+prediction 003 had refuted, apparently now confirmed. Corrected to use each arm's own HotpotQA
+figure, the same run reports **3.97 points and is refuted.**
+
+The failure is invisible in the output. Both numbers are real, both are published, and the
+crossover reads as a finding either way. `tests/test_crossover_uses_one_arm.py` now pins that each
+arm quotes its own figure, and that the two differ — an assertion that would pass vacuously if
+they did not.
