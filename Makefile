@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -60,6 +60,13 @@ reproduce-003-pool-control:
 # rather than re-running retrieval, so it is cheap and needs no model. Writes
 # results/003/analysis.json, results/003/headroom-control.json and, per amendment 5,
 # results/003/decomposition.json (POST-HOC -- its own file, never merged into analysis.json).
+# Experiment 004's reasoning ablation — the measurement its entry leads on. COSTS REAL API CALLS:
+# it deliberately bypasses the extraction cache, because a cached read would answer with whichever
+# reasoning setting was bought rather than the one under test. Roughly $0.30 and a few minutes.
+# Needs OPENROUTER_API_KEY. Everything else in 004 replays from the committed cache for free.
+reproduce-004-ablation:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.reasoning_ablation
+
 reproduce-003-analysis:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis
 
