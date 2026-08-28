@@ -1,0 +1,157 @@
+{
+  "status": "EXPLORATORY. Computed after the registered result was known, in response to review. Carries no registered decision. The one exception is `cap`, whose test was frozen in protocols/005-amendment-2-hub-cap.md before the arms existed \u2014 and which falsified the explanation it was written for.",
+  "strata": [
+    {
+      "corpus": "hotpotqa",
+      "extractor": "spacy",
+      "affected": {
+        "n": 1217,
+        "nonzero": 0.2038,
+        "mean": 0.0522
+      },
+      "unaffected": {
+        "n": 6188,
+        "nonzero": 0.0113,
+        "mean": 0.0003
+      }
+    },
+    {
+      "corpus": "hotpotqa",
+      "extractor": "glm",
+      "affected": {
+        "n": 1316,
+        "nonzero": 0.2242,
+        "mean": 0.0327
+      },
+      "unaffected": {
+        "n": 6089,
+        "nonzero": 0.0187,
+        "mean": -0.0002
+      }
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "spacy",
+      "affected": {
+        "n": 414,
+        "nonzero": 0.6836,
+        "mean": 0.3514
+      },
+      "unaffected": {
+        "n": 9411,
+        "nonzero": 0.0049,
+        "mean": 0.0014
+      }
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "glm",
+      "affected": {
+        "n": 1085,
+        "nonzero": 0.6959,
+        "mean": 0.3502
+      },
+      "unaffected": {
+        "n": 8740,
+        "nonzero": 0.0144,
+        "mean": 0.0045
+      }
+    }
+  ],
+  "headroom": [
+    {
+      "corpus": "hotpotqa",
+      "extractor": "spacy",
+      "baseline_r2_affected": 0.2288,
+      "baseline_r2_all": 0.2148
+    },
+    {
+      "corpus": "hotpotqa",
+      "extractor": "glm",
+      "baseline_r2_affected": 0.3446,
+      "baseline_r2_all": 0.3699
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "spacy",
+      "baseline_r2_affected": 0.2319,
+      "baseline_r2_all": 0.2734
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "glm",
+      "baseline_r2_affected": 0.1991,
+      "baseline_r2_all": 0.377
+    }
+  ],
+  "correlations": [
+    {
+      "corpus": "hotpotqa",
+      "extractor": "glm",
+      "n": 1316,
+      "dose_vs_baseline": {
+        "rho": 0.014963694336427915,
+        "ci95": [
+          -0.03834325693903663,
+          0.06982217076212177
+        ]
+      },
+      "baseline_vs_delta": {
+        "rho": -0.4110167285327914,
+        "ci95": [
+          -0.4484641966181555,
+          -0.3705837731458172
+        ]
+      },
+      "dose_vs_delta": {
+        "rho": -0.1337041867183046,
+        "ci95": [
+          -0.1794765043700653,
+          -0.08299081660676391
+        ]
+      }
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "glm",
+      "n": 1085,
+      "dose_vs_baseline": {
+        "rho": -0.04012653395033518,
+        "ci95": [
+          -0.09676401478686049,
+          0.020130774986169674
+        ]
+      },
+      "baseline_vs_delta": {
+        "rho": -0.45591179254068576,
+        "ci95": [
+          -0.5040513233117667,
+          -0.40642473365209353
+        ]
+      },
+      "dose_vs_delta": {
+        "rho": -0.20049921127569192,
+        "ci95": [
+          -0.25943392157484524,
+          -0.13760219263610168
+        ]
+      }
+    }
+  ],
+  "cap": [
+    {
+      "corpus": "hotpotqa",
+      "extractor": "glm",
+      "uncapped": 0.3756,
+      "capped": 0.3757,
+      "delta": 0.0001
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "glm",
+      "uncapped": 0.4196,
+      "capped": 0.4196,
+      "delta": 0.0
+    }
+  ]
+}

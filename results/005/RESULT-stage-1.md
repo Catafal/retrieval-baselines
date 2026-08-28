@@ -64,7 +64,7 @@ to present itself as evidence of absence.
 |---|---|---|
 | HotpotQA/spaCy | 1,217, 20.4%, 0.0522 | 6,188, **1.13%**, 0.0003 |
 | HotpotQA/GLM | 1,316, 22.4%, 0.0327 | 6,089, **1.87%**, −0.0002 |
-| 2Wiki/spaCy | 414, 68.4%, 0.3515 | 9,411, **0.49%**, 0.0014 |
+| 2Wiki/spaCy | 414, 68.4%, 0.3514 | 9,411, **0.49%**, 0.0014 |
 | 2Wiki/GLM | 1,085, 69.6%, 0.3502 | 8,740, **1.44%**, 0.0045 |
 
 **The unaffected stratum is 98–99.5% exactly zero.** That is structural, not empirical: the walk is
@@ -144,9 +144,14 @@ merges are monotonically worse across the ordinary middle of the distribution**,
 spectacular tail does nothing. That is a narrower and better-supported claim than the one this
 document carried a draft ago.
 
-Why 2Wiki gained seven times more per affected query than HotpotQA is then mostly **headroom**: its
-affected queries start at 0.1991 R@2 against HotpotQA's 0.3446, so there is far more room to
-recover. That is a partial account, not a closed one.
+Why 2Wiki/GLM gained seven times more per affected query than HotpotQA/GLM is partly **headroom**:
+its affected queries start at 0.1991 R@2 against HotpotQA's 0.3446, leaving far more room to
+recover.
+
+But headroom does not generalise across the other cells, and saying otherwise would be tidier than
+the data. On HotpotQA/spaCy the affected queries are *easier* than average (0.2288 against 0.2148),
+and they still gain. So headroom accounts for the largest cell and not for the pattern. **The
+asymmetry between corpora remains only partly explained**, which is where this entry leaves it.
 
 ## Effect sizes, stated plainly
 
