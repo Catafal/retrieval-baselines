@@ -1,0 +1,78 @@
+{
+  "status": "EXPLORATORY. Designed after the registered result was known, in response to a validator finding that prediction B is close to circular. Carries no registered decision and must not be reported as one.",
+  "question": "Among affected queries, does the effect scale with the SIZE of the reachability change, rather than merely its presence?",
+  "cells": [
+    {
+      "corpus": "hotpotqa",
+      "extractor": "spacy",
+      "n_affected": 1217,
+      "dose": {
+        "min": 1,
+        "median": 3,
+        "max": 13844
+      },
+      "spearman": {
+        "rho": -0.2461068514855084,
+        "ci95": [
+          -0.29415704906343243,
+          -0.19840188713387394
+        ]
+      },
+      "nonzero_outcome_rate": 0.2038
+    },
+    {
+      "corpus": "hotpotqa",
+      "extractor": "glm",
+      "n_affected": 1316,
+      "dose": {
+        "min": 1,
+        "median": 2,
+        "max": 6845
+      },
+      "spearman": {
+        "rho": -0.1337041867183046,
+        "ci95": [
+          -0.1794765043700653,
+          -0.08299081660676391
+        ]
+      },
+      "nonzero_outcome_rate": 0.2242
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "spacy",
+      "n_affected": 414,
+      "dose": {
+        "min": 1,
+        "median": 1,
+        "max": 29
+      },
+      "spearman": {
+        "rho": -0.2898205780314323,
+        "ci95": [
+          -0.3804057051484486,
+          -0.19157310034481267
+        ]
+      },
+      "nonzero_outcome_rate": 0.6836
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "glm",
+      "n_affected": 1085,
+      "dose": {
+        "min": 1,
+        "median": 1,
+        "max": 67
+      },
+      "spearman": {
+        "rho": -0.20049921127569192,
+        "ci95": [
+          -0.25943392157484524,
+          -0.13760219263610168
+        ]
+      },
+      "nonzero_outcome_rate": 0.6959
+    }
+  ]
+}
