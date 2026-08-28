@@ -11,7 +11,6 @@ Costs real API calls. The artifact is the record; `make` does not re-buy it.
 """
 
 import json
-import math
 import time
 from pathlib import Path
 
@@ -20,7 +19,7 @@ from rb.experiments.graph import llm_extractor as llm
 from rb.experiments.graph import run as graph_run
 from rb.experiments.graph.extractor import extract as spacy_extract
 from rb.experiments.graph.extractor import node_strings
-from rb.stats import percentile_ci
+from rb.stats import mde_two_proportion, percentile_ci, wilson_interval
 
 ROOT = Path(__file__).resolve().parents[4]
 OUT = ROOT / "results" / "004"
@@ -112,33 +111,12 @@ def run() -> dict:
     # is degenerate or runs below zero, and both of those cases occur here.
     for label in ("reasoning_off", "reasoning_on", "spacy"):
         row = result["queries"][label]
-        row["empty_rate_ci95"] = _wilson(row["empty"], result["queries"]["n"])
+        row["empty_rate_ci95"] = wilson_interval(row["empty"], result["queries"]["n"])
 
     # What a sample this size can actually resolve, so "60 is enough" is a statement with a
     # number behind it rather than an assurance.
-    result["queries"]["mde_at_80_power"] = _mde(result["queries"]["n"])
+    result["queries"]["mde_at_80_power"] = mde_two_proportion(result["queries"]["n"])
     return result
-
-
-def _wilson(k: int, n: int, z: float = 1.959963984540054) -> list[float]:
-    """95% Wilson score interval for k successes in n trials."""
-    if n == 0:
-        return [0.0, 1.0]
-    phat = k / n
-    denom = 1 + z * z / n
-    centre = (phat + z * z / (2 * n)) / denom
-    half = z * math.sqrt(phat * (1 - phat) / n + z * z / (4 * n * n)) / denom
-    return [round(max(0.0, centre - half), 4), round(min(1.0, centre + half), 4)]
-
-
-def _mde(n: int, alpha_z: float = 1.959963984540054, power_z: float = 0.8416212335729143) -> float:
-    """
-    Smallest two-proportion gap this n could reliably detect at 80% power, worst-case variance.
-
-    Reported so a reader can see whether the sample was adequate for the effect that was found,
-    which is a different and weaker claim than the sample being adequate in general.
-    """
-    return round((alpha_z + power_z) * math.sqrt(2 * 0.25 / n), 4)
 
 
 def _f1(tp: int, fp: int, fn: int) -> float:
@@ -189,7 +167,69 @@ def _entities_per_passage() -> dict:
             "spacy_mean_whitelisted": round(sp_mean, 2)}
 
 
+def check() -> list[str]:
+    """
+    Recompute every DERIVED figure in the committed artifact from the counts committed beside
+    it, and return the mismatches.
+
+    Exists because `run()` costs money. It re-calls the endpoint at both reasoning settings on
+    purpose — the cache is keyed by setting, so it cannot answer a question about the setting —
+    which means the one command the entry named could not be run by a reader without an API key.
+    Every number the entry quotes from this artifact is a function of counts that ARE committed,
+    so those numbers are checkable offline even though the measurement is not repeatable for free.
+
+    This deliberately shares `run()`'s arithmetic rather than reimplementing it. A checker with
+    its own copy of the formula agrees with itself, not with the producer.
+    """
+    art = json.loads((OUT / "reasoning-ablation.json").read_text())
+    bad: list[str] = []
+
+    def cmp(label, got, want):
+        if got != want:
+            bad.append(f"{label}: recomputed {got!r} != committed {want!r}")
+
+    q, n = art["queries"], art["queries"]["n"]
+    for arm in ("reasoning_off", "reasoning_on", "spacy"):
+        row = q[arm]
+        cmp(f"queries.{arm}.empty_rate", round(row["empty"] / n, 4), row["empty_rate"])
+        cmp(f"queries.{arm}.empty_rate_ci95", wilson_interval(row["empty"], n), row["empty_rate_ci95"])
+    cmp("queries.mde_at_80_power", mde_two_proportion(n), q["mde_at_80_power"])
+
+    ps = art["passages"]
+    for arm in ("reasoning_off", "reasoning_on", "spacy"):
+        row = ps[arm]
+        tp, fp, fn = row["tp"], row["fp"], row["fn"]
+        cmp(f"passages.{arm}.precision", round(tp / (tp + fp), 4) if tp + fp else 0.0, row["precision"])
+        cmp(f"passages.{arm}.recall", round(tp / (tp + fn), 4) if tp + fn else 0.0, row["recall"])
+        # _f1 is unrounded; the artifact stores 4dp, as run() does when it writes the row.
+        cmp(f"passages.{arm}.f1", round(_f1(tp, fp, fn), 4), row["f1"])
+
+    # Pooled counts must equal the per-passage counts they were pooled from, or the two halves
+    # of the artifact describe different runs.
+    pp = ps["per_passage"]
+    for arm in ("reasoning_off", "reasoning_on"):
+        for field in ("tp", "fp", "fn"):
+            cmp(f"passages.{arm}.{field} (pooled)",
+                sum(c[field] for c in pp[arm].values()), ps[arm][field])
+
+    # The bootstrap is seeded, so it reproduces exactly.
+    cmp("passages.paired_f1_difference",
+        _paired_f1_interval(pp["reasoning_on"], pp["reasoning_off"]),
+        ps["paired_f1_difference"])
+    return bad
+
+
 if __name__ == "__main__":
+    import sys
+
+    if "--check" in sys.argv:
+        problems = check()
+        for line in problems:
+            print("MISMATCH", line)
+        print("reasoning-ablation.json: every derived figure recomputes from committed counts"
+              if not problems else f"{len(problems)} mismatch(es)")
+        sys.exit(1 if problems else 0)
+
     r = run()
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "reasoning-ablation.json").write_text(json.dumps(r, indent=2) + "\n")

@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation reproduce-004-pilot-gate clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation verify-004-ablation reproduce-004-pilot-gate clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -70,8 +70,17 @@ reproduce-003-pool-control:
 reproduce-004-pilot-gate:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.pilot_gate
 
+# COSTS MONEY and needs OPENROUTER_API_KEY. It re-calls the endpoint at both reasoning
+# settings on purpose: the extraction cache is keyed by reasoning setting, so it cannot
+# answer a question about the setting. Readers who only want to check the published numbers
+# want verify-004-ablation below, which needs neither.
 reproduce-004-ablation:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.reasoning_ablation
+
+# Free, offline, no key. Recomputes every derived figure in the committed artifact from the
+# counts committed beside it, using the producer's own arithmetic.
+verify-004-ablation:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.reasoning_ablation --check
 
 reproduce-003-analysis:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis
