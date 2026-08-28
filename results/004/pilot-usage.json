@@ -1,4 +1,5 @@
 {
+  "artifact_kind": "RAW CAPTURE, not a computed artifact. These are the API usage figures reported by the provider during a run that has already happened; there is no command that regenerates them, because re-running would bill again and produce different wall-clock and different retry counts. Reproducing the EXTRACTIONS is what the committed cache is for. Recorded under the same exception as results/003/graph-arm-defect-report.json.",
   "passages": 100,
   "entities": 1086,
   "wall_clock_seconds": 126.3,

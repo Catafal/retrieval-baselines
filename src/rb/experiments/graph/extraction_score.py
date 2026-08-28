@@ -189,6 +189,10 @@ def score(gold_by_doc: dict[str, list[str]], predicted_by_doc: dict[str, list[tu
     ]
     return {
         "passages": len(docs),
+        # PER-PASSAGE COUNTS, EXPOSED. They were computed here and discarded, which made any
+        # paired interval on a difference between two extractors unreproducible from the
+        # artifact — a reviewer of experiment 004 had to simulate one because of this line.
+        "counts": [{"doc_id": d, **c} for d, c in zip(docs, counts)],
         "micro": micro(counts),
         "precision_ci": bootstrap_ci(counts, "precision"),
         "recall_ci": bootstrap_ci(counts, "recall"),
