@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation verify-004-ablation reproduce-004-pilot-gate fetch-005-redirects reproduce-005-coverage clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation verify-004-ablation reproduce-004-pilot-gate fetch-005-redirects reproduce-005-coverage reproduce-005-affected reproduce-005-analysis clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -130,6 +130,19 @@ fetch-005-redirects:
 # Produces no retrieval number — protocols/005-identity.md section 8 forbids one at this stage.
 reproduce-005-coverage:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.identity_coverage
+
+# Offline. Writes WHICH queries identity changed something for, per corpus and extractor,
+# through the same function that produced Stage 0's counts. Prediction B decomposes over this
+# membership, and the ids are committed so the subset can be audited rather than trusted.
+reproduce-005-affected:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.identity_coverage --ids
+
+# Offline. Experiment 005's registered analysis: both predictions, four cells each, Holm per
+# family. Reads the committed per-query artifacts and the committed affected-query ids; it
+# refuses to run if the latter are missing rather than recomputing them, because a subset
+# recomputed at analysis time is one that could have been redefined after seeing the scores.
+reproduce-005-analysis:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis005
 
 clean:
 	rm -rf data/*/rg_corpus.txt

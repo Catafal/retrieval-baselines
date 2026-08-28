@@ -146,8 +146,23 @@ def run() -> dict:
         })
 
     # §4 and §5 each get their OWN Holm family across the same four cells.
+    #
+    # The two producers name their p-value differently — `paired_bootstrap` returns "p_value",
+    # `_subset_contrast` returns "p" — and reading only "p" with a 1.0 default silently ran Holm
+    # on [1,1,1,1] for prediction A and labelled four significant cells `no_advantage`. The
+    # default is gone: a cell with no p-value is a bug, and it now says so instead of becoming
+    # a null result.
     for key in ("prediction_a", "prediction_b"):
-        ps = [c[key].get("p", 1.0) for c in cells]
+        ps = []
+        for c in cells:
+            r = c[key]
+            if not r.get("resolved", True):
+                ps.append(1.0)
+                continue
+            if "p_value" not in r and "p" not in r:
+                raise KeyError(f"{key} for {c['corpus']}/{c['extractor']} carries no p-value; "
+                               "refusing to Holm-correct a family with a missing member")
+            ps.append(r["p_value"] if "p_value" in r else r["p"])
         for cell, adj in zip(cells, holm_adjusted(ps)):
             r = cell[key]
             lo, hi = r.get("ci95", [0.0, 0.0])
