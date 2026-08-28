@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation verify-004-ablation reproduce-004-pilot-gate clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation verify-004-ablation reproduce-004-pilot-gate fetch-005-redirects reproduce-005-coverage clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -117,6 +117,19 @@ reproduce-003-diagnostics:
 # runs PPR over all 7,405 queries, so it is the slow one -- roughly fifteen minutes.
 reproduce-003-ablation:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.ablation
+
+# NETWORK, and run once. Fetches every Wikipedia redirect targeting a pool title and commits
+# the snapshot plus a manifest. The live API is mutable, so the snapshot is the artifact of
+# record and everything downstream replays from it — the same reason 004 commits its extraction
+# cache. Free, but it is ~2,200 requests and takes about fifteen minutes.
+fetch-005-redirects:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.redirects
+
+# Offline. Stage 0's only measurement: what the identity registry covers, both corpora, both
+# extractors, replayed from the committed snapshot and 004's committed extraction cache.
+# Produces no retrieval number — protocols/005-identity.md section 8 forbids one at this stage.
+reproduce-005-coverage:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.identity_coverage
 
 clean:
 	rm -rf data/*/rg_corpus.txt
