@@ -92,3 +92,38 @@ def link(text: str, registry: dict[str, str]) -> str:
 def linker(registry: dict[str, str]):
     """A one-argument linker bound to `registry`, which is the shape build() and _seed() take."""
     return lambda text: link(text, registry)
+
+
+def apply_df_cap(registry: dict[str, str], docs: dict[str, list[str]],
+                 corpus_size: int, fraction: float = 0.01) -> tuple[dict[str, str], dict]:
+    """
+    R9 — protocols/005-amendment-2-hub-cap.md. Drop any canonical whose MERGED document
+    frequency would exceed `fraction` of the corpus, reverting all its aliases to string identity.
+
+    Why a cap at all: node specificity is 1/document-frequency and HippoRAG's ablation shows it is
+    load-bearing. A merge that lands a tenth of the corpus on one node drives that node's
+    specificity to nearly zero, and every query naming it seeds into a node that says almost
+    nothing about which document is wanted. `america -> united states` is a correct redirect and,
+    at ~6,669 documents, exactly that failure.
+
+    Applied AFTER build_registry rather than inside it, so R1-R8 stay exactly as they were tagged
+    and the capped arm differs from the uncapped one by this rule alone.
+    """
+    cap = int(corpus_size * fraction)
+
+    merged: dict[str, set] = {}
+    for doc, ents in docs.items():
+        for surface in ents:
+            key = normalise(surface)
+            if key:
+                merged.setdefault(registry.get(key, key), set()).add(doc)
+
+    over = {c for c, ds in merged.items() if len(ds) > cap}
+    kept = {k: c for k, c in registry.items() if c not in over}
+    return kept, {
+        "cap_fraction": fraction,
+        "cap_documents": cap,
+        "canonicals_over_cap": len(over),
+        "aliases_reverted": len(registry) - len(kept),
+        "aliases_kept": len(kept),
+    }
