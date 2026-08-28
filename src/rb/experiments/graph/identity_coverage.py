@@ -61,6 +61,48 @@ def _entities(corpus: str, passages: dict, queries: dict, extractor: str):
     return docs, qents
 
 
+
+def affected_queries(docs: dict, qents: dict, registry: dict[str, str]):
+    """
+    Which queries identity actually changed something for.
+
+    THE ONE DEFINITION, per protocols/005-identity-amendment-1. Stage 0 reports its size and
+    Stage 1 decomposes over its membership, and both call this function rather than each
+    carrying a copy — two implementations of a subset definition is how two stages come to
+    disagree about which queries they were talking about.
+
+    Returns (affected_ids, narrow_ids, query_entity_total, query_entity_hits).
+
+    `affected`  a query with at least one entity that REACHES A DIFFERENT SET OF DOCUMENTS
+                under typed identity than under string identity
+    `narrow`    the original section 6 reading, kept because the gap between the two is the
+                amendment: queries that themselves NAME an alias
+    """
+    docs_string: dict[str, set] = {}
+    docs_typed: dict[str, set] = {}
+    for doc, ents in docs.items():
+        for surface in ents:
+            key = normalise(surface)
+            if not key:
+                continue
+            docs_string.setdefault(key, set()).add(doc)
+            docs_typed.setdefault(registry.get(key, key), set()).add(doc)
+
+    affected, narrow = set(), set()
+    total = hits_total = 0
+    for qid, ents in qents.items():
+        keys = {normalise(s) for s in ents if normalise(s)}
+        total += len(keys)
+        hits = keys & registry.keys()
+        hits_total += len(hits)
+        if hits:
+            narrow.add(qid)
+        if any(docs_typed.get(registry.get(k, k), frozenset())
+               != docs_string.get(k, frozenset()) for k in keys):
+            affected.add(qid)
+    return affected, narrow, total, hits_total
+
+
 def measure(corpus: str, extractor: str, registry: dict[str, str], drops: dict) -> dict:
     """C1 to C6 plus the MDE, for one corpus under one extractor."""
     passages, queries, _ = _load(corpus)
@@ -88,28 +130,9 @@ def measure(corpus: str, extractor: str, registry: dict[str, str], drops: dict) 
     # amendment. It misses the commoner case: the query names the canonical, a document named an
     # alias, and the merge makes that document reachable without the query entity ever being a
     # registry key.
-    docs_string: dict[str, set] = {}
-    docs_typed: dict[str, set] = {}
-    for doc, ents in docs.items():
-        for surface in ents:
-            key = normalise(surface)
-            if not key:
-                continue
-            docs_string.setdefault(key, set()).add(doc)
-            docs_typed.setdefault(registry.get(key, key), set()).add(doc)
-
-    q_entity_total = q_entity_hit = 0
-    affected = affected_narrow = 0
-    for ents in qents.values():
-        keys = {normalise(s) for s in ents if normalise(s)}
-        q_entity_total += len(keys)
-        hits = keys & registry.keys()
-        q_entity_hit += len(hits)
-        affected_narrow += bool(hits)
-        affected += any(
-            docs_typed.get(registry.get(k, k), frozenset()) != docs_string.get(k, frozenset())
-            for k in keys
-        )
+    affected_ids, affected_narrow_ids, q_entity_total, q_entity_hit = affected_queries(
+        docs, qents, registry)
+    affected, affected_narrow = len(affected_ids), len(affected_narrow_ids)
 
     n_queries = len(qents)
     return {
@@ -152,6 +175,40 @@ ARMS = ("spacy", "glm")
 
 def _part_path(corpus: str, extractor: str) -> Path:
     return OUT / f"identity-coverage-{corpus}-{extractor}.json"
+
+
+
+def write_affected_ids(corpus: str, extractor: str) -> dict:
+    """
+    Persist WHICH queries are alias-affected, not just how many.
+
+    Stage 0 reported the size of this subset; Stage 1's prediction B decomposes over its
+    membership, and a membership that is recomputed on demand is one nobody can audit. The
+    ids are committed so a reader can check that the subset used to decompose is the subset
+    fixed before any score existed — which is the whole basis for the claim that it was not
+    reselected once it was known which queries improved.
+
+    Same function as the coverage count uses, so the two can never diverge.
+    """
+    _, _, titles = _load(corpus)
+    registry, _ = build_registry(redirects.load(corpus), titles)
+    passages, queries, _ = _load(corpus)
+    docs, qents = _entities(corpus, passages, queries, extractor)
+    affected, narrow, _, _ = affected_queries(docs, qents, registry)
+
+    payload = {
+        "corpus": corpus,
+        "extractor": extractor,
+        "definition": "protocols/005-identity-amendment-1: a query whose entities reach a "
+                      "different set of documents under typed identity than under string identity",
+        "n_queries": len(qents),
+        "affected": sorted(affected),
+        "affected_narrow": sorted(narrow),
+    }
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / f"affected-{corpus}-{extractor}.json").write_text(json.dumps(payload, indent=2) + "\n")
+    return {"corpus": corpus, "extractor": extractor,
+            "affected": len(affected), "narrow": len(narrow), "queries": len(qents)}
 
 
 def run_one(corpus: str, extractor: str) -> dict:
@@ -207,7 +264,11 @@ if __name__ == "__main__":
     import sys
 
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
-    if len(args) == 2:
+    if "--ids" in sys.argv:
+        pairs = [tuple(args)] if len(args) == 2 else [(c, e) for c in CORPORA for e in ARMS]
+        for corpus, extractor in pairs:
+            print(json.dumps(write_affected_ids(corpus, extractor)), flush=True)
+    elif len(args) == 2:
         print(json.dumps(run_one(*args), indent=2))
     else:
         r = run() if "--combine" not in sys.argv else combine()
