@@ -106,8 +106,9 @@ def _batch(session: requests.Session, titles: list[str]) -> tuple[dict[str, list
         body = _get(session, params)
         calls += 1
         for page in body.get("query", {}).get("pages", []):
-            if page.get("missing"):
-                continue
+            # No guard on `missing`: a page that does not exist carries no `redirects`, so the
+            # emptiness check below already excludes it. A guard that cannot change the result
+            # is a test that cannot fail — one was written here and a mutation sweep survived it.
             aliases = [r["title"] for r in page.get("redirects", [])]
             if aliases:
                 found.setdefault(page["title"], []).extend(aliases)
