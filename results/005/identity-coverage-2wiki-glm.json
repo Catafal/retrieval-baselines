@@ -1,0 +1,40 @@
+{
+  "corpus": "2wiki",
+  "extractor": "glm",
+  "nodes": {
+    "before": 179091,
+    "after": 174119,
+    "resolving_through_alias": 7651,
+    "share_resolving": 0.0427,
+    "reduction": 4972
+  },
+  "merge_sizes": {
+    "1": 5296,
+    "2": 756,
+    "3": 181,
+    "4": 42,
+    "5": 17,
+    "6": 4,
+    "7": 2,
+    "9": 1
+  },
+  "queries": {
+    "n": 9825,
+    "entities": 13954,
+    "entities_resolving": 50,
+    "share_entities_resolving": 0.0036,
+    "alias_affected": 1085,
+    "share_alias_affected": 0.1104,
+    "alias_affected_narrow": 49,
+    "share_alias_affected_narrow": 0.005
+  },
+  "mde_at_80_power_on_affected": 0.0601,
+  "registry": {
+    "aliases_seen": 74557,
+    "dropped_identity": 5356,
+    "dropped_self_title": 132,
+    "dropped_ambiguous": 32,
+    "kept": 69037,
+    "canonicals": 22739
+  }
+}

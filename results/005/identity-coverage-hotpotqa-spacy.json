@@ -1,0 +1,42 @@
+{
+  "corpus": "hotpotqa",
+  "extractor": "spacy",
+  "nodes": {
+    "before": 285013,
+    "after": 278441,
+    "resolving_through_alias": 11056,
+    "share_resolving": 0.0388,
+    "reduction": 6572
+  },
+  "merge_sizes": {
+    "1": 7035,
+    "2": 1216,
+    "3": 290,
+    "4": 95,
+    "5": 36,
+    "6": 13,
+    "7": 6,
+    "8": 2,
+    "10": 1,
+    "13": 1
+  },
+  "queries": {
+    "n": 7405,
+    "entities": 13189,
+    "entities_resolving": 749,
+    "share_entities_resolving": 0.0568,
+    "alias_affected": 1217,
+    "share_alias_affected": 0.1643,
+    "alias_affected_narrow": 711,
+    "share_alias_affected_narrow": 0.096
+  },
+  "mde_at_80_power_on_affected": 0.0568,
+  "registry": {
+    "aliases_seen": 196465,
+    "dropped_identity": 12517,
+    "dropped_self_title": 337,
+    "dropped_ambiguous": 98,
+    "kept": 183513,
+    "canonicals": 38089
+  }
+}

@@ -77,17 +77,39 @@ def measure(corpus: str, extractor: str, registry: dict[str, str], drops: dict) 
     merged = Counter(registry[n] for n in hit)
     sizes = Counter(merged.values())
 
-    # C3 / C5 — the query side. C5 is the population Stage 1 decomposes over and is fixed here,
-    # before any score exists, because a subset chosen after seeing which queries improved would
-    # confirm anything.
+    # C3 / C5 — the query side. See protocols/005-identity-amendment-1.
+    #
+    # A query is alias-affected when one of its entities REACHES A DIFFERENT SET OF DOCUMENTS
+    # under typed identity than under string identity. That is the mechanism's own definition:
+    # the walk starts at seeds, and what a seed can reach is exactly what identity changed.
+    #
+    # The narrow reading — queries that themselves name an alias — is kept alongside it because
+    # it is what section 6 originally said, and because the gap between the two figures IS the
+    # amendment. It misses the commoner case: the query names the canonical, a document named an
+    # alias, and the merge makes that document reachable without the query entity ever being a
+    # registry key.
+    docs_string: dict[str, set] = {}
+    docs_typed: dict[str, set] = {}
+    for doc, ents in docs.items():
+        for surface in ents:
+            key = normalise(surface)
+            if not key:
+                continue
+            docs_string.setdefault(key, set()).add(doc)
+            docs_typed.setdefault(registry.get(key, key), set()).add(doc)
+
     q_entity_total = q_entity_hit = 0
-    affected = 0
+    affected = affected_narrow = 0
     for ents in qents.values():
         keys = {normalise(s) for s in ents if normalise(s)}
         q_entity_total += len(keys)
-        h = len(keys & registry.keys())
-        q_entity_hit += h
-        affected += bool(h)
+        hits = keys & registry.keys()
+        q_entity_hit += len(hits)
+        affected_narrow += bool(hits)
+        affected += any(
+            docs_typed.get(registry.get(k, k), frozenset()) != docs_string.get(k, frozenset())
+            for k in keys
+        )
 
     n_queries = len(qents)
     return {
@@ -109,6 +131,9 @@ def measure(corpus: str, extractor: str, registry: dict[str, str], drops: dict) 
                 round(q_entity_hit / q_entity_total, 4) if q_entity_total else 0.0),
             "alias_affected": affected,
             "share_alias_affected": round(affected / n_queries, 4) if n_queries else 0.0,
+            "alias_affected_narrow": affected_narrow,
+            "share_alias_affected_narrow": (
+                round(affected_narrow / n_queries, 4) if n_queries else 0.0),
         },
         # The registered floor. Computed on the alias-affected subset because that is the
         # population the mechanism claim lives in; the full query set could resolve a smaller
@@ -119,28 +144,73 @@ def measure(corpus: str, extractor: str, registry: dict[str, str], drops: dict) 
     }
 
 
-def run() -> dict:
-    result = {
-        "status": "Stage 0 of protocol 005. Coverage only — no retrieval number is produced "
-                  "here, and section 8 forbids one.",
-        "corpora": {},
-    }
-    for corpus in ("hotpotqa", "2wiki"):
-        _, _, titles = _load(corpus)
-        registry, drops = build_registry(redirects.load(corpus), titles)
+STATUS = ("Stage 0 of protocol 005. Coverage only — no retrieval number is produced here, "
+          "and section 8 forbids one.")
+CORPORA = ("hotpotqa", "2wiki")
+ARMS = ("spacy", "glm")
+
+
+def _part_path(corpus: str, extractor: str) -> Path:
+    return OUT / f"identity-coverage-{corpus}-{extractor}.json"
+
+
+def run_one(corpus: str, extractor: str) -> dict:
+    """One (corpus, extractor) cell, written to its own file.
+
+    Split into cells rather than run as one job because the spaCy passes are ten minutes each
+    and an interrupted whole-corpus run loses all four. Each cell is independent, so a rerun
+    costs one cell rather than the set.
+    """
+    _, _, titles = _load(corpus)
+    registry, drops = build_registry(redirects.load(corpus), titles)
+    cell = measure(corpus, extractor, registry, drops)
+    OUT.mkdir(parents=True, exist_ok=True)
+    _part_path(corpus, extractor).write_text(json.dumps(cell, indent=2) + "\n")
+    return cell
+
+
+def combine() -> dict:
+    """Assemble the four cells into the artifact. Every cell must exist; a partial coverage
+    figure reported as if it were complete is the failure this refuses to allow."""
+    result = {"status": STATUS, "corpora": {}}
+    for corpus in CORPORA:
         manifest = json.loads((OUT / f"redirects-{corpus}-manifest.json").read_text())
+        arms = {}
+        for extractor in ARMS:
+            path = _part_path(corpus, extractor)
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"{path} is missing. Run `python -m rb.experiments.graph.identity_coverage "
+                    f"{corpus} {extractor}` first — coverage is reported for all four cells or "
+                    "not at all."
+                )
+            arms[extractor] = json.loads(path.read_text())
         result["corpora"][corpus] = {
             "snapshot": {k: manifest[k] for k in
                          ("fetched_utc", "sha256", "titles_requested",
                           "titles_with_redirects", "aliases_total", "failed_batches")},
-            "arms": {ex: measure(corpus, ex, registry, drops)
-                     for ex in ("spacy", "glm")},
+            "arms": arms,
         }
     return result
 
 
+def run() -> dict:
+    """Every cell, then the artifact. Cells already on disk are reused."""
+    for corpus in CORPORA:
+        for extractor in ARMS:
+            if not _part_path(corpus, extractor).exists():
+                run_one(corpus, extractor)
+    return combine()
+
+
 if __name__ == "__main__":
-    r = run()
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "identity-coverage.json").write_text(json.dumps(r, indent=2) + "\n")
-    print(json.dumps(r, indent=2))
+    import sys
+
+    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    if len(args) == 2:
+        print(json.dumps(run_one(*args), indent=2))
+    else:
+        r = run() if "--combine" not in sys.argv else combine()
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / "identity-coverage.json").write_text(json.dumps(r, indent=2) + "\n")
+        print(json.dumps(r, indent=2))

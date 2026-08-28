@@ -1,0 +1,195 @@
+{
+  "status": "Stage 0 of protocol 005. Coverage only \u2014 no retrieval number is produced here, and section 8 forbids one.",
+  "corpora": {
+    "hotpotqa": {
+      "snapshot": {
+        "fetched_utc": "2026-08-28T10:06:30+00:00",
+        "sha256": "d429cfff7ca72040e00cfa298c7964e741b3d4736565125ce9358f0fc9f659b4",
+        "titles_requested": 66581,
+        "titles_with_redirects": 40786,
+        "aliases_total": 224178,
+        "failed_batches": 0
+      },
+      "arms": {
+        "spacy": {
+          "corpus": "hotpotqa",
+          "extractor": "spacy",
+          "nodes": {
+            "before": 285013,
+            "after": 278441,
+            "resolving_through_alias": 11056,
+            "share_resolving": 0.0388,
+            "reduction": 6572
+          },
+          "merge_sizes": {
+            "1": 7035,
+            "2": 1216,
+            "3": 290,
+            "4": 95,
+            "5": 36,
+            "6": 13,
+            "7": 6,
+            "8": 2,
+            "10": 1,
+            "13": 1
+          },
+          "queries": {
+            "n": 7405,
+            "entities": 13189,
+            "entities_resolving": 749,
+            "share_entities_resolving": 0.0568,
+            "alias_affected": 1217,
+            "share_alias_affected": 0.1643,
+            "alias_affected_narrow": 711,
+            "share_alias_affected_narrow": 0.096
+          },
+          "mde_at_80_power_on_affected": 0.0568,
+          "registry": {
+            "aliases_seen": 196465,
+            "dropped_identity": 12517,
+            "dropped_self_title": 337,
+            "dropped_ambiguous": 98,
+            "kept": 183513,
+            "canonicals": 38089
+          }
+        },
+        "glm": {
+          "corpus": "hotpotqa",
+          "extractor": "glm",
+          "nodes": {
+            "before": 284899,
+            "after": 271460,
+            "resolving_through_alias": 15368,
+            "share_resolving": 0.0539,
+            "reduction": 13439
+          },
+          "merge_sizes": {
+            "1": 8839,
+            "2": 1754,
+            "3": 520,
+            "4": 179,
+            "5": 68,
+            "6": 32,
+            "7": 13,
+            "8": 5,
+            "9": 3,
+            "10": 3,
+            "12": 1,
+            "13": 1
+          },
+          "queries": {
+            "n": 7405,
+            "entities": 14907,
+            "entities_resolving": 676,
+            "share_entities_resolving": 0.0453,
+            "alias_affected": 1316,
+            "share_alias_affected": 0.1777,
+            "alias_affected_narrow": 643,
+            "share_alias_affected_narrow": 0.0868
+          },
+          "mde_at_80_power_on_affected": 0.0546,
+          "registry": {
+            "aliases_seen": 196465,
+            "dropped_identity": 12517,
+            "dropped_self_title": 337,
+            "dropped_ambiguous": 98,
+            "kept": 183513,
+            "canonicals": 38089
+          }
+        }
+      }
+    },
+    "2wiki": {
+      "snapshot": {
+        "fetched_utc": "2026-08-28T10:12:29+00:00",
+        "sha256": "9631f418a8e254cde34ed975f71c09ba7b0a1966a0953e9394618553e6160443",
+        "titles_requested": 43487,
+        "titles_with_redirects": 24402,
+        "aliases_total": 82768,
+        "failed_batches": 0
+      },
+      "arms": {
+        "spacy": {
+          "corpus": "2wiki",
+          "extractor": "spacy",
+          "nodes": {
+            "before": 173124,
+            "after": 169771,
+            "resolving_through_alias": 6103,
+            "share_resolving": 0.0353,
+            "reduction": 3353
+          },
+          "merge_sizes": {
+            "1": 4507,
+            "2": 559,
+            "3": 115,
+            "4": 17,
+            "5": 6,
+            "6": 3,
+            "8": 1,
+            "9": 1
+          },
+          "queries": {
+            "n": 9825,
+            "entities": 12877,
+            "entities_resolving": 196,
+            "share_entities_resolving": 0.0152,
+            "alias_affected": 414,
+            "share_alias_affected": 0.0421,
+            "alias_affected_narrow": 193,
+            "share_alias_affected_narrow": 0.0196
+          },
+          "mde_at_80_power_on_affected": 0.0974,
+          "registry": {
+            "aliases_seen": 74557,
+            "dropped_identity": 5356,
+            "dropped_self_title": 132,
+            "dropped_ambiguous": 32,
+            "kept": 69037,
+            "canonicals": 22739
+          }
+        },
+        "glm": {
+          "corpus": "2wiki",
+          "extractor": "glm",
+          "nodes": {
+            "before": 179091,
+            "after": 174119,
+            "resolving_through_alias": 7651,
+            "share_resolving": 0.0427,
+            "reduction": 4972
+          },
+          "merge_sizes": {
+            "1": 5296,
+            "2": 756,
+            "3": 181,
+            "4": 42,
+            "5": 17,
+            "6": 4,
+            "7": 2,
+            "9": 1
+          },
+          "queries": {
+            "n": 9825,
+            "entities": 13954,
+            "entities_resolving": 50,
+            "share_entities_resolving": 0.0036,
+            "alias_affected": 1085,
+            "share_alias_affected": 0.1104,
+            "alias_affected_narrow": 49,
+            "share_alias_affected_narrow": 0.005
+          },
+          "mde_at_80_power_on_affected": 0.0601,
+          "registry": {
+            "aliases_seen": 74557,
+            "dropped_identity": 5356,
+            "dropped_self_title": 132,
+            "dropped_ambiguous": 32,
+            "kept": 69037,
+            "canonicals": 22739
+          }
+        }
+      }
+    }
+  }
+}
