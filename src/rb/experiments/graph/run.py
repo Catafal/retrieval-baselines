@@ -67,7 +67,7 @@ def load_pool():
     return pool_corpus, queries, qrels, check
 
 
-def _arm(name: str):
+def _arm(name: str, dataset: str = "hotpotqa", corpus: dict | None = None):
     """
     One arm per name, each already pinned somewhere else.
 
@@ -93,6 +93,46 @@ def _arm(name: str):
         return GraphRetriever(extract_docs=llm.extract_docs_offline,
                               extract_query=llm.extract_query_offline,
                               name="graph-glm-ppr"), "fit"
+    if name in ("graph-typed", "graph-glm-typed", "graph-typed-capped", "graph-glm-typed-capped"):
+        # Experiment 005: the same walk, the same extractor as its string-identity twin, with
+        # identity resolved through the committed redirect registry instead of by exact string.
+        # protocols/005-typed-identity.md section 2 — the 2x2 exists so extractor quality and
+        # identity resolution cannot be attributed to each other.
+        #
+        # ONE linker, passed once. fit() hands it to build() and _seed() reads the same stored
+        # value, so a graph keyed by one identity and seeded by another is not constructible.
+        from rb.experiments.graph import linker as lk
+        from rb.experiments.graph import redirects
+        from rb.experiments.graph.identity_coverage import _load
+        from rb.experiments.graph.retriever import GraphRetriever
+
+        corpus_name = "hotpotqa" if dataset == "hotpotqa" else "2wiki"
+        _, _, pool_titles = _load(corpus_name)
+        registry, drops = lk.build_registry(redirects.load(corpus_name), pool_titles)
+        print(f"identity: {drops['kept']:,} aliases kept, "
+              f"{drops['dropped_ambiguous']:,} ambiguous dropped", flush=True)
+
+        from rb.experiments.graph import llm_extractor as llm
+        glm = "glm" in name
+
+        # R9 — protocols/005-amendment-2-hub-cap.md. Applied here, after build_registry, so the
+        # capped arm differs from its uncapped twin by this one rule and nothing else. The
+        # entities it measures document frequency over are the SAME ones the arm will build with.
+        if name.endswith("-capped"):
+            from rb.experiments.graph.extractor import extract_many as spacy_extract_many
+            from rb.experiments.graph.extractor import node_strings
+            raw = (llm.extract_docs_offline if glm else spacy_extract_many)(corpus)
+            ents = {d: node_strings(e) for d, e in raw.items()}
+            registry, cap_stats = lk.apply_df_cap(registry, ents, len(corpus))
+            print(f"R9 cap: {cap_stats}", flush=True)
+
+        if not glm:
+            return GraphRetriever(link=lk.linker(registry),
+                                  name=f"{name}-ppr"), "fit"
+        return GraphRetriever(extract_docs=llm.extract_docs_offline,
+                              extract_query=llm.extract_query_offline,
+                              link=lk.linker(registry),
+                              name=f"{name}-ppr"), "fit"
     if name.startswith("dense-"):
         from rb.experiments.ladder.retrievers.dense import DenseRetriever
         from rb.experiments.ladder.run import EMBEDDING_CACHE_DIR, _make_encoder
@@ -106,7 +146,9 @@ def _arm(name: str):
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--arm", required=True,
-                    choices=["bm25", "graph", "graph-glm", "dense-minilm", "dense-bge"])
+                    choices=["bm25", "graph", "graph-glm", "graph-typed", "graph-glm-typed",
+                             "graph-typed-capped", "graph-glm-typed-capped",
+                             "dense-minilm", "dense-bge"])
     ap.add_argument("--dataset", default="hotpotqa", choices=["hotpotqa", "2wiki"])
     ap.add_argument("--top-k", type=int, default=100)
     args = ap.parse_args()
@@ -124,7 +166,7 @@ def main() -> None:
         from rb.experiments.graph import llm_extractor as llm
         llm.assert_queries_cached(queries)
 
-    retriever, needs_fit = _arm(args.arm)
+    retriever, needs_fit = _arm(args.arm, args.dataset, corpus)
     build_manifest, build_seconds = {}, 0.0
     if needs_fit:
         t1 = time.perf_counter()

@@ -24,6 +24,19 @@ say nothing about the paired difference. This module provides the three pieces
   spearman_correlation — rank correlation with its own bootstrap interval, for
                        testing a monotone-but-not-linear relationship (corpus
                        length vs. attribution, in a later experiment).
+  wilson_interval   — score interval for a proportion, which unlike the normal
+                       approximation stays inside [0, 1] and stays sane at the
+                       small counts an empty-rate or coverage figure produces.
+  mde_two_proportion — smallest two-proportion gap an n could reliably detect.
+                       Reported so a reader can judge whether a null means "no
+                       effect" or "this sample could not have seen one".
+
+wilson_interval and mde_two_proportion arrived in 004 as private helpers inside
+reasoning_ablation.py. 005 needs the same two functions to size its identity
+coverage, and two copies of an estimator is how two entries come to quote
+subtly different numbers. They are promoted here unchanged in behaviour; the
+promotion was verified by recomputing 004's committed reasoning-ablation.json
+and requiring it byte-identical.
 
 Shared across experiments — none of this is specific to lexical/dense/hybrid.
 """
@@ -415,3 +428,34 @@ def spearman_correlation(
     lo, hi = percentile_ci(draws)
 
     return {"rho": rho, "ci95": [lo, hi]}
+
+
+# --- proportions -------------------------------------------------------------
+#
+# Promoted from reasoning_ablation.py, where they were 004's private helpers.
+# Behaviour is unchanged, including the rounding, because 004's published
+# figures were produced by exactly this arithmetic and must keep reproducing.
+
+Z_95 = 1.959963984540054  # two-sided normal quantile at alpha = 0.05
+Z_POWER_80 = 0.8416212335729143  # one-sided normal quantile at 80% power
+
+
+def wilson_interval(k: int, n: int, z: float = Z_95) -> list[float]:
+    """95% Wilson score interval for k successes in n trials."""
+    if n == 0:
+        return [0.0, 1.0]
+    phat = k / n
+    denom = 1 + z * z / n
+    centre = (phat + z * z / (2 * n)) / denom
+    half = z * math.sqrt(phat * (1 - phat) / n + z * z / (4 * n * n)) / denom
+    return [round(max(0.0, centre - half), 4), round(min(1.0, centre + half), 4)]
+
+
+def mde_two_proportion(n: int, alpha_z: float = Z_95, power_z: float = Z_POWER_80) -> float:
+    """
+    Smallest two-proportion gap this n could reliably detect at 80% power, worst-case variance.
+
+    Reported so a reader can see whether the sample was adequate for the effect that was found,
+    which is a different and weaker claim than the sample being adequate in general.
+    """
+    return round((alpha_z + power_z) * math.sqrt(2 * 0.25 / n), 4)

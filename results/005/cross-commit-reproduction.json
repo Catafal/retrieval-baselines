@@ -1,0 +1,13 @@
+{
+  "check": "cross-commit reproduction of a string arm at HEAD",
+  "why": "protocol 005 compares typed arms scored at HEAD against string arms scored days earlier at older commits. Two reviewers flagged that build.py and retriever.py changed in between (gaining the link= and extractor injection parameters) and that only a re-run could rule out a behavioural change. Diff-reading is not proof.",
+  "arm": "graph-glm",
+  "dataset": "2wiki",
+  "original_commit": "a0642aa6",
+  "reproduced_at": "HEAD (nb-23-stage-0-identity)",
+  "recall_2_original": 0.377,
+  "recall_2_reproduced": 0.377,
+  "per_query_sha256": "6c0057a3d981dcc05140046f33b72e5b9ecb2408b0593321d9e223c0a9b72ce8",
+  "per_query_byte_identical": true,
+  "conclusion": "The additive link=None / extract_*=None defaults preserve the pre-seam code path exactly. String arms scored at older commits are directly comparable to typed arms scored at HEAD."
+}

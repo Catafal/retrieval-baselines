@@ -1,0 +1,15 @@
+{
+  "corpus": "hotpotqa",
+  "endpoint": "https://en.wikipedia.org/w/api.php",
+  "fetched_utc": "2026-08-28T10:06:30+00:00",
+  "namespace": 0,
+  "sha256": "d429cfff7ca72040e00cfa298c7964e741b3d4736565125ce9358f0fc9f659b4",
+  "bytes": 7551379,
+  "titles_requested": 66581,
+  "titles_with_redirects": 40786,
+  "aliases_total": 224178,
+  "requests": 1342,
+  "failed_batches": 0,
+  "failures": [],
+  "seconds": 561.1
+}

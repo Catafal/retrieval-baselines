@@ -35,7 +35,7 @@ class GraphRetriever:
     name = "graph-spacy-ppr"
 
     def __init__(self, damping: float = 0.5, use_specificity: bool = True,
-                 extract_docs=None, extract_query=None, name: str | None = None):
+                 extract_docs=None, extract_query=None, link=None, name: str | None = None):
         # damping and use_specificity are both fixed by the protocol rather than tuned here.
         # HippoRAG reports 0.5 and reports that removing specificity costs it 4.2 R@2 on
         # HotpotQA; tuning either on the corpus being measured is how a result gets manufactured.
@@ -65,6 +65,17 @@ class GraphRetriever:
         # exactly what happened, and two existing tests caught it. Resolved at call time instead.
         self._extract_docs = extract_docs
         self._extract_query = extract_query
+
+        # INJECTED FOR EXPERIMENT 005 — protocols/005-identity.md section 5. Maps a surface form
+        # to the node key it belongs to; None is 003's and 004's exact-string identity, so an
+        # unqualified GraphRetriever() is still the published arm.
+        #
+        # ONE linker, used by BOTH sides. The extractor needed a both-or-neither guard because it
+        # is two functions that can disagree. Identity is one function reached from two places, so
+        # storing it once and passing it to build() from fit() makes the mismatch unrepresentable
+        # rather than merely forbidden. A graph keyed by one identity and seeded by another is not
+        # an experiment, and here it cannot be constructed.
+        self._link = link
         if name:
             self.name = name
 
@@ -79,7 +90,7 @@ class GraphRetriever:
         """
         raw = (self._extract_docs or extract_many)(corpus)
         entities = {doc: node_strings(ents) for doc, ents in raw.items()}
-        nodes, doc_ids, incidence = kg.build(entities)
+        nodes, doc_ids, incidence = kg.build(entities, link=self._link)
         self._fitted = {
             "nodes": nodes,
             "node_index": {n: i for i, n in enumerate(nodes)},
@@ -133,7 +144,9 @@ class GraphRetriever:
         # shared with the §8.2 diagnostic, where collapsing surface forms would change what the
         # extraction score measures.
         extract_q = self._extract_query or _query_entities
-        for node in {normalise(text) for text in node_strings(extract_q(query))}:
+        # THE SAME identity the graph was built under, from the same stored linker.
+        key = self._link or normalise
+        for node in {key(text) for text in node_strings(extract_q(query))}:
             i = f["node_index"].get(node)
             if i is not None:
                 seed[i] += f["specificity"][i] if self.use_specificity else 1.0

@@ -1,0 +1,216 @@
+{
+  "protocol": "protocols/005-typed-identity.md, tagged protocol-005",
+  "primary": "recall_2",
+  "bootstrap": {
+    "rounds": 10000,
+    "seed": 20260820,
+    "alpha": 0.05,
+    "correction": "holm-bonferroni, one family per prediction"
+  },
+  "cells": [
+    {
+      "corpus": "hotpotqa",
+      "extractor": "spacy",
+      "string": "graph",
+      "typed": "graph-typed",
+      "queries": 7405,
+      "r2_string": 0.2148,
+      "r2_typed": 0.2236,
+      "secondary": {
+        "recall_100": {
+          "string": 0.5147,
+          "typed": 0.5314
+        },
+        "recall_5": {
+          "string": 0.3132,
+          "typed": 0.3265
+        },
+        "recall_10": {
+          "string": 0.3866,
+          "typed": 0.403
+        },
+        "ndcg_cut_10": {
+          "string": 0.3161,
+          "typed": 0.3282
+        }
+      },
+      "prediction_a": {
+        "mean_diff": 0.008845374746792707,
+        "ci95": [
+          0.006414584740040513,
+          0.011276164753544902
+        ],
+        "p_value": 0.00019998000199980003,
+        "p_holm": 0.0008,
+        "decision": "supported"
+      },
+      "prediction_b": {
+        "observed": 0.0519,
+        "ci95": [
+          0.0391,
+          0.0646
+        ],
+        "p": 0.00019998000199980003,
+        "n_affected": 1217,
+        "n_unaffected": 6188,
+        "resolved": true,
+        "p_holm": 0.0008,
+        "decision": "supported"
+      },
+      "mde": 0.0568
+    },
+    {
+      "corpus": "hotpotqa",
+      "extractor": "glm",
+      "string": "graph-glm",
+      "typed": "graph-glm-typed",
+      "queries": 7405,
+      "r2_string": 0.3699,
+      "r2_typed": 0.3756,
+      "secondary": {
+        "recall_100": {
+          "string": 0.7084,
+          "typed": 0.7278
+        },
+        "recall_5": {
+          "string": 0.508,
+          "typed": 0.5223
+        },
+        "recall_10": {
+          "string": 0.5937,
+          "typed": 0.6113
+        },
+        "ndcg_cut_10": {
+          "string": 0.5094,
+          "typed": 0.5206
+        }
+      },
+      "prediction_a": {
+        "mean_diff": 0.005671843349088454,
+        "ci95": [
+          0.0027008777852802163,
+          0.00864280891289669
+        ],
+        "p_value": 0.00019998000199980003,
+        "p_holm": 0.0008,
+        "decision": "supported"
+      },
+      "prediction_b": {
+        "observed": 0.0328,
+        "ci95": [
+          0.0187,
+          0.0471
+        ],
+        "p": 0.00019998000199980003,
+        "n_affected": 1316,
+        "n_unaffected": 6089,
+        "resolved": true,
+        "p_holm": 0.0008,
+        "decision": "supported"
+      },
+      "mde": 0.0546
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "spacy",
+      "string": "graph",
+      "typed": "graph-typed",
+      "queries": 9825,
+      "r2_string": 0.2734,
+      "r2_typed": 0.2896,
+      "secondary": {
+        "recall_100": {
+          "string": 0.4353,
+          "typed": 0.4577
+        },
+        "recall_5": {
+          "string": 0.339,
+          "typed": 0.3597
+        },
+        "recall_10": {
+          "string": 0.3731,
+          "typed": 0.3941
+        },
+        "ndcg_cut_10": {
+          "string": 0.3452,
+          "typed": 0.3645
+        }
+      },
+      "prediction_a": {
+        "mean_diff": 0.0161323155216285,
+        "ci95": [
+          0.014147582697201018,
+          0.01821882951653944
+        ],
+        "p_value": 0.00019998000199980003,
+        "p_holm": 0.0008,
+        "decision": "supported"
+      },
+      "prediction_b": {
+        "observed": 0.3501,
+        "ci95": [
+          0.3182,
+          0.382
+        ],
+        "p": 0.00019998000199980003,
+        "n_affected": 414,
+        "n_unaffected": 9411,
+        "resolved": true,
+        "p_holm": 0.0008,
+        "decision": "supported"
+      },
+      "mde": 0.0974
+    },
+    {
+      "corpus": "2wiki",
+      "extractor": "glm",
+      "string": "graph-glm",
+      "typed": "graph-glm-typed",
+      "queries": 9825,
+      "r2_string": 0.377,
+      "r2_typed": 0.4196,
+      "secondary": {
+        "recall_100": {
+          "string": 0.5294,
+          "typed": 0.5908
+        },
+        "recall_5": {
+          "string": 0.4479,
+          "typed": 0.5051
+        },
+        "recall_10": {
+          "string": 0.4784,
+          "typed": 0.5382
+        },
+        "ndcg_cut_10": {
+          "string": 0.4573,
+          "typed": 0.5084
+        }
+      },
+      "prediction_a": {
+        "mean_diff": 0.04264631043256997,
+        "ci95": [
+          0.039287531806615775,
+          0.04615776081424936
+        ],
+        "p_value": 0.00019998000199980003,
+        "p_holm": 0.0008,
+        "decision": "supported"
+      },
+      "prediction_b": {
+        "observed": 0.3458,
+        "ci95": [
+          0.3239,
+          0.3678
+        ],
+        "p": 0.00019998000199980003,
+        "n_affected": 1085,
+        "n_unaffected": 8740,
+        "resolved": true,
+        "p_holm": 0.0008,
+        "decision": "supported"
+      },
+      "mde": 0.0601
+    }
+  ]
+}

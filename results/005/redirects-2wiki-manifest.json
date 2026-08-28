@@ -1,0 +1,15 @@
+{
+  "corpus": "2wiki",
+  "endpoint": "https://en.wikipedia.org/w/api.php",
+  "fetched_utc": "2026-08-28T10:12:29+00:00",
+  "namespace": 0,
+  "sha256": "9631f418a8e254cde34ed975f71c09ba7b0a1966a0953e9394618553e6160443",
+  "bytes": 3421078,
+  "titles_requested": 43487,
+  "titles_with_redirects": 24402,
+  "aliases_total": 82768,
+  "requests": 870,
+  "failed_batches": 0,
+  "failures": [],
+  "seconds": 358.3
+}

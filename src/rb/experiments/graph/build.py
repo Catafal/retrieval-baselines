@@ -13,9 +13,11 @@ requires exactly one thing: a path from an entity the query DOES name to the doc
 holds the answer. Co-occurrence edges provide that path. A richer relation set would give
 better paths, which is precisely what experiment 004 tests by swapping the extractor.
 
-NORMALISATION IS EXACT-STRING, matching §8.2's scoring. "U.S." and "United States" are
-different nodes because the graph would treat them as different nodes; a linker that merged
-them would be a component this experiment has not registered and cannot attribute.
+NORMALISATION IS EXACT-STRING BY DEFAULT, matching §8.2's scoring. "U.S." and "United States"
+are different nodes because the graph would treat them as different nodes; for 003 and 004 a
+linker that merged them would have been a component neither experiment registered and neither
+could attribute. Experiment 005 registers exactly that component and injects it through `link`,
+which is why the merge is a parameter here rather than an edit.
 """
 
 import numpy as np
@@ -24,10 +26,17 @@ from scipy import sparse
 from rb.experiments.graph.extraction_score import normalise
 
 
-def build(entities_by_doc: dict[str, list[str]]):
+def build(entities_by_doc: dict[str, list[str]], link=None):
     """
     Returns (nodes, doc_ids, incidence) where `incidence` is a documents x entities sparse
     matrix with 1 where a document contains an entity.
+
+    `link` maps a surface form to the node key it belongs to. It defaults to `normalise`, which
+    is 003's and 004's exact-string identity, so an unqualified call is the published arm.
+    Experiment 005 passes a linker that resolves aliases to a canonical instead — see
+    protocols/005-identity.md section 5. The default resolves HERE rather than in the signature
+    because binding a module attribute at definition time is how 004's injected extractor was
+    first defeated.
 
     The entity-entity adjacency is never materialised. incidence.T @ incidence is an
     entities x entities matrix, and on a corpus with a hub entity that product is dense
@@ -35,13 +44,14 @@ def build(entities_by_doc: dict[str, list[str]]):
     matrix-vector products against `incidence` instead, which is the same walk without ever
     holding the square matrix.
     """
+    key = link or normalise
     doc_ids = sorted(entities_by_doc)
     index: dict[str, int] = {}
     rows, cols = [], []
     for r, doc in enumerate(doc_ids):
         seen = set()
         for raw in entities_by_doc[doc]:
-            e = normalise(raw)
+            e = key(raw)
             if not e or e in seen:
                 continue
             seen.add(e)

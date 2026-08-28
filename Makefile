@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation reproduce-004-pilot-gate clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation verify-004-ablation reproduce-004-pilot-gate fetch-005-redirects reproduce-005-coverage reproduce-005-affected reproduce-005-analysis clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -70,8 +70,17 @@ reproduce-003-pool-control:
 reproduce-004-pilot-gate:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.pilot_gate
 
+# COSTS MONEY and needs OPENROUTER_API_KEY. It re-calls the endpoint at both reasoning
+# settings on purpose: the extraction cache is keyed by reasoning setting, so it cannot
+# answer a question about the setting. Readers who only want to check the published numbers
+# want verify-004-ablation below, which needs neither.
 reproduce-004-ablation:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.reasoning_ablation
+
+# Free, offline, no key. Recomputes every derived figure in the committed artifact from the
+# counts committed beside it, using the producer's own arithmetic.
+verify-004-ablation:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.reasoning_ablation --check
 
 reproduce-003-analysis:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis
@@ -108,6 +117,32 @@ reproduce-003-diagnostics:
 # runs PPR over all 7,405 queries, so it is the slow one -- roughly fifteen minutes.
 reproduce-003-ablation:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.ablation
+
+# NETWORK, and run once. Fetches every Wikipedia redirect targeting a pool title and commits
+# the snapshot plus a manifest. The live API is mutable, so the snapshot is the artifact of
+# record and everything downstream replays from it — the same reason 004 commits its extraction
+# cache. Free, but it is ~2,200 requests and takes about fifteen minutes.
+fetch-005-redirects:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.redirects
+
+# Offline. Stage 0's only measurement: what the identity registry covers, both corpora, both
+# extractors, replayed from the committed snapshot and 004's committed extraction cache.
+# Produces no retrieval number — protocols/005-identity.md section 8 forbids one at this stage.
+reproduce-005-coverage:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.identity_coverage
+
+# Offline. Writes WHICH queries identity changed something for, per corpus and extractor,
+# through the same function that produced Stage 0's counts. Prediction B decomposes over this
+# membership, and the ids are committed so the subset can be audited rather than trusted.
+reproduce-005-affected:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.identity_coverage --ids
+
+# Offline. Experiment 005's registered analysis: both predictions, four cells each, Holm per
+# family. Reads the committed per-query artifacts and the committed affected-query ids; it
+# refuses to run if the latter are missing rather than recomputing them, because a subset
+# recomputed at analysis time is one that could have been redefined after seeing the scores.
+reproduce-005-analysis:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.analysis005
 
 clean:
 	rm -rf data/*/rg_corpus.txt
