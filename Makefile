@@ -1,7 +1,7 @@
 VENV := .venv
 PY := $(VENV)/bin/python
 
-.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation clean
+.PHONY: setup test reproduce reproduce-002-lexical reproduce-003-controls reproduce-003-pool-control reproduce-003-analysis reproduce-003-2wiki-analysis reproduce-003-arms-summary reproduce-003-oracle reproduce-003-closure reproduce-003-diagnostics reproduce-003-ablation reproduce-004-ablation reproduce-004-pilot-gate clean
 
 setup:
 	python3 -m venv $(VENV)
@@ -64,6 +64,12 @@ reproduce-003-pool-control:
 # it deliberately bypasses the extraction cache, because a cached read would answer with whichever
 # reasoning setting was bought rather than the one under test. Roughly $0.30 and a few minutes.
 # Needs OPENROUTER_API_KEY. Everything else in 004 replays from the committed cache for free.
+# Experiment 004's section 8 pilot gate. Replays from the committed extraction cache and makes no
+# API call, unlike reproduce-004-ablation above. This artifact feeds a generated block in the
+# entry and previously had no producer at all.
+reproduce-004-pilot-gate:
+	PYTHONPATH=src $(PY) -m rb.experiments.graph.pilot_gate
+
 reproduce-004-ablation:
 	PYTHONPATH=src $(PY) -m rb.experiments.graph.reasoning_ablation
 
