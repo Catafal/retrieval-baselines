@@ -113,6 +113,11 @@ would mean: *the hub explanation is then withdrawn, not softened.*
 
 **+0.0001. The hub explanation is withdrawn.**
 
+The 2Wiki arm is the control the amendment predicted. Its cap reverts **zero** aliases — 19
+canonicals exceed the threshold but none has an alias pointing at it — so the capped and uncapped
+arms are identical by construction. They score identically, 0.4196 both, which also confirms the
+pipeline is deterministic end to end.
+
 It failed for a reason visible in its own numbers: the cap removed 347 of 183,513 aliases — **0.19%
 of the registry**. The dose distribution runs from 1 to 6,845, and almost all of its mass is far
 below the cap. Removing the extreme tail was never going to move an effect carried by the middle.
