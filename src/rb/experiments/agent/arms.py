@@ -36,16 +36,27 @@ SYSTEM = (
     "You answer multi-hop factual questions. " + ANSWER_RULE
 )
 
-# The grep arm needs to be told the corpus exists and that chaining searches is allowed --
-# withholding that would hobble it. It is told nothing about strategy that the injected arms
-# are not also told, and it gets the same ANSWER_RULE.
-SYSTEM_GREP = (
-    "You answer multi-hop factual questions by searching a document corpus. "
-    "The corpus is a directory of markdown files, one document per file, each beginning with "
-    "its title as a heading. Answering usually requires finding one document, extracting a "
-    "name or term from it, and then searching for a second document about that term. "
-    "Search as many times as you need. " + ANSWER_RULE
-)
+def system_grep(corpus_dir: str) -> str:
+    """The grep arm's system prompt. THE CORPUS PATH IS NOT OPTIONAL.
+
+    A smoke test before tagging caught the grep arm scoring 0 of 3 while the oracle arm scored
+    2 of 3 on the same questions, with no permission denials and the turn cap never reached.
+    The cause was the harness, not the model: every call runs in an empty temporary directory
+    so that no repository content can leak in, the corpus is attached with --add-dir, and
+    nothing told the agent where it was. Its Grep searched the empty working directory, found
+    nothing, and correctly gave up.
+
+    With the path supplied the same three questions go 2 of 3 -- exactly the oracle's score.
+    That is the difference between a control and a strawman, and it is the reason F4 exists.
+    """
+    return (
+        "You answer multi-hop factual questions by searching a document corpus. "
+        f"The corpus is the directory {corpus_dir} -- markdown files, one document per file, "
+        "each beginning with its title as a heading. Search it with Grep and read files with "
+        "Read. Answering usually requires finding one document, extracting a name or term from "
+        "it, and then searching for a second document about that term. "
+        "Search as many times as you need. " + ANSWER_RULE
+    )
 
 # Read-only: everything a competent human searcher would use, and nothing that reaches the
 # network or writes. Granting less would be the hobbled-toolkit strawman.

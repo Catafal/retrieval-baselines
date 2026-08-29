@@ -108,14 +108,27 @@ two-hop chain needs. It gets the full read-only toolkit, not a hobbled subset.
 because an earlier draft of this protocol claimed the arms differed only in context and tools,
 and that was not true:
 
-> "The corpus is a directory of markdown files, one document per file, each beginning with its
-> title as a heading. Answering usually requires finding one document, extracting a name or
-> term from it, and then searching for a second document about that term. Search as many times
-> as you need."
+> "The corpus is the directory {path} — markdown files, one document per file, each beginning
+> with its title as a heading. Search it with Grep and read files with Read. Answering usually
+> requires finding one document, extracting a name or term from it, and then searching for a
+> second document about that term. Search as many times as you need."
 
 This is registered as an advantage granted to the CONTROL. It can only make a graph win harder
 to obtain, never easier, which is why it is kept rather than removed. Everything else in the
 prompts — including `ANSWER_RULE` — is shared verbatim.
+
+**F4 was checked before tagging, and it fired.** Three questions were run through `grep` and
+`oracle` on haiku and discarded. `grep` scored 0 of 3; `oracle` scored 2 of 3. There were no
+permission denials and the turn cap was never reached, so the arm was not being blocked or cut
+short — it was searching an empty directory. Every call runs in a fresh temporary directory so
+no repository content can leak in, the corpus is attached with `--add-dir`, and **nothing told
+the agent where it was**. With the path supplied, the same three questions score 2 of 3: exactly
+the oracle's score.
+
+The probes are not scored, are not written to `calls.jsonl`, and no arm was retuned on their
+outcome beyond supplying the missing path. Had this not been checked, the published grep arm
+would have been a strawman and every graph win in the table would have been an artifact of a
+harness defect.
 
 **Extracting the graph from the whole pool, gold passages included, is legitimate** and is
 stated rather than left to be derived: it is the same information every other arm can reach,

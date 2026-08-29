@@ -69,7 +69,7 @@ def test_abstention_is_not_a_wrong_answer():
 def test_every_arm_shares_the_answer_rule():
     """The strawman guard: arms may differ in context and tools, never in encouragement."""
     assert arms.ANSWER_RULE in arms.SYSTEM
-    assert arms.ANSWER_RULE in arms.SYSTEM_GREP
+    assert arms.ANSWER_RULE in arms.system_grep("/tmp/corpus")
 
 
 def test_budget_never_splits_a_block_and_always_yields_one():

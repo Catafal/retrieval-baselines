@@ -45,7 +45,8 @@ def build_jobs(questions: list[Question], pool: dict[str, str], corpus_dir: Path
         variants.append(("closed-book", p, inj, arms.SYSTEM, None, None))
 
         p, inj = arms.grep(q.question)
-        variants.append(("grep", p, inj, arms.SYSTEM_GREP, str(corpus_dir), GREP_MAX_TURNS))
+        variants.append(("grep", p, inj, arms.system_grep(str(corpus_dir)),
+                         str(corpus_dir), GREP_MAX_TURNS))
 
         for name in ("bm25", "dense"):
             docs = [(t, pool[t]) for t in retrieved[name].get(q.id, [])]
