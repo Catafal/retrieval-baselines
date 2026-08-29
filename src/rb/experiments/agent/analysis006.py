@@ -162,6 +162,7 @@ def arm_table(idx: dict, qids: list[str]) -> list[dict]:
             rows.append({
                 "arm": arm, "model": model, "n": n,
                 "em": round(sum(r["em"] for r in ok) / n, 4),
+                "em_lenient": round(sum(r["em_lenient"] for r in ok) / n, 4),
                 "em_strict": round(sum(r["em_strict"] for r in ok) / n, 4),
                 "f1": round(sum(r["f1"] for r in ok) / n, 4),
                 "abstained": round(sum(r["abstained"] for r in ok) / n, 4),
