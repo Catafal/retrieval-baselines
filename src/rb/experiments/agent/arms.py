@@ -60,7 +60,8 @@ class Injection:
     truncated: bool
 
 
-def fit_budget(blocks: list[str], budget_tokens: int = DEFAULT_BUDGET_TOKENS) -> Injection:
+def fit_budget(blocks: list[str], budget_tokens: int = DEFAULT_BUDGET_TOKENS,
+               sep: str = "\n\n") -> Injection:
     """Take whole blocks in order until the budget is spent. Never splits a block.
 
     Whole blocks only, because half a passage is a different object from a passage and would
@@ -74,7 +75,7 @@ def fit_budget(blocks: list[str], budget_tokens: int = DEFAULT_BUDGET_TOKENS) ->
             break
         kept.append(b)
         used += len(b)
-    return Injection("\n\n".join(kept), used // CHARS_PER_TOKEN, len(kept),
+    return Injection(sep.join(kept), used // CHARS_PER_TOKEN, len(kept),
                      truncated=len(kept) < len(blocks))
 
 
@@ -103,7 +104,8 @@ def passages(question: str, docs: list[tuple[str, str]],
 def graph_facts(question: str, facts_text: str,
                 budget: int = DEFAULT_BUDGET_TOKENS) -> tuple[str, Injection]:
     """The prior art's shape: typed triples plus entity notes, no passages."""
-    inj = fit_budget([facts_text], budget)
+    inj = fit_budget([b for b in facts_text.split("\n") if b.strip()], budget,
+                     sep="\n")   # triple lines, not paragraphs
     return _wrap(question, inj.text, "Recalled facts from memory:"), inj
 
 

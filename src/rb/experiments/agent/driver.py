@@ -104,7 +104,7 @@ def recall_all(questions: list[Question], db: Path, hops: int = 3, top_k: int = 
     return {q.id: graphmem.recall(db, q.question, hops, top_k).as_text() for q in questions}
 
 
-def score_calls(calls, gold: dict[str, str]) -> list[dict]:
+def score_calls(calls, gold: dict[str, str], baseline: float = 0.0) -> list[dict]:
     """Attach both EM variants and the abstention flag to every call.
 
     Both EM variants ship because the lenient one -- which credits a prediction that contains
@@ -117,14 +117,29 @@ def score_calls(calls, gold: dict[str, str]) -> list[dict]:
         d = asdict(c) if not isinstance(c, dict) else dict(c)
         g = gold[d["query_id"]]
         d["em"] = score.exact_match(d["answer"], g)
-        d["em_strict"] = int(score.normalise(d["answer"]) == score.normalise(g))
+        d["em_lenient"] = score.exact_match_lenient(d["answer"], g)
+        d["em_strict"] = score.exact_match_verbatim(d["answer"], g)
         d["f1"] = round(score.token_f1(d["answer"], g), 4)
+        # Context the ARM supplied, with the harness's fixed overhead removed by the analysis.
+        d["context_tokens"] = (d["input_tokens"] + d["cache_read_tokens"]
+                               + d["cache_creation_tokens"])
         d["abstained"] = int(score.is_abstention(d["answer"]))
         d["gold"] = g
+        d["context_tokens_net"] = max(0.0, d["context_tokens"] - baseline)
         rows.append(d)
     return rows
 
 
 def load_scored(path: Path, gold: dict[str, str]) -> list[dict]:
+    """Score twice: once to find the harness's zero-context baseline, once to net it out.
+
+    The baseline is what a closed-book call costs before any corpus reaches the model -- the
+    CLI's own system prompt and tool schemas. Reporting it as context the model read would
+    credit every arm with ~23k tokens of harness and drown the difference P4 is about.
+    """
     calls = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
-    return score_calls(calls, gold)
+    first = score_calls(calls, gold)
+    cb = [r for r in first if r["arm"] == "closed-book"
+          and r.get("outcome") not in {"timeout", "api_error", "no_json"}]
+    baseline = sum(r["context_tokens"] for r in cb) / len(cb) if cb else 0.0
+    return score_calls(calls, gold, baseline)

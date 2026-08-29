@@ -28,6 +28,13 @@ difference is held fixed rather than tested. Nor can it settle anything about pe
 agent-memory corpora, which is the setting the author actually uses a graph in. HotpotQA is
 encyclopaedic. These limits are registered here so they cannot be claimed later as findings.
 
+**And it measures ANSWERING, not HOPPING.** The prior art's claim is about a trace — 3 hops of
+3 — and exact match cannot see a trace. A model can reach the right answer from parametric
+memory, from one lucky lexical hit, or from a genuine bridge, and EM scores all three the same.
+§9 registers two partial proxies (answer-presence in the injection, and turn counts for the
+grep arm), and neither is a hop count. No arm's hop count is observable for the injected arms
+by construction.
+
 ## 2. The corpus, frozen
 
 100 questions drawn from HotpotQA distractor validation, `type == "bridge"` and `level == "hard"`,
@@ -97,6 +104,28 @@ one markdown file each, named for their title, with the title as the first line 
 affordance the prior art's corpus has. The turn cap is 20, roughly five times the four calls a
 two-hop chain needs. It gets the full read-only toolkit, not a hobbled subset.
 
+**And it gets a two-hop strategy hint that no injected arm receives**, quoted here verbatim
+because an earlier draft of this protocol claimed the arms differed only in context and tools,
+and that was not true:
+
+> "The corpus is a directory of markdown files, one document per file, each beginning with its
+> title as a heading. Answering usually requires finding one document, extracting a name or
+> term from it, and then searching for a second document about that term. Search as many times
+> as you need."
+
+This is registered as an advantage granted to the CONTROL. It can only make a graph win harder
+to obtain, never easier, which is why it is kept rather than removed. Everything else in the
+prompts — including `ANSWER_RULE` — is shared verbatim.
+
+**Extracting the graph from the whole pool, gold passages included, is legitimate** and is
+stated rather than left to be derived: it is the same information every other arm can reach,
+and the grep arm has the raw text of all 990 documents.
+
+**Budget caveat, stated because it is not exact.** `fit_budget` never splits a block, and every
+arm keeps its first block even when that block alone exceeds 400 tokens. The realised per-arm
+token distribution is therefore reported rather than assumed. Measured before any scored call:
+the graph arm's injection is mean 268 and max 398 estimated tokens.
+
 **The extractor is pinned to haiku, the weakest tier under test.** The graph is built by an LLM
 reading all 990 documents, which is inference-time compute moved to build time. Were the builder
 stronger than the answerer, the graph arm would be carrying a smarter model's reasoning into a
@@ -106,7 +135,21 @@ that impossible. It costs the graph arm its best case and is registered for that
 ## 5. Predictions
 
 Per-query outcome is exact match against the gold answer string, SQuAD-normalised. No judge model
-appears anywhere in the scoring path. Estimator: `stats.paired_bootstrap`, B = 10,000,
+appears anywhere in the scoring path.
+
+**The primary metric is normalised EQUALITY, and that is a correction made before tagging.** An
+earlier draft made containment primary — a prediction counted correct if it contained the gold
+span within six words. Review broke it in seven ways, including `Iron Man 3` scoring correct
+against gold `Iron Man`, `no` matching inside `North Dakota`, and
+`the answer is not France, it is Germany` scoring correct against gold `France`. Every failure
+requires the prediction to be LONGER than the gold, so the rule inflated whichever arms narrate
+most — which are both arms in the primary contrast, by an unknown net amount. Three variants now
+ship: `em` (normalised equality after stripping stock openers, PRIMARY), `em_lenient`
+(token-subsequence containment with a negation guard), and `em_strict` (no narration strip).
+
+**Decisions require BOTH a bootstrap interval clear of zero AND a Holm-adjusted p at or below
+0.05.** An earlier draft computed Holm and then decided on the interval alone, which made every
+declared family decorative. Estimator: `stats.paired_bootstrap`, B = 10,000,
 seed 20260828, add-one p-value, over per-query differences.
 
 Model tier is a WITHIN-question factor: the same question is put to all three tiers in all six
@@ -127,6 +170,9 @@ This is the prior art's actual thesis and it is the quantity this n cannot prope
 **P4 — SECONDARY, Holm family of 3.** `graph-facts` uses fewer context tokens than `grep` at
 equal or better EM, per tier. Context is `input + cache_read + cache_creation` minus the measured
 zero-context harness baseline, so that CLI overhead is not counted as corpus the model read.
+**The conjunction is tested, not just the token half**: a cell is `supported` only when the token
+difference is significant AND the paired EM difference's interval does not exclude zero from
+below. Without that, an arm could win P4 by being cheap and wrong.
 
 **P5 — ADVERSARIAL, registered because the author does not want it to be true.**
 `graph-facts` does NOT exceed `dense` on EM on any tier. If the graph loses to dense at answering
@@ -174,6 +220,14 @@ injection rather than hop-shifting, and "the graph rescues weak models" is unsup
 max-turn exhaustion rate is high. Then the control is broken and NO arm comparison is reported at
 all until it is fixed.
 
+**F6 — the walk is doing nothing and the seed match is doing everything.** `recall()` seeds by
+matching entity names and aliases against the question text, so `graph-facts` could be lexical
+retrieval wearing arrow notation. §9's decomposition adjudicates it: **if answer presence under
+the shipped walk exceeds the seed-only neighbourhood by 0.05 or less, OR exceeds the
+edge-permuted placebo by 0.05 or less, then any P1 win is labelled SEED-MATCH, NOT WALK and the
+entry leads with that whatever the EM table says.** Measured on the partial graph before
+tagging, for reference: seed-only 0.07, shipped 0.27, placebo 0.10.
+
 **F5 — P5 fires the other way**: `graph-facts` beats `dense` on EM while losing to it on R@2.
 Ranking quality and answering quality would have come apart, which would be the most interesting
 result in the whole sequence. It gets its own section and an explicit statement that it needs
@@ -202,6 +256,11 @@ capability difference and the grep arm is mechanically more exposed to it. `time
 `api_error` are retried once, then excluded from the denominator and reported as a rate; scoring
 infrastructure flakiness as a wrong answer would penalise the arm that takes longer.
 
+**`no_json` is a registered outcome**, not an untracked one. It covers a process that produced
+no parseable result and any unexpected harness exception. It is retried once, then excluded from
+the denominator like the other infrastructure outcomes, and its rate is reported per arm — the
+grep arm, being the only one with long transcripts and a turn cap, is the most exposed to it.
+
 **Jobs are interleaved across arms with seed 20260828** before submission. A run of thousands of
 calls spans hours, service conditions drift over hours, and emitting one arm at a time would let
 that drift land on one arm and be read as an arm effect.
@@ -217,4 +276,36 @@ that drift land on one arm and be read as an arm effect.
   calls, tokens, dollars, wall time and model tier, plus cost amortised per question. A method
   that wins at query time by spending more at build time has not won until both are on the page.
 - The underpowered prediction is labelled, never folded into the nulls.
-- If F2 or F4 fires, the entry leads with it.
+- If F2, F4 or F6 fires, the entry leads with it.
+
+**The seed-versus-walk decomposition, registered here and computed with no model calls:**
+answer presence at hops=0 (seed neighbourhood only), at the shipped configuration, over an
+edge-permuted placebo graph with the same nodes and degrees, and with the extractor's free-text
+entity descriptions removed. Answer presence is the rate at which the gold answer STRING appears
+in the injection: a necessary condition for answering by copying, and therefore a ceiling on the
+arm's EM under a copy-only model. **If measured `graph-facts` EM exceeds it, the arm is answering
+from parametric memory rather than from the injection, and that is reported explicitly.**
+
+**The realised depth histogram of injected triples is a mandatory diagnostic.** The walk is run
+at `hops=3, top_k=8` with NO depth reservation, which is the prior art's own configuration.
+Review found a flat top-k cut makes `hops` nearly decorative, and a depth-reserved variant was
+written and measured before this was fixed. Both numbers are disclosed rather than buried:
+reserve=0 gives 28% of injected triples at depth ≥ 1 and answer presence 0.26; reserve=4 gives
+55% at depth ≥ 1 and answer presence 0.18. **Fidelity decided this, not the score** — improving
+on the prior art's mechanism would be a different experiment — and the reserved variant is
+reported as an exploratory sensitivity. If the shipped walk delivers almost nothing beyond depth
+1, then "the graph walks the hops" is a claim the design does not keep, and that is a finding.
+
+**Extraction yield is reported in the headline table, and gates interpretation.** The graph is
+only as real as the documents that parsed. `gold_docs_in_graph ∈ {0,1,2}` is computed per
+question and `graph-facts` is reported stratified on it. **If yield falls below 90%, F1 reports
+as "unfalsifiable at this extraction yield" rather than as a graph loss** — a null would
+otherwise be equally consistent with "graphs do not move hops" and "haiku could not emit valid
+JSON for much of the corpus".
+
+**Two honesty notes on the contamination stratum.** The closed-book probe measures answer-level
+parametric recall only; dataset-level memorisation — recognising the item as HotpotQA — is not
+separable at this n. And stratum membership is a ONE-DRAW measurement of a stochastic model, so
+a question answered correctly by luck is excluded and one missed by luck is included. Regression
+to the mean makes every arm look better on the resistant subset, equally. Resistant-subset
+results are exploratory only.

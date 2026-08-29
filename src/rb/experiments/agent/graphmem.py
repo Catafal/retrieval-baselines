@@ -202,24 +202,59 @@ def build(extraction_jsonl: Path, db_path: Path) -> dict:
 
 @dataclass
 class Facts:
-    triples: list
+    triples: list          # (source, predicate, target, source_doc, depth)
     notes: list
     ms: float
     seeds: int
 
-    def as_text(self) -> str:
-        """The starter's exact injection format, so the arm reproduces its shape."""
+    def depth_histogram(self) -> dict:
+        h = {}
+        for *_, d in self.triples:
+            h[int(d)] = h.get(int(d), 0) + 1
+        return h
+
+    def lines(self) -> list[str]:
+        """The injection as separate blocks, so the shared token budget can actually cut it.
+
+        Returned as lines rather than one string because arms.fit_budget never splits a block:
+        handing it a single blob meant the graph arm was the one injected arm the 400-token
+        budget did not bind on, which review measured at up to 569 tokens.
+        """
         if not self.triples:
-            return "memory: no facts recalled for this question"
-        width = max(len(f"{s} --[{p}]--> {t}") for s, p, t, _ in self.triples)
-        lines = [f"{f'{s} --[{p}]--> {t}':<{width}}   ({doc})" for s, p, t, doc in self.triples]
-        text = f"memory: {len(self.triples)} facts recalled\n\n" + "\n".join(lines)
+            return ["memory: no facts recalled for this question"]
+        width = max(len(f"{s} --[{p}]--> {t}") for s, p, t, _, _ in self.triples)
+        out = [f"memory: {len(self.triples)} facts recalled"]
+        out += [f"{f'{s} --[{p}]--> {t}':<{width}}   ({doc})"
+                for s, p, t, doc, _ in self.triples]
         if self.notes:
-            text += "\n\nwhere:\n" + "\n".join(f"  {n}: {d}" for n, d in self.notes)
-        return text
+            out.append("where:")
+            out += [f"  {n}: {d}" for n, d in self.notes]
+        return out
+
+    def as_text(self) -> str:
+        return "\n".join(self.lines())
 
 
-def recall(db_path: Path, question: str, hops: int = 3, top_k: int = 8) -> Facts:
+# Slots reserved for triples the walk had to traverse to reach. REGISTERED AT 0, which is the
+# prior art's own configuration: `ORDER BY near` with a flat top_k cut and no reservation.
+#
+# Review found that a flat cut makes `hops` nearly decorative -- answer presence was identical
+# at hops=1, 2 and 3 -- and a reservation was written to force deeper facts through. Both were
+# then measured on the partial graph BEFORE this constant was fixed, and that measurement is
+# disclosed rather than buried: reserve=0 gives 28% of injected triples at depth>=1 and answer
+# presence 0.26; reserve=4 gives 55% at depth>=1 and answer presence 0.18.
+#
+# The reserve is the better retrieval config and it is NOT the registered one. Fidelity decides
+# this, not the score: 006 exists to test the prior art's mechanism, and improving on that
+# mechanism would be a different experiment. The reserve ships as an exploratory sensitivity,
+# and the realised depth histogram is a mandatory reported diagnostic -- because if the walk
+# delivers almost nothing beyond depth 1, then "the graph walks the hops" is a claim about the
+# design that the design does not keep, and that is a finding rather than a bug.
+DEPTH_RESERVE = 0
+
+
+def recall(db_path: Path, question: str, hops: int = 3, top_k: int = 8,
+           depth_reserve: int = DEPTH_RESERVE) -> Facts:
     """Seed on any entity name or alias occurring in the question, then walk. No model call."""
     t0 = time.perf_counter()
     db = sqlite3.connect(db_path)
@@ -234,11 +269,22 @@ def recall(db_path: Path, question: str, hops: int = 3, top_k: int = 8) -> Facts
         if re.search(rf"\b{re.escape(t)}\b", q):
             seeds[eid] = True
     if not seeds:
+        db.close()
         return Facts([], [], (time.perf_counter() - t0) * 1000, 0)
+
     marks = ",".join("?" * len(seeds))
     rows = db.execute(WALK.format(seeds=marks), (*seeds, hops)).fetchall()
-    triples = [(s, p, t, doc) for s, p, t, doc, _ in rows[:top_k]]
-    names = {n for s, _, t, _ in triples for n in (s, t)}
+
+    # Depth-stratified cut: fill the reserved slots from depth >= 1 first, then take the
+    # nearest facts for whatever remains. Ordering within each stratum is unchanged.
+    near = [(s, p, t, doc, d) for s, p, t, doc, d in rows if (d or 0) >= 1]
+    shallow = [(s, p, t, doc, d) for s, p, t, doc, d in rows if (d or 0) < 1]
+    reserved = near[:min(depth_reserve, top_k)]
+    triples = reserved + shallow[:top_k - len(reserved)]
+    if len(triples) < top_k:                     # corpus had too few shallow facts
+        triples += near[len(reserved):len(reserved) + (top_k - len(triples))]
+
+    names = {n for s, _, t, _, _ in triples for n in (s, t)}
     notes = []
     if names:
         m = ",".join("?" * len(names))

@@ -113,11 +113,11 @@ def mde(n: int, disc: float, interaction_test: bool = False) -> float:
     if n <= 0:
         return float("inf")
     base = 2.8016 * (disc / n) ** 0.5
-    return round(base * (2 ** 0.5 if interaction_test else base / base), 4) if not interaction_test \
-        else round(base * (2 ** 0.5), 4)
+    return round(base * (2 ** 0.5 if interaction_test else 1.0), 4)
 
 
-def decide(c: dict, mde_value: float, underpowered_allowed: bool) -> str:
+def decide(c: dict, mde_value: float, underpowered_allowed: bool,
+           alpha: float = 0.05) -> str:
     """`supported` / `no_advantage` / `underpowered`.
 
     A cell may only report `underpowered` if the protocol registered it as such in advance.
@@ -127,7 +127,12 @@ def decide(c: dict, mde_value: float, underpowered_allowed: bool) -> str:
     if not c.get("resolved"):
         return "unresolved"
     lo, hi = c["ci95"]
-    if lo > 0:
+    # Both conditions, because either alone is gameable: an interval clear of zero says the
+    # effect is there, and the Holm-adjusted p says it survives its own family. A cell that
+    # reported `supported` on the interval while its adjusted p exceeded alpha would make the
+    # registered family decorative, which is what review found this function doing.
+    p_adj = c.get("p_holm", c.get("p_value", 1.0))
+    if lo > 0 and p_adj <= alpha:
         return "supported"
     if underpowered_allowed and lo <= 0 <= hi and (hi - lo) > mde_value:
         return "underpowered"
@@ -172,6 +177,82 @@ def arm_table(idx: dict, qids: list[str]) -> list[dict]:
     return rows
 
 
+def answer_presence(db_path, questions: list[dict], hops: int = 3, top_k: int = 8) -> dict:
+    """Seed-vs-walk decomposition. No model calls; computed from the graph and the sample.
+
+    The deepest threat to this experiment is that `graph-facts` is lexical retrieval wearing
+    arrow notation: recall() seeds by matching entity names and aliases against the question,
+    so if the seed match already carries the answer, the walk is decorative and the arm is a
+    string matcher. These four numbers separate the cases, and each is the rate at which the
+    gold answer STRING appears in the injection -- a necessary condition for answering by
+    copying, and therefore a ceiling on the arm's EM under a copy-only model.
+
+      a0        hops=0: the seed neighbourhood alone
+      a3        the shipped configuration
+      a3_shuf   the same walk over a target-permuted copy of the edges. Same nodes, same
+                seeding, same size, no true structure. This is the placebo: if the real graph
+                does not beat it, the edges carry nothing a random graph does not.
+      triples_only   the walk's edges without the extractor's free-text entity descriptions
+
+    Registered decision rule, protocol 006 F6: if a3 - a0 <= 0.05, or a3 - a3_shuf <= 0.05,
+    any P1 win is labelled SEED-MATCH, NOT WALK, and the entry leads with that whatever the
+    EM table says.
+    """
+    import random
+    import sqlite3
+    import tempfile
+    from pathlib import Path as _P
+
+    from rb.experiments.agent import graphmem
+
+    def rate(db, h, k, strip_notes=False):
+        hit = 0
+        for q in questions:
+            f = graphmem.recall(db, q["question"], hops=h, top_k=k)
+            text = "\n".join(f.lines())
+            if strip_notes:
+                text = text.split("where:")[0]
+            if q["answer"].lower() in text.lower():
+                hit += 1
+        return round(hit / max(len(questions), 1), 4)
+
+    # The placebo graph: permute edge targets, preserving each source's degree and the node set.
+    shuf = _P(tempfile.mkdtemp()) / "placebo.db"
+    src = sqlite3.connect(db_path)
+    dst = sqlite3.connect(shuf)
+    src.backup(dst)
+    rows = list(dst.execute("SELECT rowid, target_id FROM relations"))
+    targets = [t for _, t in rows]
+    random.Random(SEED).shuffle(targets)
+    dst.executemany("UPDATE relations SET target_id=? WHERE rowid=?",
+                    [(t, r) for (r, _), t in zip(rows, targets)])
+    dst.commit()
+    dst.close()
+    src.close()
+
+    hist, seeded, empty = {}, 0, 0
+    for q in questions:
+        f = graphmem.recall(db_path, q["question"], hops=hops, top_k=top_k)
+        for d, c in f.depth_histogram().items():
+            hist[d] = hist.get(d, 0) + c
+        seeded += bool(f.seeds)
+        empty += not f.triples
+    total = sum(hist.values()) or 1
+
+    a0, a3, a3s = rate(db_path, 0, top_k), rate(db_path, hops, top_k), rate(shuf, hops, top_k)
+    return {"seed_rate": round(seeded / len(questions), 4),
+            "empty_recall": empty,
+            "a0_seed_only": a0, "a3_shipped": a3, "a3_edge_placebo": a3s,
+            "a3_triples_only": rate(db_path, hops, top_k, strip_notes=True),
+            "walk_over_seed": round(a3 - a0, 4),
+            "walk_over_placebo": round(a3 - a3s, 4),
+            "depth_histogram": dict(sorted(hist.items())),
+            "share_depth_ge_1": round(sum(v for k, v in hist.items() if k >= 1) / total, 4),
+            "share_depth_ge_2": round(sum(v for k, v in hist.items() if k >= 2) / total, 4),
+            "verdict": ("seed-match, not walk" if (a3 - a0) <= 0.05 or (a3 - a3s) <= 0.05
+                        else "walk contributes beyond seed match and beyond placebo")}
+
+
 def run(scored: list[dict], qids: list[str]) -> dict:
     idx = index(scored)
 
@@ -205,15 +286,20 @@ def run(scored: list[dict], qids: list[str]) -> dict:
     p3["mde"] = mde(p3.get("n", 0), p3_disc, interaction_test=True)
     p3["decision"] = decide(p3, p3["mde"], underpowered_allowed=True)
 
-    # P4 context tokens, family of 3. Lower is better, so the sign is inverted relative to EM.
-    p4 = []
-    for m in TIERS:
-        a, b, kept = paired(idx, "grep", "graph-facts", m, qids, "context_tokens_net")
-        p4.append(contrast(idx, "grep", "graph-facts", m, qids, "context_tokens_net")
-                  if kept else {"model": m, "resolved": False, "reason": "field missing"})
+    # P4 context tokens, family of 3. grep minus graph-facts, so a POSITIVE difference means
+    # the graph arm read less. The prediction is conjunctive -- fewer tokens AT EQUAL OR BETTER
+    # EM -- and testing only the token half, as this did until review, would let an arm "win"
+    # P4 by being cheap and wrong.
+    p4 = [contrast(idx, "grep", "graph-facts", m, qids, "context_tokens_net") for m in TIERS]
     ps = holm_adjusted([c.get("p_value", 1.0) for c in p4])
-    for c, ph in zip(p4, ps):
+    for c, ph, m in zip(p4, ps, TIERS):
         c["p_holm"] = ph
+        em_c = contrast(idx, "graph-facts", "grep", m, qids, "em")
+        c["em_not_worse"] = bool(em_c.get("resolved") and em_c["ci95"][1] >= 0)
+        c["em_diff"] = em_c.get("mean_diff")
+        tokens_lower = c.get("resolved") and c["ci95"][0] > 0 and ph <= 0.05
+        c["decision"] = ("supported" if tokens_lower and c["em_not_worse"]
+                         else "no_advantage" if c.get("resolved") else "unresolved")
 
     # P5 adversarial: graph-facts vs dense.
     p5 = [contrast(idx, "graph-facts", "dense", m, qids) for m in TIERS]
