@@ -73,7 +73,7 @@ def main(dry: bool = False) -> None:
             print(f"  {i}/{n}  {time.time()-t0:5.0f}s  last={c.arm}/{c.model}/{c.outcome}",
                   flush=True)
 
-    calls = runner.run_all(jobs, OUT / "calls.jsonl", workers=24, on_done=prog)
+    calls = runner.run_all(jobs, OUT / "calls.jsonl", workers=12, on_done=prog)
     print(f"ran {len(calls)} calls in {time.time()-t0:.0f}s", flush=True)
 
     gold = {q.id: q.answer for q in qs}

@@ -45,7 +45,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
 CLAUDE = shutil.which("claude") or "claude"
-TIMEOUT_S = 600
+TIMEOUT_S = 900
 
 # Applied to every arm without exception. Any difference between arms must come from the
 # prompt, the tool grant or the corpus -- never from the harness configuration.
