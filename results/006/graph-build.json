@@ -1,0 +1,17 @@
+{
+  "extractor_model": "haiku",
+  "docs": 990,
+  "calls": 576,
+  "errors": 0,
+  "cost_usd": 28.4465,
+  "input_tokens": 6517329,
+  "output_tokens": 4694191,
+  "wall_s": 4136.6,
+  "docs_parsed": 990,
+  "docs_unparseable": 0,
+  "node_mentions": 8827,
+  "distinct_entities": 7209,
+  "edges": 8305,
+  "edges_dropped_dangling": 2,
+  "aliases": 1837
+}

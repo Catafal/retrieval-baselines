@@ -1,0 +1,902 @@
+[
+  {
+    "id": "5a7184675542994082a3e864",
+    "question": "What is the manufacturer of the car used by the Ford CD2 platform's design inspiration?",
+    "answer": "Mazda",
+    "gold": [
+      "Ford CD2 platform",
+      "Mazda Capella"
+    ]
+  },
+  {
+    "id": "5a7248665542990c210a40b1",
+    "question": "What is the colloquial name of the professional football team in which striker Frederico Chaves Guedos played? ",
+    "answer": "Rooster",
+    "gold": [
+      "Fred (footballer)",
+      "Clube Atl\u00e9tico Mineiro"
+    ]
+  },
+  {
+    "id": "5a730abe5542994cef4bc42f",
+    "question": "What \"sport\" involving animals dates all the way back to the Tang Dynasty and continued to the beginning of the 19th century?",
+    "answer": "Cricket fighting",
+    "gold": [
+      "Crickets as pets",
+      "Cricket fighting"
+    ]
+  },
+  {
+    "id": "5a7360235542991f29ee2dc7",
+    "question": "What types of activities occur in both the Bennington and Bridgewater Triangles?",
+    "answer": "alleged paranormal phenomena",
+    "gold": [
+      "Bennington Triangle",
+      "Bridgewater Triangle"
+    ]
+  },
+  {
+    "id": "5a73f2035542993a88ae2ea8",
+    "question": "What song was created by the group consisting of Jeffrey Jey, Maurizio Lobina and Gabry Ponte and released on 15 January 1999?",
+    "answer": "Blue",
+    "gold": [
+      "Blue (Da Ba Dee)",
+      "Eiffel 65"
+    ]
+  },
+  {
+    "id": "5a75642c5542996c70cfaeed",
+    "question": "Where is the investment firm that acquired TI Automotive in 2015 headquartered?",
+    "answer": "Boston, Massachusetts",
+    "gold": [
+      "TI Automotive",
+      "Bain Capital"
+    ]
+  },
+  {
+    "id": "5a7571095542992d0ec05f97",
+    "question": "Which \"Mirrors\" actress made her film debut in the 2005 comedy film \"Hitch\"?",
+    "answer": "Paula Maxine Patton",
+    "gold": [
+      "Mirrors (film)",
+      "Paula Patton"
+    ]
+  },
+  {
+    "id": "5a75d8a3554299109176e5a6",
+    "question": "What league, which is also known as the Barclays Premier League, had its start date pushed back?",
+    "answer": "The 2013\u201314 Premier League",
+    "gold": [
+      "Game 39",
+      "2013\u201314 Premier League"
+    ]
+  },
+  {
+    "id": "5a75e29f5542992d0ec0600c",
+    "question": "What Actor whose birth name was Charles Dennis Buchinsky, was part of the Leslie Nielsen comedy?",
+    "answer": "Charles Bronson",
+    "gold": [
+      "Allan A. Goldstein",
+      "Charles Bronson"
+    ]
+  },
+  {
+    "id": "5a7647b85542992d0ec0608a",
+    "question": "What street was the adult entertainment district of the Liberty Tree District centered on?",
+    "answer": "Washington Street",
+    "gold": [
+      "Liberty Tree District",
+      "Combat Zone, Boston"
+    ]
+  },
+  {
+    "id": "5a7796e05542992a6e59df0f",
+    "question": "What country is the theme park served by the Huis Ten Bosch train service themed on?",
+    "answer": "Netherlands",
+    "gold": [
+      "Huis Ten Bosch (train)",
+      "Huis Ten Bosch (theme park)"
+    ]
+  },
+  {
+    "id": "5a77b6c85542992a6e59df96",
+    "question": "What professional baseball player who played for the Brooklyn Robbins in 1928 and 1929, attended college in Denton, Texas?",
+    "answer": "Walter Maxwell West Sr.",
+    "gold": [
+      "Max West (1920s outfielder)",
+      "University of North Texas"
+    ]
+  },
+  {
+    "id": "5a77ba6c55429967ab10524c",
+    "question": "When was the director of an American short slasher film with French-speaking serial killers that was released on October 31, 2011 born?",
+    "answer": "June 11, 1986",
+    "gold": [
+      "Maniac (2011 film)",
+      "Shia LaBeouf"
+    ]
+  },
+  {
+    "id": "5a7914e155429974737f7973",
+    "question": "What is the birthday of the oldest among Vicente Garc\u00eda and Ximena Sari\u00f1ana?",
+    "answer": "March 30, 1983",
+    "gold": [
+      "Vicente Garc\u00eda (musician)",
+      "Ximena Sari\u00f1ana"
+    ]
+  },
+  {
+    "id": "5a7b43735542992d025e67cb",
+    "question": "what type of media does Ratatouille and PlayStation 3 have in common?",
+    "answer": "video game",
+    "gold": [
+      "Ratatouille (video game)",
+      "PlayStation 3"
+    ]
+  },
+  {
+    "id": "5a7c4a6455429907fabeef53",
+    "question": "Before moving to Boston to play at the New England Patriots, in which city did Dean Caliguire play his college and NFL football?",
+    "answer": "Pittsburgh",
+    "gold": [
+      "Dean Caliguire",
+      "New England Patriots"
+    ]
+  },
+  {
+    "id": "5a7f1d3c5542993067513639",
+    "question": "Which European based oil giant bought the commodities trading arm of J.P. Morgan in 2014?",
+    "answer": "Mercuria Energy Group Ltd",
+    "gold": [
+      "Claude Wilfrid Etoka",
+      "Mercuria Energy Group"
+    ]
+  },
+  {
+    "id": "5a7f7e3a5542992097ad2f89",
+    "question": "What actor appeared in \"Evening in Byzantium\" and was nominated for the Academy Award for Best Supporting Actor in 1973 for \"The Heartbreak Kid\"?",
+    "answer": "Edward Albert Heimberger",
+    "gold": [
+      "Evening in Byzantium",
+      "Eddie Albert"
+    ]
+  },
+  {
+    "id": "5a828c8355429966c78a6a50",
+    "question": "Kaiser Ventures corporation was founded by an American industrialist who became known as the father of modern American shipbuilding?",
+    "answer": "Henry J. Kaiser",
+    "gold": [
+      "Kaiser Ventures",
+      "Henry J. Kaiser"
+    ]
+  },
+  {
+    "id": "5a82930655429966c78a6a5e",
+    "question": "Which season did the UCF Knights represent at an American metropolitan public research university in Orlando, Florida?",
+    "answer": "2010 NCAA Division",
+    "gold": [
+      "2010 UCF Knights football team",
+      "University of Central Florida"
+    ]
+  },
+  {
+    "id": "5a837d9a554299123d8c213e",
+    "question": "Which cast member of Alice Upside Down also stars in the ABC Family/Freeform drama \"Switched at Birth?\"",
+    "answer": "Lucas Stephen Grabeel",
+    "gold": [
+      "Alice Upside Down",
+      "Lucas Grabeel"
+    ]
+  },
+  {
+    "id": "5a840a9e5542992ef85e2397",
+    "question": "What is this group referred to as that this Russian composer, who wrote \"The Songs and Dances of Death,\" is a member of?",
+    "answer": "The Five",
+    "gold": [
+      "The SoLow Project",
+      "Modest Mussorgsky"
+    ]
+  },
+  {
+    "id": "5a8530cc5542992a431d1aeb",
+    "question": "The university which David R. Marchant was a member of in 1994 is located in what city?",
+    "answer": "Orono",
+    "gold": [
+      "Marchant Glacier",
+      "University of Maine"
+    ]
+  },
+  {
+    "id": "5a85fb085542994775f606de",
+    "question": "What is the name of the executive producer of the film that has a score composed by Jerry Goldsmith?",
+    "answer": "Ronald Shusett",
+    "gold": [
+      "Alien (soundtrack)",
+      "Alien (film)"
+    ]
+  },
+  {
+    "id": "5a89bcc85542992e4fca83a7",
+    "question": "What uniform number was the umpire wearing when \"Pudge\" hit a home run in Game 6 of the 1975 World Series?",
+    "answer": "4",
+    "gold": [
+      "Satch Davidson",
+      "Carlton Fisk"
+    ]
+  },
+  {
+    "id": "5a8b6a5155429949d91db5a3",
+    "question": "During the Miss USA 2015, Olivia Jordan of Oklahoma was crowned by which American television host, model, taekwondo coach, and beauty queen who won Miss USA 2014?",
+    "answer": "Nia Sanchez",
+    "gold": [
+      "Miss USA 2015",
+      "Nia Sanchez"
+    ]
+  },
+  {
+    "id": "5a8cfee555429941ae14df5c",
+    "question": "How are elephants connected to Gajabrishta?",
+    "answer": "Sanskrit",
+    "gold": [
+      "Gajabrishta",
+      "Elephant"
+    ]
+  },
+  {
+    "id": "5a8d5fc6554299585d9e37c6",
+    "question": "What's the name of the fantasy film starring Sarah Bolger, featuring a New England family who discover magical creatures around their estate?",
+    "answer": "The Spiderwick Chronicles",
+    "gold": [
+      "Sarah Bolger",
+      "The Spiderwick Chronicles (film)"
+    ]
+  },
+  {
+    "id": "5a8da70a5542994ba4e3dcea",
+    "question": "Ashly Burch is known for voicing Aloy in a video game released in what year?",
+    "answer": "2017",
+    "gold": [
+      "Ashly Burch",
+      "Horizon Zero Dawn"
+    ]
+  },
+  {
+    "id": "5a8db788554299653c1aa145",
+    "question": "Which male singer performed together with a female American singer, who was born in 1954 and whose third studio album was named Through His Eyes, have a hit duet with in 1985?",
+    "answer": "Phil Collins",
+    "gold": [
+      "Through His Eyes",
+      "Marilyn Martin"
+    ]
+  },
+  {
+    "id": "5a8dbc8b554299441c6ba077",
+    "question": "Spring Waltz starred the American actor who is known for what 2007 film?",
+    "answer": "My Father",
+    "gold": [
+      "Spring Waltz",
+      "Daniel Henney"
+    ]
+  },
+  {
+    "id": "5a8ec4875542995a26add508",
+    "question": "What county was Tom Hewitt born in?",
+    "answer": "Ravalli County, Montana",
+    "gold": [
+      "Tom Hewitt (actor)",
+      "Victor, Montana"
+    ]
+  },
+  {
+    "id": "5a8f5b6f554299458435d5e7",
+    "question": "Sand Mountainis part of the southern tip of a mountain chain in which part of North America ?",
+    "answer": "eastern North America",
+    "gold": [
+      "Sand Mountain (Alabama)",
+      "Appalachian Mountains"
+    ]
+  },
+  {
+    "id": "5a8f6b7c5542992414482abc",
+    "question": "What was the original name of the female singing group that recorded \"The Happening\"?",
+    "answer": "The Primettes",
+    "gold": [
+      "The Happening (song)",
+      "The Supremes"
+    ]
+  },
+  {
+    "id": "5a8fbfcd5542997ba9cb3316",
+    "question": "Philip Kraft lectured at the largest university in what European country?",
+    "answer": "Switzerland",
+    "gold": [
+      "Philip Kraft",
+      "University of Zurich"
+    ]
+  },
+  {
+    "id": "5a906a685542990a9849362e",
+    "question": "Where was the world cup hosted that Algeria qualified for the first time into the round of 16?",
+    "answer": "Brazil",
+    "gold": [
+      "Algeria at the FIFA World Cup",
+      "2014 FIFA World Cup"
+    ]
+  },
+  {
+    "id": "5ab262a4554299340b5254ac",
+    "question": "What was Richard Connell's best known work The Hounds of Zaroff also published as?",
+    "answer": "The Most Dangerous Game",
+    "gold": [
+      "Seven Faces",
+      "The Most Dangerous Game"
+    ]
+  },
+  {
+    "id": "5ab29e87554299194fa9346e",
+    "question": "When Jeris Pendleton was first drafted out of college, what was the name of the field that him and his teammates played their home games on?",
+    "answer": "EverBank Field",
+    "gold": [
+      "Jeris Pendleton",
+      "Jacksonville Jaguars"
+    ]
+  },
+  {
+    "id": "5ab67aba55429954757d32e7",
+    "question": "The Battle of Nanchang was fought between the Chinese Nationals and what ground-based armed force of Japan?",
+    "answer": "Imperial Japanese Army",
+    "gold": [
+      "Battle of Nanchang",
+      "Imperial Japanese Army"
+    ]
+  },
+  {
+    "id": "5ab7ccf455429928e1fe3910",
+    "question": "What was the 2010 population of the town where Lake George Avenue Historic District is located?",
+    "answer": "5,042",
+    "gold": [
+      "Lake George Avenue Historic District",
+      "Ticonderoga, New York"
+    ]
+  },
+  {
+    "id": "5ab7f7465542993667794071",
+    "question": "What type of engine powered both the Saab 36 and the Avro Vulcan?",
+    "answer": "British Bristol Olympus turbojet",
+    "gold": [
+      "Saab 36",
+      "Avro Vulcan"
+    ]
+  },
+  {
+    "id": "5ab928c255429934fafe6e6e",
+    "question": "Die Nacht was composed by German composer, Richard Strauss. What other well known operas did he compose?",
+    "answer": "Der Rosenkavalier",
+    "gold": [
+      "Die Nacht (Strauss)",
+      "Richard Strauss"
+    ]
+  },
+  {
+    "id": "5ab92e02554299753720f775",
+    "question": "What was the largest passenger capacity of the plane type used for BOAC Flight 911 ?",
+    "answer": "219",
+    "gold": [
+      "BOAC Flight 911",
+      "Boeing 707"
+    ]
+  },
+  {
+    "id": "5ab965bb554299743d22eb56",
+    "question": "National Stadium BTS Station is near the shopping center in what Thai city?",
+    "answer": "Bangkok",
+    "gold": [
+      "National Stadium BTS Station",
+      "Siam Center"
+    ]
+  },
+  {
+    "id": "5ab96bf15542996be20204d8",
+    "question": "Who was the biological father of the emperor who built the Nemi Ships?",
+    "answer": "Germanicus",
+    "gold": [
+      "Nemi ships",
+      "Caligula"
+    ]
+  },
+  {
+    "id": "5ab9c7c355429939ce03dc17",
+    "question": "What regular performer at the R-26 club in Paris was known for her banana-themed costume?",
+    "answer": "Josephine Baker",
+    "gold": [
+      "R-26 (salon)",
+      "Josephine Baker"
+    ]
+  },
+  {
+    "id": "5aba05cb55429939ce03dc56",
+    "question": "Tigerair is a budget airline and subsidiary of what Singaporean flag carrier?",
+    "answer": "Singapore Airlines Limited",
+    "gold": [
+      "Tigerair",
+      "Singapore Airlines"
+    ]
+  },
+  {
+    "id": "5aba0c2655429955dce3edb7",
+    "question": "A golfer born in 1993 participated in which tournament?",
+    "answer": "2015 FedEx Cup",
+    "gold": [
+      "2015 Masters Tournament",
+      "Jordan Spieth"
+    ]
+  },
+  {
+    "id": "5abb8e2d554299642a094aa4",
+    "question": "An actor who appeared in all eight \"American Pie Films\" stared alongside which actor in Armed and Dangerous? ",
+    "answer": "John Candy",
+    "gold": [
+      "Armed and Dangerous (1986 film)",
+      "Eugene Levy"
+    ]
+  },
+  {
+    "id": "5abbaed855429931dba144aa",
+    "question": "What day in November is Southpark most congested?",
+    "answer": "the fourth Thursday",
+    "gold": [
+      "SouthPark Mall (Charlotte, North Carolina)",
+      "Black Friday (shopping)"
+    ]
+  },
+  {
+    "id": "5abbc3a955429931dba144f9",
+    "question": "Where is the first major improved highway located?",
+    "answer": "Wheeling, West Virginia",
+    "gold": [
+      "Mount Echo, West Virginia",
+      "National Road"
+    ]
+  },
+  {
+    "id": "5abbd2575542993f40c73bbd",
+    "question": "Petroglyphs on Ingaro isalnd indicate it has been innhabited since an era that lasted until what year?",
+    "answer": "500 BC",
+    "gold": [
+      "Ingar\u00f6",
+      "Nordic Bronze Age"
+    ]
+  },
+  {
+    "id": "5abc0dfe55429959677d6a05",
+    "question": "Who co-starred alongside John Wayne in the 1951 World War II submarine film Operation Pacific?",
+    "answer": "Ward Bond",
+    "gold": [
+      "Operation Pacific",
+      "Ward Bond"
+    ]
+  },
+  {
+    "id": "5abce3015542993a06baf995",
+    "question": "Students from approximately how many nations attend the University from which Shawn Ar\u00e9valo McCollough received his Masters of Education ?",
+    "answer": "approximately 85 nations.",
+    "gold": [
+      "Shawn Ar\u00e9valo McCollough",
+      "Georgia Southern University"
+    ]
+  },
+  {
+    "id": "5abe024c5542991f661060a2",
+    "question": "In what city is the football club that Robin Himmelmann is a goalkeeper for based?",
+    "answer": "Hamburg",
+    "gold": [
+      "Robin Himmelmann",
+      "FC St. Pauli"
+    ]
+  },
+  {
+    "id": "5ac0714f554299294b218fe1",
+    "question": "Robert Allen \"Bob\" Case is best known for inspiring the naming of which initial area of low pressure developed off Atlantic Canada on October 29? ",
+    "answer": "1991 Perfect Storm",
+    "gold": [
+      "Robert Case",
+      "1991 Perfect Storm"
+    ]
+  },
+  {
+    "id": "5ac195455542991316484b40",
+    "question": "In what year did the man who shot the Chris Stockley, of The Dingoes, die?",
+    "answer": "1987",
+    "gold": [
+      "The Dingoes",
+      "Dennis Allen (criminal)"
+    ]
+  },
+  {
+    "id": "5ac2616b5542996366519997",
+    "question": "In what country was Cudjoe's leader born?",
+    "answer": "Ghana",
+    "gold": [
+      "Cudjoe",
+      "Nanny of the Maroons"
+    ]
+  },
+  {
+    "id": "5ac2ad5355429921a00ab02c",
+    "question": "Which son of Robin Fox MC, is an English theater and film producer",
+    "answer": "Robert Michael John Fox",
+    "gold": [
+      "Robin Fox (theatrical agent)",
+      "Robert Fox (producer)"
+    ]
+  },
+  {
+    "id": "5ac34fdb554299741d48a24a",
+    "question": "Which TV series directed and written by the same person as \"Buffy the Vampire Slayer\" starred Tahmoh Penikett?",
+    "answer": "Dollhouse",
+    "gold": [
+      "Tahmoh Penikett",
+      "Joss Whedon"
+    ]
+  },
+  {
+    "id": "5ac401bb55429919431738f4",
+    "question": "Who worked on the origins of Mickey Mouse and created Oswald the Lucky Rabbit?",
+    "answer": "Ub Iwerks",
+    "gold": [
+      "Les Clark",
+      "Ub Iwerks"
+    ]
+  },
+  {
+    "id": "5ac4f04e5542995c82c4ad81",
+    "question": "In which of the largest surviving medieval old towns in Europe is the Vilnius Cathedral located?",
+    "answer": "Vilnius Old Town",
+    "gold": [
+      "Vilnius Cathedral",
+      "Vilnius Old Town"
+    ]
+  },
+  {
+    "id": "5ac4f2235542996feb3fe995",
+    "question": "The elder sister of Darleen Carr is best known for her role as which Von Trapp daughter in \"The Sound of Music?\"",
+    "answer": "the eldest Von Trapp daughter",
+    "gold": [
+      "Darleen Carr",
+      "Charmian Carr"
+    ]
+  },
+  {
+    "id": "5ac509e95542994611c8b333",
+    "question": "The chicken is a type of dance pattern that is a change of pace of what dance?",
+    "answer": "the Twist",
+    "gold": [
+      "Chicken (dance)",
+      "Dance move"
+    ]
+  },
+  {
+    "id": "5ac55c135542993e66e82345",
+    "question": "Gorgoroth is a band based in which Norwegian county?",
+    "answer": "Hordaland",
+    "gold": [
+      "Gorgoroth",
+      "Bergen"
+    ]
+  },
+  {
+    "id": "5adcba885542994ed6169bd9",
+    "question": "Performers that have played at the L.B. Amphitheatre include an American rock band that originally formed in Jacksonville, Florida, in 1964, as who?",
+    "answer": "My Backyard",
+    "gold": [
+      "L. B. Day Amphitheatre",
+      "Lynyrd Skynyrd"
+    ]
+  },
+  {
+    "id": "5adcfe5f5542992c1e3a24f0",
+    "question": "Batthyany belongs to a Hungarian family with what Latin meaning?",
+    "answer": "great man",
+    "gold": [
+      "Batthy\u00e1ny",
+      "Magnate"
+    ]
+  },
+  {
+    "id": "5add2ba55542994ed6169ca8",
+    "question": "What college did the English conductor, organist and composer widely regarded as Britain's leading conductor of choral works teach at?",
+    "answer": "Royal College of Music",
+    "gold": [
+      "Frank Bury",
+      "Malcolm Sargent"
+    ]
+  },
+  {
+    "id": "5add4d8f5542997545bbbd25",
+    "question": "What key role did the stadium's snowplow operated play in the game following the Dolphins win against the Minnesota Vikings?",
+    "answer": "cleared a spot on the snowy field specifically for New England kicker John Smith",
+    "gold": [
+      "1982 Miami Dolphins season",
+      "Snowplow Game"
+    ]
+  },
+  {
+    "id": "5add67915542992200553af8",
+    "question": "What was the nickname of the hitman hired by an Italian American Criminal Organization?",
+    "answer": "The Crowned Prince of the Philadelphia Mob",
+    "gold": [
+      "Salvatore Testa",
+      "Philadelphia crime family"
+    ]
+  },
+  {
+    "id": "5ade90aa554299728e26c733",
+    "question": "How does George Abbott's career connect to the drama film Heat Lightning?",
+    "answer": "American theater producer and director, playwright, screenwriter",
+    "gold": [
+      "Heat Lightning (film)",
+      "George Abbott"
+    ]
+  },
+  {
+    "id": "5adf24155542992d7e9f92af",
+    "question": "Richard M\u00fcnch portrayed the German general who served in what capacity during WWII in the 1970 movie Patton?",
+    "answer": "Oberkommando der Wehrmacht",
+    "gold": [
+      "Richard M\u00fcnch (actor)",
+      "Alfred Jodl"
+    ]
+  },
+  {
+    "id": "5adf3a0d5542992d7e9f92e8",
+    "question": "Mesilla Park, New Mexico is located on the south side of the seat of what county?",
+    "answer": "Do\u00f1a Ana",
+    "gold": [
+      "Mesilla Park, New Mexico",
+      "Las Cruces, New Mexico"
+    ]
+  },
+  {
+    "id": "5adf6aca5542993344016c8d",
+    "question": "Ocean Springs School District is located in the city in what Mississippi county?",
+    "answer": "Jackson",
+    "gold": [
+      "Ocean Springs School District",
+      "Ocean Springs, Mississippi"
+    ]
+  },
+  {
+    "id": "5adf8a065542992d7e9f9392",
+    "question": "In what year did the Tornoto International Film Fesitval premiere a movie produced by BBC Films?",
+    "answer": "2011",
+    "gold": [
+      "BBC Films",
+      "Salmon Fishing in the Yemen"
+    ]
+  },
+  {
+    "id": "5adfe6c455429906c02daa85",
+    "question": "Which store in Gurney Paragon was founded in Belgium in 1926?",
+    "answer": "Godiva",
+    "gold": [
+      "Gurney Paragon",
+      "Godiva Chocolatier"
+    ]
+  },
+  {
+    "id": "5adfecd755429942ec259b90",
+    "question": "What year was the magazine that Stanley Bing spent a decade at founded in?",
+    "answer": "1933",
+    "gold": [
+      "Stanley Bing",
+      "Esquire (magazine)"
+    ]
+  },
+  {
+    "id": "5ae0345855429924de1b705f",
+    "question": "Which company owns the hotel on whose premises the Cotal Arena is located ?",
+    "answer": "Las Vegas Sands company.",
+    "gold": [
+      "Cotai Arena",
+      "The Venetian Macao"
+    ]
+  },
+  {
+    "id": "5ae048a255429924de1b708e",
+    "question": "What movie did Pitof direct which had an action-adventure tie-in video game based off of it in 2004?",
+    "answer": "Catwoman",
+    "gold": [
+      "Catwoman (video game)",
+      "Catwoman (film)"
+    ]
+  },
+  {
+    "id": "5ae1319c55429920d5234301",
+    "question": "The tap dancing soloist in My Feet Keep Dancing also starred in what 1935 MGM musical?",
+    "answer": "\"An All-Colored Vaudeville Show\"",
+    "gold": [
+      "My Feet Keep Dancing",
+      "Fayard Nicholas"
+    ]
+  },
+  {
+    "id": "5ae1384355429920d5234329",
+    "question": "Both Tim Conlon and Kehinde Wiley have what type of occupation?",
+    "answer": "artist",
+    "gold": [
+      "Tim Conlon (artist)",
+      "Kehinde Wiley"
+    ]
+  },
+  {
+    "id": "5ae164cf5542997b2ef7d1cd",
+    "question": "What platinum selling track was included on the album \"The Warrior's Code\" with lyrics by Woody Guthrie?",
+    "answer": "I'm Shipping Up to Boston",
+    "gold": [
+      "Dropkick Murphys",
+      "I'm Shipping Up to Boston"
+    ]
+  },
+  {
+    "id": "5ae1e9fd5542997f29b3c1a1",
+    "question": "What is the name of this White House Cheif of Staff, born in 1950, who assumed the role at the same time as Elaine Duke became Secretary of Homeland Security?",
+    "answer": "John Francis Kelly",
+    "gold": [
+      "Elaine Duke",
+      "John F. Kelly"
+    ]
+  },
+  {
+    "id": "5ae256c35542994d89d5b3e9",
+    "question": "The transnational lottery Les Scadding won in 2009 held it's first draw on what date?",
+    "answer": "13 February 2004",
+    "gold": [
+      "Les Scadding",
+      "EuroMillions"
+    ]
+  },
+  {
+    "id": "5ae2ce505542996483e64a72",
+    "question": "In which year was this public research university in which Brock Marion played college football founded?",
+    "answer": "1874",
+    "gold": [
+      "Brock Marion",
+      "University of Nevada, Reno"
+    ]
+  },
+  {
+    "id": "5ae2ff2055429928c4239598",
+    "question": "What was the first comic book written by the writer who had a series developed into a 2010 film with Bruce Willis and Morgan Freeman?",
+    "answer": "Transmetropolitan",
+    "gold": [
+      "Warren Ellis",
+      "Red (2010 film)"
+    ]
+  },
+  {
+    "id": "5ae336495542990afbd1e0e1",
+    "question": "Which German aeronautical engineer concieved the Dornier Aerodyne?",
+    "answer": "Alexander Lippisch",
+    "gold": [
+      "Dornier Aerodyne",
+      "Alexander Lippisch"
+    ]
+  },
+  {
+    "id": "5ae4075b55429970de88d87a",
+    "question": "Who was responsible for the Soviet\u2013Albanian split?",
+    "answer": "Nikita Khrushchev",
+    "gold": [
+      "Soviet\u2013Albanian split",
+      "Nikita Khrushchev"
+    ]
+  },
+  {
+    "id": "5ae499d755429970de88d9ca",
+    "question": "Carroll County, for 12 of the 13 counties, were named for which wealthy Maryland planter?",
+    "answer": "Charles Carroll of Carrollton",
+    "gold": [
+      "Carroll County",
+      "Charles Carroll of Carrollton"
+    ]
+  },
+  {
+    "id": "5ae49bb755429970de88d9d7",
+    "question": "Fash Mosque is 4.5 km away from which mosque originally built by Muhammad?",
+    "answer": "Al-Masjid an-Nabaw\u012b",
+    "gold": [
+      "Fas'h mosque",
+      "Al-Masjid an-Nabawi"
+    ]
+  },
+  {
+    "id": "5ae573b25542990ba0bbb2b4",
+    "question": "Which of the actors starred in \"Sollathaan Ninaikkiren\" was born in 7 November 1954?",
+    "answer": "Kamal Haasan",
+    "gold": [
+      "Sollathaan Ninaikkiren",
+      "Kamal Haasan"
+    ]
+  },
+  {
+    "id": "5ae612f3554299546bf83065",
+    "question": "Which musician who first became famous in the late 1960s and early 1970s is Inner Secrets  the ninth studio album by",
+    "answer": "Carlos Santana",
+    "gold": [
+      "Inner Secrets",
+      "Carlos Santana"
+    ]
+  },
+  {
+    "id": "5ae614215542992663a4f254",
+    "question": "Name an American actress who starred both in High School High and General Hospital.",
+    "answer": "Tia Carrere",
+    "gold": [
+      "High School High",
+      "Tia Carrere"
+    ]
+  },
+  {
+    "id": "5ae618325542996de7b71b56",
+    "question": "Gerald Grosvenor, 6th Duke of Westminster was succeeded by the British aristocrat who is estimated to be worth how much?",
+    "answer": "US$13 billion",
+    "gold": [
+      "Gerald Grosvenor, 6th Duke of Westminster",
+      "Hugh Grosvenor, 7th Duke of Westminster"
+    ]
+  },
+  {
+    "id": "5ae6537c5542991bbc9760c1",
+    "question": "Who produced the 2004 major release sequel of Shrek 2?",
+    "answer": "Andrew Adamson",
+    "gold": [
+      "2004 in film",
+      "Shrek 2"
+    ]
+  },
+  {
+    "id": "5ae69cfe55429908198fa65f",
+    "question": "Reeves Plains Power Station is a proposal from a company owned by who?",
+    "answer": "Chow Tai Fook Enterprises",
+    "gold": [
+      "Reeves Plains Power Station",
+      "Alinta Energy"
+    ]
+  },
+  {
+    "id": "5ae720e9554299572ea54715",
+    "question": "What was Sophia Dallas' husbands name who served under the 11th president of the United States?",
+    "answer": "Vice President George",
+    "gold": [
+      "Sophia Dallas",
+      "James K. Polk"
+    ]
+  },
+  {
+    "id": "5ae733dc5542991e8301cbd1",
+    "question": "This English indie pop band formed in 2005 consisting of Oliver Sims, and also inspired My Wicked Heart is from what city?",
+    "answer": "Wandsworth, London",
+    "gold": [
+      "My Wicked Heart",
+      "The xx"
+    ]
+  },
+  {
+    "id": "5ae7ee41554299540e5a56b0",
+    "question": "Paul Maynard became Rail Minister after the entrance of the Prime Minister who took office in what year?",
+    "answer": "2016",
+    "gold": [
+      "Paul Maynard",
+      "Theresa May"
+    ]
+  },
+  {
+    "id": "5ae8295955429952e35eaa6d",
+    "question": "Henricus Antonius \"Han\" van Meegeren sold a forged painting to a military leader who was the recipient of what?",
+    "answer": "Pour le M\u00e9rite",
+    "gold": [
+      "Han van Meegeren",
+      "Hermann G\u00f6ring"
+    ]
+  }
+]
