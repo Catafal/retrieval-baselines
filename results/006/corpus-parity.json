@@ -1,0 +1,13 @@
+{
+  "note": "Is the small pool a softer problem than 003's? Measured, not assumed. If the 990-document pool were much easier than the 66,581-passage pool, 'small corpus' would be a different task rather than the same task scaled down.",
+  "pool_006": {
+    "docs": 990,
+    "bm25_r2": 0.54,
+    "dense_bge_r2": 0.725
+  },
+  "pool_003": {
+    "docs": 66581,
+    "bm25_r2": 0.549,
+    "dense_bge_r2": 0.6957
+  }
+}

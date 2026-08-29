@@ -1,0 +1,15 @@
+{
+  "n": 100,
+  "answer_in_graph_anywhere": 0.88,
+  "answer_in_shipped_walk": 0.39,
+  "answer_in_walk_top_40": 0.6,
+  "questions_lost_by_extraction": 12,
+  "questions_lost_by_topk_cut": 49,
+  "verdict": "the walk's ranking discards the answer far more often than extraction fails to capture it",
+  "gold_pair_shares_an_entity": 0.93,
+  "gold_pair_connected_within": {
+    "1": 0.95,
+    "2": 0.97,
+    "3": 0.97
+  }
+}

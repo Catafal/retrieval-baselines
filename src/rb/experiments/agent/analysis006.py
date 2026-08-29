@@ -337,6 +337,90 @@ def efficiency(arm_rows: list[dict], presence: dict) -> list[dict]:
     return rows
 
 
+def graph_loss_decomposition(db_path, questions: list[dict], hops: int = 3,
+                             top_k: int = 8, wide_k: int = 40) -> dict:
+    """WHERE the graph arm loses the answer: extraction, or the walk's own top-k cut.
+
+    This is the diagnostic that overturned the first reading of 006. The presence ceiling said
+    the graph's injection carried the gold answer for 0.38 of questions against dense's 0.80,
+    and the obvious inference -- that a cheap extractor had thrown the corpus away -- is wrong.
+    The answer is present SOMEWHERE in the graph for 0.88 of questions. Extraction kept it.
+    What discards it is `ORDER BY near` followed by a flat cut to top_k under a 400-token
+    budget: a ranking step, inside the arm, at query time.
+
+    That matters because it is the same failure 003 through 005 found on the retrieval axis --
+    the graph arm's problem was never the walk's reach, it was which nodes it ranks first --
+    reproduced here on the answering axis by an independent route.
+
+    Also measured: connectivity, so that a ranking claim cannot be confused with a topology
+    one. If the gold documents were not connected, no ranking could help.
+    """
+    import sqlite3
+    from collections import defaultdict
+
+    from rb.experiments.agent import graphmem
+    from rb.experiments.agent.corpus import sample as _sample
+
+    # The pool is rebuilt from the frozen seed rather than carried in questions.json, so the
+    # committed sample file stays a list of questions rather than a copy of the corpus.
+    _, pool = _sample(len(questions), 20260820)
+
+    db = sqlite3.connect(db_path)
+    blob = (" ".join(n or "" for n, in db.execute("SELECT name FROM entities")) + " " +
+            " ".join(d or "" for d, in db.execute("SELECT description FROM entities"))).lower()
+    names = [(e, n) for e, n in db.execute("SELECT id, name FROM entities") if len(n or "") >= 3]
+    adj = defaultdict(set)
+    for a, b in db.execute("SELECT source_id, target_id FROM relations"):
+        adj[a].add(b)
+        adj[b].add(a)
+    db.close()
+
+    def reach(seeds, h):
+        seen, fr = set(seeds), set(seeds)
+        for _ in range(h):
+            nxt = set()
+            for x in fr:
+                nxt |= adj[x]
+            nxt -= seen
+            seen |= nxt
+            fr = nxt
+        return seen
+
+    def ents_in(text: str) -> set:
+        tl = text.lower()
+        return {e for e, n in names if n.lower() in tl}
+
+    in_graph = in_walk = in_wide = 0
+    bridged = 0
+    linked = {1: 0, 2: 0, 3: 0}
+    for q in questions:
+        a = q["answer"].lower()
+        in_graph += a in blob
+        in_walk += a in graphmem.recall(db_path, q["question"], hops, top_k).as_text().lower()
+        in_wide += a in graphmem.recall(db_path, q["question"], hops, wide_k).as_text().lower()
+        # Connectivity, so a ranking claim is not confused with a topology one.
+        ta, tb = (pool.get(q["gold"][0], ""), pool.get(q["gold"][1], ""))
+        if ta and tb:
+            A, B = ents_in(ta), ents_in(tb)
+            bridged += bool(A & B)
+            for h in linked:
+                linked[h] += bool(reach(A, h) & B)
+
+    n = len(questions)
+    out = {"n": n,
+           "answer_in_graph_anywhere": round(in_graph / n, 4),
+           "answer_in_shipped_walk": round(in_walk / n, 4),
+           f"answer_in_walk_top_{wide_k}": round(in_wide / n, 4),
+           "questions_lost_by_extraction": n - in_graph,
+           "questions_lost_by_topk_cut": in_graph - in_walk,
+           "verdict": ("the walk's ranking discards the answer far more often than extraction "
+                       "fails to capture it")}
+    if bridged or any(linked.values()):
+        out["gold_pair_shares_an_entity"] = round(bridged / n, 4)
+        out["gold_pair_connected_within"] = {str(h): round(v / n, 4) for h, v in linked.items()}
+    return out
+
+
 def run(scored: list[dict], qids: list[str]) -> dict:
     idx = index(scored)
 
@@ -432,6 +516,9 @@ def main() -> None:
     a = json.loads((out / "analysis.json").read_text())
     (out / "presence-and-efficiency.json").write_text(json.dumps(
         {"presence": pres, "efficiency": efficiency(a["arms"], pres)}, indent=2) + "\n")
+
+    (out / "graph-loss-decomposition.json").write_text(json.dumps(
+        graph_loss_decomposition(out / "graph.db", questions), indent=2) + "\n")
 
     (out / "extraction-yield.json").write_text(
         json.dumps(extraction_yield(out / "graph.db", questions,
