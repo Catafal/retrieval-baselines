@@ -287,6 +287,56 @@ def extraction_yield(db_path, questions: list[dict], extraction_jsonl) -> dict:
             "interpretable": len(parsed) / max(len(rows), 1) >= 0.90}
 
 
+def presence_all_arms(questions: list[dict], pool: dict, retrieved: dict,
+                      facts: dict, budget: int = 400) -> dict:
+    """Answer-presence for EVERY injected arm, not only the graph.
+
+    F6 ran this check on `graph-facts` alone, which is asymmetric scrutiny of exactly the kind
+    the falsifier discipline exists to prevent elsewhere. Without the comparison arms a reader
+    cannot tell whether a low graph EM means the arm reasons badly or merely that its injection
+    rarely contains the answer -- and those are different findings with different consequences.
+
+    Presence is a ceiling on EM under a copy-only model. EM divided by presence is therefore a
+    crude CONVERSION efficiency: how well an arm turns the evidence it actually delivered into a
+    correct answer. Efficiency above 1 means the model answered beyond its injection, which is
+    parametric memory, and it shows up for more than one arm.
+    """
+    from rb.experiments.agent import arms as _arms
+
+    out = {}
+    for name in ("bm25", "dense"):
+        hit = 0
+        for q in questions:
+            docs = [(t, pool[t]) for t in retrieved[name].get(q["id"], [])]
+            _, inj = _arms.passages(q["question"], docs, budget)
+            hit += q["answer"].lower() in inj.text.lower()
+        out[name] = round(hit / len(questions), 4)
+    hit = 0
+    for q in questions:
+        docs = [(t, pool[t]) for t in q["gold"] if t in pool]
+        _, inj = _arms.passages(q["question"], docs, budget)
+        hit += q["answer"].lower() in inj.text.lower()
+    out["oracle"] = round(hit / len(questions), 4)
+    hit = 0
+    for q in questions:
+        _, inj = _arms.graph_facts(q["question"], facts.get(q["id"], ""), budget)
+        hit += q["answer"].lower() in inj.text.lower()
+    out["graph-facts"] = round(hit / len(questions), 4)
+    return out
+
+
+def efficiency(arm_rows: list[dict], presence: dict) -> list[dict]:
+    """EM divided by the arm's own answer-presence ceiling, per arm and tier."""
+    rows = []
+    for r in arm_rows:
+        c = presence.get(r["arm"])
+        if not c:
+            continue
+        rows.append({"arm": r["arm"], "model": r["model"], "em": r["em"], "ceiling": c,
+                     "efficiency": round(r["em"] / c, 3)})
+    return rows
+
+
 def run(scored: list[dict], qids: list[str]) -> dict:
     idx = index(scored)
 
@@ -371,6 +421,18 @@ def main() -> None:
     (out / "analysis.json").write_text(json.dumps(run(scored, qids), indent=2) + "\n")
     (out / "answer-presence.json").write_text(
         json.dumps(answer_presence(out / "graph.db", questions), indent=2) + "\n")
+    # Presence and conversion efficiency for every injected arm, per the verification council.
+    import pickle  # noqa: F401 - not used; retrieval is reloaded from its committed artifact
+    pool = None
+    from rb.experiments.agent.corpus import sample as _sample
+    _qs, pool = _sample(len(questions), 20260820)
+    retrieved = json.loads((out / "retrieved.json").read_text())
+    facts = json.loads((out / "graph-facts.json").read_text())
+    pres = presence_all_arms(questions, pool, retrieved, facts)
+    a = json.loads((out / "analysis.json").read_text())
+    (out / "presence-and-efficiency.json").write_text(json.dumps(
+        {"presence": pres, "efficiency": efficiency(a["arms"], pres)}, indent=2) + "\n")
+
     (out / "extraction-yield.json").write_text(
         json.dumps(extraction_yield(out / "graph.db", questions,
                                     out / "extraction.jsonl"), indent=2) + "\n")

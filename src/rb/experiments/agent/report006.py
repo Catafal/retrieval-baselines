@@ -63,7 +63,23 @@ def contrast_rows(cells, label_a, label_b) -> str:
     return "\n".join(out)
 
 
-def render(a: dict, build: dict, presence: dict, yld: dict, manifest: dict) -> str:
+def efficiency_table(pe: dict) -> str:
+    """What each arm delivered, against what it did with what it delivered."""
+    pres, eff = pe["presence"], pe["efficiency"]
+    by = {(r["arm"], r["model"]): r for r in eff}
+    out = ["| arm | answer-presence ceiling | EM/ceiling haiku | sonnet | opus |",
+           "|---|---|---|---|---|"]
+    for arm in ("oracle", "dense", "bm25", "graph-facts"):
+        if arm not in pres:
+            continue
+        cells = "".join(f" {by[(arm, m)]['efficiency']:.3f} |" if (arm, m) in by else " — |"
+                        for m in TIERS)
+        out.append(f"| `{arm}` | {pres[arm]:.2f} |{cells}")
+    return "\n".join(out)
+
+
+def render(a: dict, build: dict, presence: dict, yld: dict, manifest: dict,
+           pe: dict) -> str:
     p1, p3 = a["p1_primary"], a["p3_interaction"]
     L = []
     w = L.append
@@ -85,6 +101,29 @@ def render(a: dict, build: dict, presence: dict, yld: dict, manifest: dict) -> s
       f"Decision: **{p3['decision']}**.")
     w("")
 
+    w("### The shortfall is coverage, not conversion")
+    w("")
+    w("Answer-presence is the rate at which the gold answer string is present in an arm's "
+      "injection: a ceiling on its EM under a copy-only model. EM divided by that ceiling is a "
+      "crude conversion efficiency — how well an arm used what it actually delivered.")
+    w("")
+    w(efficiency_table(pe))
+    w("")
+    w("**This is the caveat the headline needs.** The graph's injection contains the literal "
+      "gold string for "
+      f"{pe['presence']['graph-facts']:.0%} of questions against {pe['presence']['bm25']:.0%} "
+      f"for BM25, {pe['presence']['dense']:.0%} for dense and {pe['presence']['oracle']:.0%} for "
+      "the oracle. Within that coverage the graph converts evidence into correct answers about "
+      "as efficiently as BM25 and more efficiently than dense. **The P1 shortfall is "
+      "concentrated in what the extractor retained, not in how the answering model used what it "
+      "kept.** What this experiment falsifies is a graph built cheaply by the weakest tier, not "
+      "graph retrieval as such.")
+    w("")
+    w("Efficiency above 1 means an arm answered beyond its own injection — parametric memory "
+      "filling gaps in a sparse context. It appears for BM25 at opus too, so it is a low-ceiling "
+      "strong-model effect rather than anything specific to graph structure. Exploratory, "
+      "unregistered, and carrying no decision.")
+    w("")
     w("## Every arm, every tier")
     w("")
     w(arms_table(a["arms"]))
@@ -207,7 +246,8 @@ def main() -> None:
     presence = json.loads((OUT / "answer-presence.json").read_text())
     yld = json.loads((OUT / "extraction-yield.json").read_text())
     manifest = json.loads((OUT / "sample-manifest.json").read_text())
-    (OUT / "RESULT.md").write_text(render(a, build, presence, yld, manifest))
+    pe = json.loads((OUT / "presence-and-efficiency.json").read_text())
+    (OUT / "RESULT.md").write_text(render(a, build, presence, yld, manifest, pe))
     print(f"wrote {OUT / 'RESULT.md'}")
 
 

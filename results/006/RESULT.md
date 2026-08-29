@@ -8,6 +8,21 @@ Protocol: `protocols/006-graph-memory-answering.md`, tagged `protocol-006` befor
 
 **P3 (the prior art's actual thesis, registered underpowered).** The haiku-minus-opus interaction = −0.2000, CI [−0.3200, −0.0800], MDE 0.241. Decision: **no_advantage**.
 
+### The shortfall is coverage, not conversion
+
+Answer-presence is the rate at which the gold answer string is present in an arm's injection: a ceiling on its EM under a copy-only model. EM divided by that ceiling is a crude conversion efficiency — how well an arm used what it actually delivered.
+
+| arm | answer-presence ceiling | EM/ceiling haiku | sonnet | opus |
+|---|---|---|---|---|
+| `oracle` | 0.98 | 0.582 | 0.622 | 0.633 |
+| `dense` | 0.80 | 0.637 | 0.688 | 0.762 |
+| `bm25` | 0.55 | 0.727 | 0.891 | 1.036 |
+| `graph-facts` | 0.38 | 0.711 | 1.237 | 1.474 |
+
+**This is the caveat the headline needs.** The graph's injection contains the literal gold string for 38% of questions against 55% for BM25, 80% for dense and 98% for the oracle. Within that coverage the graph converts evidence into correct answers about as efficiently as BM25 and more efficiently than dense. **The P1 shortfall is concentrated in what the extractor retained, not in how the answering model used what it kept.** What this experiment falsifies is a graph built cheaply by the weakest tier, not graph retrieval as such.
+
+Efficiency above 1 means an arm answered beyond its own injection — parametric memory filling gaps in a sparse context. It appears for BM25 at opus too, so it is a low-ceiling strong-model effect rather than anything specific to graph structure. Exploratory, unregistered, and carrying no decision.
+
 ## Every arm, every tier
 
 | arm | tier | n | EM | EM lenient | EM strict | F1 | abstain | max-turns | turns | ctx tok | $ |
