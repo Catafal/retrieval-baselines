@@ -128,11 +128,53 @@
 
   <h2>Open questions</h2>
 
-  <div class="open"><span class="tag t-open">Open</span> <strong>Is <code>graph-facts</code> secretly a lexical retrieval arm?</strong>
-    <code>graphmem.recall()</code> seeds by regex-matching entity names and aliases against the
-    question, then walks. If the seeding does the work and the walk contributes nothing, the
-    arm is disguised string matching. A diagnostic separating seed-match from walk contribution
-    is under review and will be registered as an exploratory measure before analysis.</div>
+  <div class="decision"><span class="tag t-dec">Answered</span> <strong>No — the walk is real.</strong>
+    Registered as F6 before tagging and computed with no model calls: answer presence is 0.11
+    from the seed neighbourhood alone, <strong>0.39</strong> under the shipped walk, and 0.18
+    over an edge-permuted placebo graph with identical nodes and degrees. The walk contributes
+    +0.28 over string matching and +0.21 over a random graph. <code>graph-facts</code> is a real
+    retrieval mechanism. It is simply a worse one than every alternative tested.</div>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>The walk barely walks, and that bounds the claim.</strong>
+    The realised depth histogram at the registered configuration is
+    <code>{0: 663, 1: 71, 2: 9}</code> — 10.8% of injected facts lie beyond the seed
+    neighbourhood and 1.2% beyond one hop. So what was falsified is the prior art's mechanism
+    <em>as configured</em>: <code>hops=3, top_k=8</code> with a flat cut. A depth-reserved
+    variant was written and measured (55% at depth ≥ 1) and deliberately NOT registered, because
+    improving the mechanism is a different experiment from testing it.</div>
+
+  <div class="deviation"><span class="tag t-dev">Fixed</span> <strong>The grep arm was searching an empty directory.</strong>
+    Caught by a pre-tag smoke test: grep scored 0 of 3 where oracle scored 2 of 3, with zero
+    permission denials and the turn cap never reached. Every call runs in a fresh temp directory
+    so no repo content leaks in; the corpus arrives via <code>--add-dir</code>; and nothing told
+    the agent that path. Its Grep searched the empty cwd and correctly gave up. With the path
+    supplied, the same three questions score 2 of 3 — exactly oracle's score. Had this shipped,
+    every graph win in the table would have been an artifact of my own harness.</div>
+
+  <div class="deviation"><span class="tag t-dev">Fixed</span> <strong><code>resolved_model</code> recorded only the first <code>modelUsage</code> key.</strong>
+    Claude Code makes a small auxiliary haiku call alongside the requested model, so 1,793 of
+    1,800 calls recorded "haiku" whatever tier was asked for — which reads exactly like an
+    experiment that silently ran one model three times. It did not. Verified directly under the
+    run's own flags, and independently from the run's cost profile: opus costs 3.6× haiku per
+    call, sonnet 2.0×, with haiku emitting 602 output tokens per call against opus's 274.
+    Evidence in <code>results/006/model-resolution-check.json</code>.</div>
+
+  <h2>The result</h2>
+  <p><strong>The graph lost, decisively, and the author expected it to win.</strong> EM by arm:</p>
+  <table>
+    <tr><th>arm</th><th>haiku</th><th>sonnet</th><th>opus</th></tr>
+    <tr><td>closed-book</td><td>0.14</td><td>0.37</td><td>0.43</td></tr>
+    <tr><td><strong>grep</strong></td><td><strong>0.54</strong></td><td><strong>0.54</strong></td><td><strong>0.63</strong></td></tr>
+    <tr><td>bm25</td><td>0.40</td><td>0.49</td><td>0.57</td></tr>
+    <tr><td>dense</td><td>0.51</td><td>0.55</td><td>0.61</td></tr>
+    <tr><td>graph-facts</td><td>0.27</td><td>0.47</td><td>0.56</td></tr>
+    <tr><td>oracle (ceiling)</td><td>0.57</td><td>0.61</td><td>0.62</td></tr>
+  </table>
+  <p>P1 is falsified in the opposite direction (−0.27 on haiku, Holm p = 0.0006). The
+     interaction inverts and is significant (−0.20, CI [−0.32, −0.08]): the graph hurts the
+     <em>weak</em> model more, which is the exact reverse of the prior art's thesis. F4 does not
+     fire, and that is what makes the loss credible — grep at 0.54 sits within noise of the 0.57
+     oracle ceiling on haiku, and beats the oracle outright on opus.</p>
 
   <h2>Build / verification</h2>
   <table>
@@ -141,14 +183,49 @@
         <td>leak probe returns NONE; sandbox canary refused with 1 permission denial</td></tr>
     <tr><td>Corpus + sample (<code>corpus.py</code>)</td><td class="done">done</td>
         <td>990 docs, sha256 frozen, gold-always-2 verified, BM25/dense parity vs full pool</td></tr>
-    <tr><td>Graph (<code>graphmem.py</code>)</td><td>rebuilding</td>
-        <td>first build hit 576/990 timeouts at 32 workers; re-running at 10</td></tr>
+    <tr><td>Graph (<code>graphmem.py</code>)</td><td class="done">done</td>
+        <td>990/990 documents parsed, 0 errors; 7,209 entities, 8,305 edges</td></tr>
     <tr><td>Arms (<code>arms.py</code>)</td><td class="done">done</td>
-        <td>ANSWER_RULE shared verbatim; 400-token budget applied by one shared builder</td></tr>
+        <td>ANSWER_RULE shared verbatim; graph injection mean 268, max 398 of 400 tokens</td></tr>
     <tr><td>Analysis (<code>analysis006.py</code>)</td><td class="done">done</td>
-        <td>MDE table reproduces protocol §6 exactly</td></tr>
-    <tr><td>Protocol</td><td>awaiting validator</td><td>not yet tagged</td></tr>
-    <tr><td>Scored run</td><td>blocked on tag</td><td>—</td></tr>
+        <td>27 tests; MDE table reproduces protocol §6; full dry-run before the real run</td></tr>
+    <tr><td>Protocol</td><td class="done">tagged</td>
+        <td><code>protocol-006</code>, before the first scored call; tree clean at run time</td></tr>
+    <tr><td>Scored run</td><td class="done">done</td>
+        <td>1,800 calls, 1,795 ok, 5 max-turns, $62.04, 1,412s</td></tr>
+    <tr><td>Verification council</td><td class="done">done</td>
+        <td>integrity seat: 18/18 cells reproduce under an independent scorer, tag clean;
+            adversarial seat: framing fair, one required addition</td></tr>
+    <tr><td>Full test suite</td><td class="done">504 passed</td><td>—</td></tr>
   </table>
+
+  <h2>What the verification council changed</h2>
+
+  <div class="decision"><span class="tag t-dec">Verified</span> <strong>The numbers reproduce from raw data.</strong>
+    The integrity seat wrote its own SQuAD scorer rather than importing mine and recomputed all
+    18 arm×tier cells from <code>calls.jsonl</code>: every cell matches exactly. It re-derived
+    the primary contrast independently (−0.27, CI [−0.37, −0.17], d = 0.35) and the interaction
+    (−0.20, CI [−0.32, −0.08]). It confirmed the only <code>src/</code> change after the tag was
+    the provenance field, which nothing reads — arm and tier grouping use the
+    <code>--model</code> flag recorded verbatim in each call's <code>cmd</code>. n = 100 in every
+    cell, no duplicates, no missing triples, no retries, and the 5 max-turns exhaustions scored
+    as wrong rather than dropped, which runs <em>against</em> the arm the record favours.</div>
+
+  <div class="deviation"><span class="tag t-dev">Changed</span> <strong>The headline was measuring coverage and calling it reasoning.</strong>
+    The adversarial seat found the one piece of arithmetic the protocol's own logic demands and
+    that F6 never ran: answer-presence for the <em>comparison</em> arms, not just the graph.
+    Ceilings are graph 0.38, BM25 0.55, dense 0.80, oracle 0.98. Dividing EM by each arm's own
+    ceiling on haiku gives graph 0.711, BM25 0.727, dense 0.637, oracle 0.582 — <strong>the graph
+    converts the evidence it delivered about as well as BM25 and better than dense.</strong> The
+    loss is what the haiku extractor retained, not how the answerer used it. That is now stated
+    beside the headline instead of buried in the limits, and it narrows the claim considerably.</div>
+
+  <div class="open"><span class="tag t-open">Honest limit</span> <strong>What 006 does not license.</strong>
+    Nothing about graphs built by a strong or human extractor; nothing about genuinely deep
+    chains, since only 1.2% of injected facts reached depth ≥ 2; nothing about small curated
+    typed-relation corpora like the prior art's; and nothing about the personal agent-memory
+    setting, which §1 excluded before any data existed. What it falsifies is one specific
+    instantiation — cheaply extracted, shallowly walked, on an encyclopedic corpus where a
+    titled-file grep baseline already sits at the oracle ceiling.</div>
 </body>
 </html>
