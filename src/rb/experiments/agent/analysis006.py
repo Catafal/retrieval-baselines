@@ -253,6 +253,39 @@ def answer_presence(db_path, questions: list[dict], hops: int = 3, top_k: int = 
                         else "walk contributes beyond seed match and beyond placebo")}
 
 
+def extraction_yield(db_path, questions: list[dict], extraction_jsonl) -> dict:
+    """How much of the corpus actually became a graph, and per question how much of ITS gold did.
+
+    Registered because the graph is only as real as the documents that parsed. A P1 null on a
+    graph built from half the corpus is equally consistent with "graphs do not move hops" and
+    with "the extractor could not emit valid JSON for half of Wikipedia", and those are not the
+    same finding. Protocol 006 section 9: below 90% yield, F1 reports as unfalsifiable rather
+    than as a graph loss.
+    """
+    import json as _json
+    import sqlite3
+
+    from rb.experiments.agent.graphmem import _parse
+
+    rows = [_json.loads(l) for l in Path(extraction_jsonl).read_text().splitlines() if l.strip()]
+    ok = [r for r in rows if r.get("outcome") == "ok"]
+    parsed = {r["query_id"] for r in ok if _parse(r.get("answer", ""))}
+
+    db = sqlite3.connect(db_path)
+    in_graph = {t for (t,) in db.execute("SELECT DISTINCT source_doc FROM entities")}
+    db.close()
+
+    strata = {0: [], 1: [], 2: []}
+    for q in questions:
+        strata[sum(1 for t in q["gold"] if t in in_graph)].append(q["id"])
+    return {"docs_attempted": len(rows), "docs_ok": len(ok), "docs_parsed": len(parsed),
+            "yield": round(len(parsed) / max(len(rows), 1), 4),
+            "docs_in_graph": len(in_graph),
+            "gold_docs_in_graph": {str(k): len(v) for k, v in strata.items()},
+            "strata": {str(k): v for k, v in strata.items()},
+            "interpretable": len(parsed) / max(len(rows), 1) >= 0.90}
+
+
 def run(scored: list[dict], qids: list[str]) -> dict:
     idx = index(scored)
 
@@ -326,11 +359,22 @@ def run(scored: list[dict], qids: list[str]) -> dict:
             "exploratory": explor}
 
 
-if __name__ == "__main__":
-    import sys
+def main() -> None:
+    """Produce every artifact protocol 006 section 9 obliges, in one pass."""
     root = Path(__file__).resolve().parents[4]
-    scored = json.loads((root / "results/006/scored.json").read_text())
-    qids = [q["id"] for q in json.loads((root / "results/006/questions.json").read_text())]
-    out = run(scored, qids)
-    (root / "results/006/analysis.json").write_text(json.dumps(out, indent=2) + "\n")
-    print(json.dumps({k: v for k, v in out.items() if k != "exploratory"}, indent=2)[:3000])
+    out = root / "results" / "006"
+    questions = json.loads((out / "questions.json").read_text())
+    qids = [q["id"] for q in questions]
+    scored = json.loads((out / "scored.json").read_text())
+
+    (out / "analysis.json").write_text(json.dumps(run(scored, qids), indent=2) + "\n")
+    (out / "answer-presence.json").write_text(
+        json.dumps(answer_presence(out / "graph.db", questions), indent=2) + "\n")
+    (out / "extraction-yield.json").write_text(
+        json.dumps(extraction_yield(out / "graph.db", questions,
+                                    out / "extraction.jsonl"), indent=2) + "\n")
+    print("wrote analysis.json, answer-presence.json, extraction-yield.json")
+
+
+if __name__ == "__main__":
+    main()
