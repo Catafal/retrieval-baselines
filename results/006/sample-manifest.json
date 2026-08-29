@@ -1,0 +1,9 @@
+{
+  "n_questions": 100,
+  "n_pool_docs": 990,
+  "seed": 20260820,
+  "questions_sha256": "47397643a6ca3e643d541700650d6035002670c5eae3613214764b7c83673918",
+  "pool_sha256": "953c12ea4f8bd49cb234ff07fcd5155666f92d9776644d9f16196c6a67a00cbc",
+  "pool_chars": 577517,
+  "gold_always_2": true
+}

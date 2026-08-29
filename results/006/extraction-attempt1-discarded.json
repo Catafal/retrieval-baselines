@@ -1,0 +1,11 @@
+{
+  "note": "First extraction attempt, discarded. 32 concurrent claude processes starved each other on one machine; every failure is a 600s harness timeout, not a model or parse failure. Re-run at 10 workers with the SAME prompt, so the graph is built from one extraction contract throughout.",
+  "attempted": 990,
+  "outcomes": {
+    "ok": 414,
+    "timeout": 576
+  },
+  "cost_usd_wasted": 18.4,
+  "workers": 32,
+  "timeout_s": 600
+}

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Experiment 006 · Implementation Notes</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 880px;
+           margin: 40px auto; padding: 0 24px; color: #292524; line-height: 1.55; }
+    h1 { border-bottom: 3px solid #0181c9; padding-bottom: 8px; }
+    h2 { margin-top: 36px; color: #0181c9; border-bottom: 1px solid #e5e5e5; padding-bottom: 4px; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+    .decision { background: #f0f9ff; border-left: 4px solid #0181c9; padding: 12px 16px; margin: 14px 0; }
+    .deviation { background: #fffbeb; border-left: 4px solid #d97706; padding: 12px 16px; margin: 14px 0; }
+    .tradeoff { background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 12px 16px; margin: 14px 0; }
+    .open { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 14px 0; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; color: #fff; }
+    .t-dec { background: #0181c9; } .t-dev { background: #d97706; }
+    .t-trade { background: #7c3aed; } .t-open { background: #dc2626; }
+    ul { margin-top: 6px; } .meta { color: #78716c; font-size: 0.9em; }
+    .done { color: #16a34a; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #e5e5e5; padding: 6px 10px; text-align: left; font-size: 0.92em; }
+    th { background: #fafaf9; }
+  </style>
+</head>
+<body>
+  <h1>Experiment 006 — does a precomputed graph walk move the hops out of the model</h1>
+  <p class="meta">Branch <code>exp-006-graph-answering</code> · started 2026-08-28 ·
+     the last entry in the grep / vector / graph notebook sequence.</p>
+  <p>A <strong>living document</strong>. Updated as each slice lands.</p>
+
+  <h2>The spec, in one line</h2>
+  <p>Replicate <code>graph-memory-starter</code>'s comparison — a model driving its own grep
+     search, versus a precomputed knowledge-graph walk, versus BM25 — at a real sample size
+     with real baselines, using the Claude Code subscription as the model under test, on a
+     small corpus, across haiku / sonnet / opus.</p>
+
+  <h2>Design decisions <span class="meta">(spec was ambiguous → the call made)</span></h2>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>The model under test is a Claude Code agent process, not an API call.</strong>
+    The subscription constraint forced this, and it turned out to be the more faithful design:
+    the prior art measures agents driving Grep and Read, not chat completions. Every arm is a
+    <code>claude -p</code> invocation with <code>--output-format json</code>, so token counts,
+    turn counts, cost and latency are <em>measured</em> by the CLI rather than estimated.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>A new graph had to be built; 001–005's could not be reused.</strong>
+    <code>llm_extractor.py:5-6</code> records that the existing pipeline emits entities on a
+    <code>(surface_form, label)</code> contract and deliberately <em>not</em> OpenIE triples.
+    spaCy NER plus co-occurrence has no predicates, so the starter's mechanism — a recursive
+    walk over typed edges — is not expressible in it. <code>graphmem.py</code> is a faithful
+    reimplementation of the starter's three tables, seeding rule and recursive CTE.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>The extractor is pinned to haiku, the weakest tier under test.</strong>
+    Building the graph is an LLM pass over the corpus: inference-time compute moved to build
+    time. If the builder were stronger than the answerer, the graph arm would carry a smarter
+    model's reasoning into a weaker model's answer and report it as structure. Pinning to the
+    weakest tier makes that impossible. It costs the graph arm its best case, deliberately.</div>
+
+  <div class="decision"><span class="tag t-dec">Decision</span> <strong>n = 100, fixed before any answering data existed.</strong>
+    Chosen from an a-priori power table, not from a pilot, so there is no adaptive-design hole.
+    At n=100 the primary within-tier contrast has MDE 0.153–0.177; the three-tier interaction
+    has MDE 0.217–0.251 and is therefore registered <em>underpowered in advance</em> rather
+    than being allowed to report a null it could not have distinguished from an effect.</div>
+
+  <h2>Deviations <span class="meta">(intentional departures)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>The corpus is 990 documents, not the starter's 8.</strong>
+    The pool is the union of the 100 sampled questions' own HotpotQA contexts, so every other
+    question's distractors are this question's haystack. Validity check: BM25 scores R@2 =
+    0.550 here against 0.549 on 003's 66,581-passage pool, and dense 0.742 against 0.696. The
+    corpus is three orders of magnitude smaller and only very slightly easier.</div>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>The entity/predicate vocabulary is re-drawn for the domain.</strong>
+    The starter's vocabulary (PERSON, ROLE, POLICY, PROCESS, DOCUMENT) describes a company's
+    approval chain. HotpotQA is encyclopaedic. The <em>shape</em> — a closed type set and a
+    closed predicate set, which is what makes edges walkable rather than free text — is kept.</div>
+
+  <div class="deviation"><span class="tag t-dev">Deviation</span> <strong>An <code>oracle</code> arm was added that the original comparison has no equivalent of.</strong>
+    The first-principles council seat argued the mechanism claim is unfalsifiable without it:
+    a graph win over grep is indistinguishable from "the context was shorter and cleaner"
+    unless an arm supplies the same information without the graph's structure. It is also the
+    strawman guard — if grep on opus cannot approach oracle on opus, the control is broken.</div>
+
+  <h2>Tradeoffs <span class="meta">(alternatives considered)</span></h2>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>More questions vs. repeated sampling per cell.</strong>
+    The models are sampled, not greedy, so one run per cell confounds arm effect with sampling
+    noise. Repeated runs with majority vote only sharpen questions whose success probability
+    sits near 0.5, and majority-vote error falls roughly as <code>sqrt(k)</code> while MDE falls
+    as <code>1/sqrt(n)</code>. Budget went to <strong>n</strong>, not <strong>k</strong>.</div>
+
+  <div class="tradeoff"><span class="tag t-trade">Tradeoff</span> <strong>Token budget equalised at 400 tokens for every injected arm.</strong>
+    Unconstrained top-k would let a passage arm receive 3,000 tokens against the graph's 400,
+    and the difference in context <em>volume</em> would be reported as a difference in context
+    <em>structure</em>. Cost: the passage arms get ~3 passages, below their best case.</div>
+
+  <h2>Bugs found and fixed <span class="meta">(each would have invalidated the run)</span></h2>
+
+  <div class="deviation"><span class="tag t-dev">Fixed</span> <strong>The global <code>~/.claude/CLAUDE.md</code> leaked into every call.</strong>
+    Claude Code loads user-level settings regardless of working directory, so a fresh empty
+    temp dir does not stop it. Probed directly: the model quoted the file back verbatim.
+    Closed with <code>--setting-sources ""</code>; re-probed, the model now replies
+    <code>NONE</code>. The first contamination probe was measured under the leak and was
+    discarded.</div>
+
+  <div class="deviation"><span class="tag t-dev">Fixed</span> <strong><code>--add-dir</code> grants corpus access but does not confine the agent to it.</strong>
+    A grep agent given the corpus directory successfully read a canary file outside it — which
+    would have let the grep arm reach the repository holding the gold answers. Closed with
+    <code>--restricted</code>; re-probed, the read is refused with a permission denial and
+    corpus access still works.</div>
+
+  <div class="deviation"><span class="tag t-dev">Fixed</span> <strong><code>Call.tool_calls</code> was declared and never assigned.</strong>
+    It silently stayed 0 for every arm — and "0 tool calls vs 6" is the prior art's headline
+    metric. Removed in favour of <code>num_turns</code>, which the CLI actually reports.</div>
+
+  <div class="deviation"><span class="tag t-dev">Fixed</span> <strong>Exit code 1 was treated as failure, discarding valid results.</strong>
+    On <code>--max-turns</code> exhaustion the CLI exits non-zero with empty stderr and a
+    complete JSON result on stdout carrying usage, cost and turn count. The original code
+    returned early and threw all of it away. stdout is now parsed first.</div>
+
+  <div class="deviation"><span class="tag t-dev">Fixed</span> <strong>Three different failures were one empty answer scored as wrong.</strong>
+    A model that ran out of turns, a process the harness killed, and an API error are now
+    typed separately. Only the first is a fact about the model: it scores wrong and is
+    reported separately. The other two are retried once, then excluded from the denominator —
+    scoring infrastructure flakiness as a wrong answer would penalise the arm that takes
+    longest, which is the grep arm, which is the control.</div>
+
+  <h2>Open questions</h2>
+
+  <div class="open"><span class="tag t-open">Open</span> <strong>Is <code>graph-facts</code> secretly a lexical retrieval arm?</strong>
+    <code>graphmem.recall()</code> seeds by regex-matching entity names and aliases against the
+    question, then walks. If the seeding does the work and the walk contributes nothing, the
+    arm is disguised string matching. A diagnostic separating seed-match from walk contribution
+    is under review and will be registered as an exploratory measure before analysis.</div>
+
+  <h2>Build / verification</h2>
+  <table>
+    <tr><th>Slice</th><th>State</th><th>Evidence</th></tr>
+    <tr><td>Harness (<code>runner.py</code>)</td><td class="done">done</td>
+        <td>leak probe returns NONE; sandbox canary refused with 1 permission denial</td></tr>
+    <tr><td>Corpus + sample (<code>corpus.py</code>)</td><td class="done">done</td>
+        <td>990 docs, sha256 frozen, gold-always-2 verified, BM25/dense parity vs full pool</td></tr>
+    <tr><td>Graph (<code>graphmem.py</code>)</td><td>rebuilding</td>
+        <td>first build hit 576/990 timeouts at 32 workers; re-running at 10</td></tr>
+    <tr><td>Arms (<code>arms.py</code>)</td><td class="done">done</td>
+        <td>ANSWER_RULE shared verbatim; 400-token budget applied by one shared builder</td></tr>
+    <tr><td>Analysis (<code>analysis006.py</code>)</td><td class="done">done</td>
+        <td>MDE table reproduces protocol §6 exactly</td></tr>
+    <tr><td>Protocol</td><td>awaiting validator</td><td>not yet tagged</td></tr>
+    <tr><td>Scored run</td><td>blocked on tag</td><td>—</td></tr>
+  </table>
+</body>
+</html>
