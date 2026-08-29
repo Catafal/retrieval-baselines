@@ -90,6 +90,7 @@ def test_budget_is_shared_by_every_injected_arm():
 
 def _row(arm, model, qid, em, outcome="ok"):
     return {"arm": arm, "model": model, "query_id": qid, "em": em, "em_strict": em,
+            "em_lenient": em,
             "f1": float(em), "abstained": 0, "outcome": outcome, "num_turns": 1,
             "input_tokens": 10, "cache_read_tokens": 0, "cache_creation_tokens": 0,
             "cost_usd": 0.0, "duration_ms": 1}

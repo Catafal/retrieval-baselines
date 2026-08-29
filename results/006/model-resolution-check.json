@@ -1,0 +1,54 @@
+{
+  "issue": "runner.Call.resolved_model recorded next(iter(modelUsage)), the FIRST key only. Claude Code makes a small auxiliary haiku call alongside the requested model, and dict ordering put haiku first, so 1793 of 1800 calls recorded 'haiku' regardless of the tier requested. This is a PROVENANCE-FIELD defect, not an experimental one.",
+  "verification_1_direct": {
+    "method": "12 concurrent calls under the run's exact flags, capturing the full modelUsage map",
+    "haiku": {
+      "keys": [
+        "claude-haiku-4-5-20251001"
+      ]
+    },
+    "sonnet": {
+      "keys": [
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-5"
+      ],
+      "output_tokens": {
+        "haiku_auxiliary": 11,
+        "sonnet_answer": 3
+      }
+    },
+    "opus": {
+      "keys": [
+        "claude-haiku-4-5-20251001",
+        "claude-opus-5"
+      ],
+      "output_tokens": {
+        "haiku_auxiliary": 10,
+        "opus_answer": 3
+      }
+    },
+    "conclusion": "the requested model produces the answer; the haiku entry is auxiliary"
+  },
+  "verification_2_from_the_run_itself": {
+    "method": "cost and output tokens per call, computed from calls.jsonl",
+    "haiku": {
+      "n": 600,
+      "mean_cost_usd": 0.0155,
+      "mean_output_tokens": 602.4
+    },
+    "sonnet": {
+      "n": 600,
+      "mean_cost_usd": 0.0313,
+      "mean_output_tokens": 381.3
+    },
+    "opus": {
+      "n": 600,
+      "mean_cost_usd": 0.0566,
+      "mean_output_tokens": 274.0
+    },
+    "cost_ratio_opus_over_haiku": 3.6,
+    "cost_ratio_sonnet_over_haiku": 2.0,
+    "conclusion": "three distinct cost and verbosity profiles; the tiers are not the same model"
+  },
+  "fix": "runner.Call now records models_used (every modelUsage key) alongside resolved_model, which is the requested model's own key when present. Applied after this run; the run is not re-scored because the defect never touched which model answered."
+}

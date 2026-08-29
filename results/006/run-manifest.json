@@ -1,0 +1,58 @@
+{
+  "cli_version": "2.1.251 (Claude Code)",
+  "flags": [
+    "--output-format",
+    "json",
+    "--setting-sources",
+    "",
+    "--strict-mcp-config",
+    "--restricted"
+  ],
+  "n_questions": 100,
+  "n_jobs": 1800,
+  "sample_seed": 20260820,
+  "shuffle_seed": 20260828,
+  "grep_max_turns": 20,
+  "budget_tokens": 400,
+  "git": {
+    "clean": true,
+    "dirty_paths": [],
+    "dirty_source_paths": [],
+    "override_used": false
+  },
+  "environment": {
+    "python": "3.14.3",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "git_commit": "4bc6b10ea516efc786f8dc96c95ef0401b894f11",
+    "working_tree": {
+      "clean": false,
+      "dirty_paths": [
+        "results/006/graph-facts.json"
+      ],
+      "dirty_source_paths": []
+    },
+    "dataset_checksums": {
+      "2wiki_dev": {
+        "bytes": 30056098,
+        "sha256": "c0d8b60b9026b728fb07ad74c5252a0f188f6942e8ba5c02df4dfa369502ea8d"
+      },
+      "hotpotqa": {
+        "bytes": 654025350,
+        "sha256": "c62459dbc91d31329584507b1fa564b3b1abcee58800967113054ee0f5a15c62"
+      },
+      "hotpotqa_distractor": {
+        "bytes": 27452575,
+        "sha256": "c20b638ca82b21d04fe12e14ff417ad05153d4d215a65de54497fca4e972f7c6"
+      },
+      "quora": {
+        "bytes": 15853968,
+        "sha256": "56aacd9dcc4d9c093b63f175afdda0e21cbc8442ecf6c717d09de7b358d77531"
+      },
+      "scifact": {
+        "bytes": 2816079,
+        "sha256": "536e14446a0ba56ed1398ab1055f39fe852686ecad24a6306c80c490fa8e0165"
+      }
+    }
+  }
+}

@@ -92,6 +92,7 @@ class Call:
     duration_ms: int = 0
     # --- provenance, so a reader can audit without re-running ---
     resolved_model: str = ""
+    models_used: list = field(default_factory=list)
     session_id: str = ""
     service_tier: str = ""
     stop_reason: str = ""
@@ -139,8 +140,16 @@ def _fill(c: Call, d: dict) -> Call:
     c.permission_denials = len(d.get("permission_denials", []) or [])
     # The resolved snapshot id, e.g. haiku -> claude-haiku-4-5-20251001. The alias alone is
     # not a pin: it moves when a new model ships.
+    #
+    # EVERY key is recorded, not just the first. Claude Code makes a small auxiliary haiku call
+    # alongside the requested model, and taking next(iter(...)) recorded "haiku" for 1,793 of
+    # 006's 1,800 calls whatever tier was asked for -- which reads exactly like the experiment
+    # having silently run one model three times. It had not; see
+    # results/006/model-resolution-check.json. A provenance field that can be misread as an
+    # invalidated experiment is worth more than one line of code.
     mu = d.get("modelUsage") or {}
-    c.resolved_model = next(iter(mu), "")
+    c.models_used = sorted(mu)
+    c.resolved_model = next((k for k in mu if c.model.split("-")[0] in k), next(iter(mu), ""))
 
     if d.get("subtype") == "error_max_turns" or d.get("terminal_reason") == "max_turns":
         c.outcome = Outcome.MAX_TURNS
